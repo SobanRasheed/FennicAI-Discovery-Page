@@ -4,7 +4,7 @@ import PostCard from '../components/PostCard.astro';
 import NoteCard from '../components/NoteCard.astro';
 import Faq from '../components/Faq.astro';
 import JsonLd from '../components/JsonLd.astro';
-import { getNotes, getBlogPosts, getQuestions, formatDate } from '../utils/collections';
+import { getNotes, getBlogPosts, getQuestions } from '../utils/collections';
 import { getCollection } from 'astro:content';
 
 const [notes, posts, questions, subjects, levels, topics] = await Promise.all([

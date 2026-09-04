@@ -1,7 +1,7 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Breadcrumbs from '../components/Breadcrumbs.astro';
-import { getBlogPosts, getBlogCategories, formatDate } from '../utils/collections';
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import { getBlogPosts, getBlogCategories, formatDate } from '../../utils/collections';
 
 const [posts, categories] = await Promise.all([getBlogPosts(), getBlogCategories()]);
 

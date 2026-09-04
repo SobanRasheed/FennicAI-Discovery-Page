@@ -1,6 +1,6 @@
 ---
-title: HTTP Fundamentals: Complete Study Notes
-seoTitle: HTTP Fundamentals Notes: Requests, Responses, Headers, and Status Codes
+title: 'HTTP Fundamentals: Complete Study Notes'
+seoTitle: 'HTTP Fundamentals Notes: Requests, Responses, Headers, and Status Codes'
 description: >
   Complete HTTP study notes covering the request response model, methods,
   headers, status codes, and caching, with examples and practice questions.
@@ -39,7 +39,7 @@ keyTerms:
       The Content-Type value naming the body format, like text/html or
       application/json.
 importantPoints:
-  - HTTP is stateless: every request stands alone.
+  - 'HTTP is stateless: every request stands alone.'
   - Headers control behavior, the body carries data.
   - The Host header made name-based virtual hosting possible.
   - Cache-Control and ETag together enable conditional requests.

@@ -1,8 +1,8 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Breadcrumbs from '../components/Breadcrumbs.astro';
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import { getCollection } from 'astro:content';
-import { getNotes } from '../utils/collections';
+import { getNotes } from '../../utils/collections';
 
 const [subjects, notes] = await Promise.all([getCollection('subjects'), getNotes()]);
 

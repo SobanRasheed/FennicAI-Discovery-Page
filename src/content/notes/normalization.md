@@ -1,6 +1,6 @@
 ---
-title: Normalization: Complete Study Notes
-seoTitle: Database Normalization Notes: 1NF, 2NF, 3NF with Worked Examples
+title: 'Normalization: Complete Study Notes'
+seoTitle: 'Database Normalization Notes: 1NF, 2NF, 3NF with Worked Examples'
 description: >
   Complete database normalization notes covering functional dependencies,
   1NF, 2NF, and 3NF, with a five-step decomposition procedure and two
@@ -44,12 +44,10 @@ keyTerms:
       3NF violation.
 importantPoints:
   - Always find the candidate key before judging normal forms.
-  - 1NF: atomic values, no repeating groups.
-  - 2NF: no partial dependency on a composite key.
-  - 3NF: no transitive dependency, "the key, the whole key, and nothing
-    but the key."
-  - Every decomposition must be lossless: rejoining must reconstruct the
-    original data.
+  - '1NF: atomic values, no repeating groups.'
+  - '2NF: no partial dependency on a composite key.'
+  - '3NF: no transitive dependency, "the key, the whole key, and nothing but the key."'
+  - 'Every decomposition must be lossless: rejoining must reconstruct the original data.'
 formulas:
   - expression: '3NF test: for every non-trivial FD X -> A, X is a superkey OR A is prime'
     meaning: >

@@ -1,7 +1,7 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import { getQuestions } from '../../utils/collections';
+import Layout from '../../../layouts/Layout.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import { getQuestions } from '../../../utils/collections';
 
 const typeLabels: Record<string, { label: string; description: string }> = {
   mcq: { label: 'Multiple Choice Questions', description: 'MCQs with four options and the reasoning behind each distractor.' },

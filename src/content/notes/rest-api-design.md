@@ -1,6 +1,6 @@
 ---
-title: REST API Design: Complete Study Notes
-seoTitle: REST API Design Notes: Methods, Resources, and Status Codes
+title: 'REST API Design: Complete Study Notes'
+seoTitle: 'REST API Design Notes: Methods, Resources, and Status Codes'
 description: >
   Complete REST API study notes covering resources, HTTP methods, status
   codes, and design conventions, with examples and practice questions.

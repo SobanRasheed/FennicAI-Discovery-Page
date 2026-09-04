@@ -1,6 +1,6 @@
 ---
-title: Functions in C: Complete Study Notes
-seoTitle: Functions in C Notes: Parameters, Return Values, and Recursion
+title: 'Functions in C: Complete Study Notes'
+seoTitle: 'Functions in C Notes: Parameters, Return Values, and Recursion'
 description: >
   Complete study notes on functions in C covering definition syntax,
   parameters, return values, scope, and recursion, with examples and board
@@ -34,7 +34,7 @@ keyTerms:
     definition: >
       A function calling itself, with a base case that stops the chain.
 importantPoints:
-  - C passes arguments by value: the function gets a copy.
+  - 'C passes arguments by value: the function gets a copy.'
   - A function can return at most one value.
   - Variables declared inside a function vanish when it returns.
   - Every recursive function needs a base case or it never stops.

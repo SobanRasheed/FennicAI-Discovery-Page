@@ -1,8 +1,8 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Breadcrumbs from '../components/Breadcrumbs.astro';
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import { getCollection } from 'astro:content';
-import { getNotesByLevel, getQuestionsByLevel } from '../utils/collections';
+import { getNotesByLevel, getQuestionsByLevel } from '../../utils/collections';
 
 const [levels, notes] = await Promise.all([getCollection('levels'), getNotes()]);
 
