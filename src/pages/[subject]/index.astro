@@ -65,7 +65,7 @@ const pageLink = (p: number) => {
 
   <h1>{subject.title}</h1>
   {subjectImage && subjectImage.mime_type.startsWith('image/') && (
-    <img src={`/media/${subjectImage.r2_key}`} alt={subjectImage.alt_text || subject.title} class="subject-image" />
+    <img src={`/media/${subjectImage.r2_key}/`} alt={subjectImage.alt_text || subject.title} class="subject-image" />
   )}
   {subject.description && <p class="description">{subject.description}</p>}
   {subject.introduction && <div class="introduction" set:html={subject.introduction} />}

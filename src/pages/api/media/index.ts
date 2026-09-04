@@ -81,7 +81,9 @@ export const POST: APIRoute = async ({ request, locals }) => {
       .run();
     const id = result.meta?.last_row_id as number;
     await audit(locals, 'media.upload', 'media', id, { key, mime, size: file.size });
-    return json({ id, key, url: `/media/${key}`, altText }, { status: 201 });
+    // Trailing slash required: the site uses `trailingSlash: 'always'`, and a
+    // slashless media URL 404s instead of redirecting.
+    return json({ id, key, url: `/media/${key}/`, altText }, { status: 201 });
   } catch (err) {
     return jsonError((err as HttpError).status ?? 500, (err as Error).message);
   }

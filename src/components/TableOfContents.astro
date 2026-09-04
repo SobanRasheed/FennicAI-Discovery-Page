@@ -1,0 +1,235 @@
+---
+/**
+ * Table of contents.
+ *
+ * Desktop: a compact sidebar list, numbered like a textbook's chapter list,
+ * with the active section marked by a green rule (see ArticleLayout for the
+ * scroll-spy behaviour, which is progressive enhancement only).
+ *
+ * Mobile: a <details> disclosure, closed by default so it never pushes the
+ * article below the fold. No JavaScript is required for either mode.
+ */
+interface Heading {
+  depth: number;
+  text: string;
+  slug: string;
+}
+
+interface Props {
+  headings: Heading[];
+  title?: string;
+  /** Show 1. 2. 3. numbering. Off for reference lists that are already numbered. */
+  numbered?: boolean;
+  /** Minimum entries before the TOC renders at all. */
+  min?: number;
+}
+
+const { headings, title = 'On this page', numbered = true, min = 3 } = Astro.props;
+
+const items = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const show = items.length >= min;
+
+// Numbering counts only top-level entries so nested h3s do not break the
+// sequence a reader is following.
+let counter = 0;
+const numbers = items.map((h) => (h.depth === 2 ? ++counter : null));
+---
+
+{show && (
+  <nav class="toc" aria-labelledby="toc-title">
+    <details class="toc-disclosure" open>
+      <summary class="toc-summary">
+        <span id="toc-title" class="toc-title">{title}</span>
+        <span class="toc-caret" aria-hidden="true"></span>
+      </summary>
+      <ol class="toc-list" class:list={[numbered && 'toc-numbered']}>
+        {items.map((heading, i) => (
+          <li class:list={['toc-item', heading.depth === 3 && 'toc-sub']}>
+            <a href={`#${heading.slug}`} data-toc-link={heading.slug}>
+              {numbered && numbers[i] !== null && (
+                <span class="toc-num" aria-hidden="true">{numbers[i]}.</span>
+              )}
+              <span class="toc-text">{heading.text}</span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </details>
+  </nav>
+)}
+
+<style>
+  .toc {
+    font-size: var(--text-body-sm);
+  }
+
+  .toc-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    /* On desktop the TOC is always open, so the summary is a plain heading. */
+    cursor: default;
+    list-style: none;
+  }
+
+  .toc-summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .toc-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.01em;
+  }
+
+  .toc-caret {
+    display: none;
+    width: 0.4375rem;
+    height: 0.4375rem;
+    border-right: 1.5px solid var(--mute);
+    border-bottom: 1.5px solid var(--mute);
+    transform: rotate(45deg) translate(-2px, -2px);
+    transition: transform 0.15s var(--ease);
+  }
+
+  .toc-list {
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: none;
+  }
+
+  .toc-item a {
+    display: flex;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border-left: 2px solid transparent;
+    color: var(--mute);
+    line-height: var(--leading-snug);
+    text-decoration: none;
+    transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+  }
+
+  .toc-item a:hover {
+    color: var(--primary);
+  }
+
+  /* Current section. Set by the scroll-spy script when available; the
+     :target fallback covers a direct anchor visit without JS. */
+  .toc-item a[aria-current='true'],
+  .toc-item a[aria-current='location'] {
+    border-left-color: var(--primary);
+    color: var(--primary);
+    font-weight: var(--weight-medium);
+  }
+
+  .toc-num {
+    flex-shrink: 0;
+    color: var(--faint);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .toc-item a[aria-current='true'] .toc-num {
+    color: var(--primary);
+  }
+
+  .toc-sub a {
+    padding-left: var(--space-8);
+    font-size: var(--text-caption);
+  }
+
+  /* --- mobile: a real collapsible ------------------------------------- */
+  @media (max-width: 1023px) {
+    .toc {
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface);
+    }
+
+    .toc-summary {
+      padding: var(--space-3) var(--space-4);
+      cursor: pointer;
+    }
+
+    .toc-caret {
+      display: block;
+    }
+
+    .toc-disclosure[open] .toc-caret {
+      transform: rotate(225deg) translate(-2px, -2px);
+    }
+
+    .toc-list {
+      margin: 0;
+      padding: 0 var(--space-3) var(--space-3);
+      border-top: 1px solid var(--border);
+    }
+
+    .toc-item a {
+      padding-block: var(--space-3);
+    }
+  }
+</style>
+
+<script is:inline>
+  // Progressive enhancement: mark the section currently in view, and start the
+  // mobile disclosure closed. Everything above works without this running.
+  (function () {
+    var toc = document.querySelector('.toc');
+    if (!toc) return;
+
+    var disclosure = toc.querySelector('.toc-disclosure');
+    var mq = window.matchMedia('(max-width: 1023px)');
+    var syncOpen = function () {
+      if (disclosure) disclosure.open = !mq.matches;
+    };
+    syncOpen();
+    mq.addEventListener('change', syncOpen);
+
+    var links = Array.prototype.slice.call(toc.querySelectorAll('[data-toc-link]'));
+    if (!links.length || !('IntersectionObserver' in window)) return;
+
+    var targets = links
+      .map(function (link) {
+        return document.getElementById(link.getAttribute('data-toc-link'));
+      })
+      .filter(Boolean);
+    if (!targets.length) return;
+
+    var visible = new Set();
+    var mark = function () {
+      var current = null;
+      for (var i = 0; i < targets.length; i++) {
+        if (visible.has(targets[i].id)) {
+          current = targets[i].id;
+          break;
+        }
+      }
+      links.forEach(function (link) {
+        if (link.getAttribute('data-toc-link') === current) {
+          link.setAttribute('aria-current', 'true');
+        } else {
+          link.removeAttribute('aria-current');
+        }
+      });
+    };
+
+    var observer = new IntersectionObserver(
+      function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) visible.add(entry.target.id);
+          else visible.delete(entry.target.id);
+        });
+        mark();
+      },
+      { rootMargin: '-88px 0px -70% 0px', threshold: 0 },
+    );
+
+    targets.forEach(function (target) {
+      observer.observe(target);
+    });
+  })();
+</script>

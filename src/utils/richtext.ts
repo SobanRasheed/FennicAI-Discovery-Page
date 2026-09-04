@@ -47,7 +47,7 @@ export function sanitizeRichText(html: string): string {
  * stored is exactly what the public page displays.
  */
 export function renderTiptapDoc(doc: unknown): string {
-  const html = docToHtml(doc);
+  const html = nodeToHtml(doc as JsonNode);
   return sanitizeRichText(html);
 }
 

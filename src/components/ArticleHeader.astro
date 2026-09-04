@@ -1,0 +1,127 @@
+---
+/**
+ * ArticleHeader: the top of a study note or article.
+ *
+ * A subject kicker, the H1, a short standfirst, then a hairline metadata row.
+ * There is no hero image and no dark scrim: on a reference page the title
+ * should be the first thing read, at the top of the reading column, exactly
+ * where the body text starts.
+ */
+import Icon from './Icon.astro';
+
+interface Props {
+  title: string;
+  /** Subject label above the title. */
+  kicker?: string;
+  kickerHref?: string;
+  standfirst?: string;
+  updated?: Date;
+  published?: Date;
+  readingMinutes?: number;
+  author?: string;
+  authorHref?: string;
+}
+
+const {
+  title,
+  kicker,
+  kickerHref,
+  standfirst,
+  updated,
+  published,
+  readingMinutes,
+  author,
+  authorHref,
+} = Astro.props;
+
+const fmt = (d: Date) =>
+  d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+---
+
+<header class="ahdr">
+  {kicker && (
+    kickerHref ? (
+      <a class="kicker" href={kickerHref}>{kicker}</a>
+    ) : (
+      <span class="kicker">{kicker}</span>
+    )
+  )}
+
+  <h1 class="ahdr-title">{title}</h1>
+
+  {standfirst && <p class="ahdr-standfirst">{standfirst}</p>}
+
+  {(updated || published || readingMinutes || author) && (
+    <div class="ahdr-meta">
+      {updated ? (
+        <span class="meta-item">
+          <Icon name="calendar" size={15} />
+          Updated <time datetime={updated.toISOString()}>{fmt(updated)}</time>
+        </span>
+      ) : published ? (
+        <span class="meta-item">
+          <Icon name="calendar" size={15} />
+          Published <time datetime={published.toISOString()}>{fmt(published)}</time>
+        </span>
+      ) : null}
+
+      {readingMinutes && (
+        <span class="meta-item">
+          <Icon name="clock" size={15} />
+          {readingMinutes} min read
+        </span>
+      )}
+
+      {author && (
+        <span class="meta-item">
+          <Icon name="user" size={15} />
+          {authorHref ? <a href={authorHref}>{author}</a> : author}
+        </span>
+      )}
+    </div>
+  )}
+</header>
+
+<style>
+  .ahdr {
+    padding-bottom: var(--space-6);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .ahdr-title {
+    margin-top: var(--space-2);
+    font-size: clamp(1.875rem, 1.4rem + 2.2vw, 2.75rem);
+    line-height: 1.12;
+  }
+
+  .ahdr-standfirst {
+    max-width: 60ch;
+    margin-top: var(--space-4);
+    color: var(--body);
+    font-size: var(--text-body-lg);
+    line-height: var(--leading-normal);
+  }
+
+  .ahdr-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3) var(--space-6);
+    align-items: center;
+    margin-top: var(--space-6);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .ahdr-meta svg {
+    color: var(--faint);
+  }
+
+  .ahdr-meta a {
+    color: var(--mute);
+    text-decoration-color: color-mix(in srgb, var(--mute) 40%, transparent);
+  }
+
+  .ahdr-meta a:hover {
+    color: var(--primary);
+  }
+</style>

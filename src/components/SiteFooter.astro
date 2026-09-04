@@ -1,0 +1,219 @@
+---
+/**
+ * Site footer: the wordmark and a one-line description on the left, four link
+ * columns on the right, a hairline rule, then the legal line. Structured as a
+ * real <nav> per column group so the link sets are navigable landmarks.
+ */
+import Icon from './Icon.astro';
+
+interface Props {
+  /** Subject links come from content, so the column is never stale. */
+  subjects?: { href: string; label: string }[];
+}
+
+const { subjects = [] } = Astro.props;
+
+const resources = [
+  { href: '/notes/', label: 'Study Notes' },
+  { href: '/practice/', label: 'MCQs' },
+  { href: '/topics/', label: 'Topic hubs' },
+  { href: '/levels/', label: 'Education levels' },
+  { href: '/resources/', label: 'Recommended reading' },
+];
+
+const about = [
+  { href: '/about/', label: 'About us' },
+  { href: '/editorial-policy/', label: 'Editorial policy' },
+  { href: '/sources/', label: 'References' },
+  { href: '/authors/', label: 'Authors' },
+  { href: '/contact/', label: 'Contact' },
+];
+
+const legal = [
+  { href: '/privacy-policy/', label: 'Privacy policy' },
+  { href: '/terms-of-use/', label: 'Terms of use' },
+  { href: '/cookie-policy/', label: 'Cookie policy' },
+  { href: '/disclaimer/', label: 'Medical disclaimer' },
+  { href: '/corrections/', label: 'Corrections' },
+];
+
+const year = new Date().getFullYear();
+---
+
+<footer class="ftr">
+  <div class="container ftr-inner">
+    <div class="ftr-brand">
+      <a class="ftr-wordmark" href="/">
+        <span class="ftr-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true">
+            <path
+              d="M3.2 5.4A1.8 1.8 0 0 1 5 3.6h5.2c.5 0 .9.4.9.9v14.9a.6.6 0 0 1-.9.5A5.4 5.4 0 0 0 7.6 19H5a1.8 1.8 0 0 1-1.8-1.8z"
+              fill="currentColor" opacity="0.9"
+            />
+            <path
+              d="M20.8 5.4A1.8 1.8 0 0 0 19 3.6h-5.2a.9.9 0 0 0-.9.9v14.9c0 .45.48.72.87.51A5.4 5.4 0 0 1 16.4 19H19a1.8 1.8 0 0 0 1.8-1.8z"
+              fill="currentColor" opacity="0.55"
+            />
+          </svg>
+        </span>
+        <span>
+          <span class="ftr-name">Medical Study Notes</span>
+          <span class="ftr-tagline">Learn · Study · Succeed</span>
+        </span>
+      </a>
+      <p class="ftr-blurb">
+        Medical study notes, explanations, MCQs, and educational resources for
+        medical students.
+      </p>
+    </div>
+
+    <div class="ftr-cols">
+      {subjects.length > 0 && (
+        <nav aria-labelledby="ftr-subjects">
+          <h2 id="ftr-subjects">Subjects</h2>
+          <ul class="link-list">
+            {subjects.slice(0, 8).map((item) => (
+              <li><a href={item.href}>{item.label}</a></li>
+            ))}
+          </ul>
+        </nav>
+      )}
+
+      <nav aria-labelledby="ftr-resources">
+        <h2 id="ftr-resources">Resources</h2>
+        <ul class="link-list">
+          {resources.map((item) => (
+            <li><a href={item.href}>{item.label}</a></li>
+          ))}
+        </ul>
+      </nav>
+
+      <nav aria-labelledby="ftr-about">
+        <h2 id="ftr-about">About</h2>
+        <ul class="link-list">
+          {about.map((item) => (
+            <li><a href={item.href}>{item.label}</a></li>
+          ))}
+        </ul>
+      </nav>
+
+      <nav aria-labelledby="ftr-legal">
+        <h2 id="ftr-legal">Legal</h2>
+        <ul class="link-list">
+          {legal.map((item) => (
+            <li><a href={item.href}>{item.label}</a></li>
+          ))}
+        </ul>
+      </nav>
+    </div>
+  </div>
+
+  <div class="container">
+    <div class="ftr-base">
+      <p>© {year} Medical Study Notes. All rights reserved.</p>
+      <p class="ftr-note">
+        Educational reference for students. Not a substitute for professional
+        clinical judgement or patient care.
+      </p>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .ftr {
+    margin-top: auto;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .ftr-inner {
+    display: grid;
+    gap: var(--space-8);
+    padding-block: var(--space-12);
+  }
+
+  @media (min-width: 900px) {
+    .ftr-inner {
+      grid-template-columns: minmax(0, 18rem) minmax(0, 1fr);
+      gap: var(--space-16);
+    }
+  }
+
+  /* --- brand block ---------------------------------------------------- */
+  .ftr-wordmark {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .ftr-mark {
+    display: inline-flex;
+    color: var(--primary);
+  }
+
+  .ftr-name {
+    display: block;
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-weight: var(--weight-display);
+    letter-spacing: -0.02em;
+    line-height: 1.2;
+  }
+
+  .ftr-tagline {
+    display: block;
+    color: var(--mute);
+    font-size: var(--text-micro);
+    letter-spacing: 0.05em;
+  }
+
+  .ftr-blurb {
+    max-width: 34ch;
+    margin-top: var(--space-4);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  /* --- link columns --------------------------------------------------- */
+  .ftr-cols {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-8) var(--space-6);
+  }
+
+  @media (min-width: 640px) {
+    .ftr-cols {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  .ftr-cols h2 {
+    margin-bottom: var(--space-3);
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  /* --- base line ------------------------------------------------------ */
+  .ftr-base {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-8);
+    align-items: baseline;
+    justify-content: space-between;
+    padding-block: var(--space-4) var(--space-6);
+    border-top: 1px solid var(--border);
+    color: var(--faint);
+    font-size: var(--text-caption);
+  }
+
+  .ftr-note {
+    max-width: 52ch;
+  }
+</style>

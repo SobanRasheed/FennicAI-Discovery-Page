@@ -1,11 +1,12 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import PostCard from '../components/PostCard.astro';
-import NoteCard from '../components/NoteCard.astro';
+import Search from '../components/Search.astro';
+import SubjectCard from '../components/SubjectCard.astro';
+import ArticleCard from '../components/ArticleCard.astro';
 import Faq from '../components/Faq.astro';
 import JsonLd from '../components/JsonLd.astro';
-import { getNotes, getBlogPosts, getQuestions } from '../utils/collections';
-import { getCollection } from '../utils/collections';
+import Icon from '../components/Icon.astro';
+import { getNotes, getBlogPosts, getQuestions, getCollection } from '../utils/collections';
 
 const [notes, posts, questions, subjects, levels, topics] = await Promise.all([
   getNotes(),
@@ -16,44 +17,62 @@ const [notes, posts, questions, subjects, levels, topics] = await Promise.all([
   getCollection('topics'),
 ]);
 
-const featured = posts.filter((p) => p.data.featured).slice(0, 3);
-const latest = posts.slice(0, 5);
-const popularNotes = notes.filter((n) => n.data.popular).slice(0, 4);
-const updatedNotes = [...notes]
+/** Real per-subject note counts; a subject with none shows no count. */
+const subjectIndex = subjects
+  .map((subject) => ({
+    ...subject,
+    noteCount: notes.filter((n) => n.data.subject === subject.slug).length,
+    mcqCount: questions.filter((q) => q.data.subject === subject.slug).length,
+  }))
+  .sort((a, b) => b.noteCount - a.noteCount || a.data.title.localeCompare(b.data.title));
+
+/** Popular notes if flagged, otherwise the most recently updated. */
+const flaggedPopular = notes.filter((n) => n.data.popular);
+const popularNotes = (flaggedPopular.length >= 4 ? flaggedPopular : notes)
+  .slice()
   .sort((a, b) => b.data.updatedDate.valueOf() - a.data.updatedDate.valueOf())
-  .slice(0, 4);
-const popularPosts = posts.filter((p) => p.data.popular).slice(0, 3);
+  .slice(0, 5);
+
+const latestPosts = posts.slice(0, 4);
+
+const subjectLabel = (slug: string) =>
+  subjects.find((s) => s.slug === slug)?.data.title ?? slug;
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
 
 const homeFaqs = [
   {
-    question: 'What is devsyllabus?',
+    question: 'Who are these notes written for?',
     answer:
-      'devsyllabus publishes study notes, practice questions, and exam guides for computer science subjects, from Class 12 programming to university-level database and web development courses. Every note is structured for revision: objectives, key terms, worked examples, and self-test questions.',
+      'Students revising for exams. Each note is structured for recall rather than continuous reading: definitions first, then key points, clinical pearls, and practice questions at the end.',
   },
   {
     question: 'Is the content free?',
     answer:
-      'Yes. All study notes, blog articles, and practice questions are free to read, with no account required.',
+      'Yes. Every study note and practice question is free to read, with no account required.',
   },
   {
-    question: 'Who writes the notes?',
+    question: 'How is accuracy checked?',
     answer:
-      'Notes are written and reviewed by our author team, whose credentials are listed on each note and on their author pages. Technical content is checked against primary sources like RFCs, standard textbooks, and official documentation.',
+      'Every note lists the textbooks, journal articles, and clinical guidelines it draws on, so any statement can be traced back to its source. Notes show both a published and a last-updated date.',
   },
   {
-    question: 'How current is the material?',
+    question: 'Can these notes replace a textbook?',
     answer:
-      'Each note shows its published and last-updated dates. When a standard changes, like an RFC revision, we update the note and list the change on our updates page.',
+      'No. They are revision material that condenses and cross-references standard sources. Use them alongside your prescribed textbooks and course teaching, not instead of them.',
   },
 ];
 
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
-  name: 'devsyllabus',
+  name: 'Medical Study Notes',
   url: Astro.site!.href,
   description:
-    'Study notes, practice questions, and exam guides for computer science subjects.',
+    'Structured study notes, explanations, MCQs, and medical resources organised by subject.',
   potentialAction: {
     '@type': 'SearchAction',
     target: {
@@ -66,97 +85,400 @@ const jsonLd = {
 ---
 
 <Layout
-  title="devsyllabus — Computer Science Study Notes, Practice Questions, and Exam Guides"
-  description="Free computer science study notes, practice questions, and exam guides, covering web development, databases, and programming fundamentals for class and university courses."
+  title="Medical Study Notes — Study Notes, MCQs, and Revision Guides"
+  description="Structured medical study notes, explanations, MCQs, and revision resources organised by subject. Free, referenced, and written for exam preparation."
   path="/"
+  footerSubjects={footerSubjects}
+  wide
 >
   <JsonLd data={jsonLd} />
 
-  <section>
-    <h1>Study notes and exam guides for computer science</h1>
-    <p>
-      devsyllabus publishes structured study notes, practice questions with
-      worked answers, and exam technique guides for computer science subjects.
-      Every note is built for revision: learning objectives up front, key
-      terms, worked examples, and self-test questions at the end.
-    </p>
-    <p><a href="/notes/">Browse all study notes</a> or <a href="/search/">search the site</a>.</p>
+  {/* --- 1. Hero: compact and editorial, not a SaaS pitch ---------------- */}
+  <section class="hero">
+    <div class="container hero-inner">
+      <div class="hero-copy">
+        <p class="eyebrow">Medical education resource</p>
+        <h1 class="hero-title">
+          Study medicine<br /><span class="hero-em">with clarity.</span>
+        </h1>
+        <p class="lead hero-lead">
+          Structured study notes, explanations, MCQs, and medical resources
+          organised by subject.
+        </p>
+
+        <div class="hero-search">
+          <Search
+            variant="hero"
+            id="hero-search"
+            placeholder="Search anatomy, microbiology, pharmacology..."
+          />
+        </div>
+
+        <a class="link-arrow hero-more" href="/subjects/">Browse all subjects</a>
+      </div>
+
+      <aside class="hero-quote">
+        <blockquote>
+          <p>Good medical knowledge improves lives.</p>
+        </blockquote>
+        <hr class="hero-quote-rule" />
+        <p class="hero-quote-attr">Study today<br />for a better tomorrow</p>
+      </aside>
+    </div>
   </section>
 
-  <section>
-    <h2>Browse by subject</h2>
-    <ul>
-      {subjects.map((subject) => (
-        <li>
-          <a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a>
-        </li>
-      ))}
-    </ul>
-  </section>
+  <div class="container">
+    {/* --- 2. Subjects ---------------------------------------------------- */}
+    <section class="section section-plain" aria-labelledby="subjects-heading">
+      <div class="section-head-row">
+        <div>
+          <p class="eyebrow">Explore</p>
+          <h2 id="subjects-heading">Explore medical subjects</h2>
+          <p>Find study notes organised by subject.</p>
+        </div>
+        <a class="link-arrow" href="/subjects/">View all subjects</a>
+      </div>
 
-  <section>
-    <h2>Browse by education level</h2>
-    <ul>
-      {levels.map((level) => (
-        <li>
-          <a href={`/levels/${level.slug}/`}>{level.data.title}</a>
-        </li>
-      ))}
-    </ul>
-  </section>
-
-  <section>
-    <h2>Browse by type</h2>
-    <ul>
-      <li><a href="/notes/">Study notes</a></li>
-      <li><a href="/practice/">Practice questions</a></li>
-      <li><a href="/blog/">Blog articles</a></li>
-      <li><a href="/topics/">Topic hubs</a></li>
-    </ul>
-  </section>
-
-  {featured.length > 0 && (
-    <section>
-      <h2>Featured articles</h2>
-      {featured.map((post) => <PostCard post={post} />)}
+      <div class="grid grid-4 subject-grid">
+        {subjectIndex.map((subject) => (
+          <SubjectCard
+            href={`/subjects/${subject.slug}/`}
+            title={subject.data.title}
+            sub={
+              subject.mcqCount > 0 ? 'Study Notes · MCQs' : 'Study Notes'
+            }
+            count={subject.noteCount}
+          />
+        ))}
+      </div>
     </section>
-  )}
 
-  <section>
-    <h2>Latest study notes</h2>
-    {updatedNotes.map((note) => <NoteCard note={note} />)}
+    {/* --- 3. Popular notes beside the latest articles -------------------- */}
+    <section class="section split" aria-label="Popular notes and latest articles">
+      <div class="split-col">
+        <div class="section-head">
+          <p class="eyebrow">Popular</p>
+          <h2>Popular study notes</h2>
+          <p>Most accessed and important topics for medical students.</p>
+        </div>
+
+        <ul class="entry-list">
+          {popularNotes.map((note) => (
+            <li>
+              <ArticleCard
+                href={`/notes/${note.slug}/`}
+                title={note.data.title}
+                excerpt={note.data.description}
+                kicker={subjectLabel(note.data.subject)}
+                date={note.data.updatedDate}
+              />
+            </li>
+          ))}
+        </ul>
+
+        <a class="link-arrow split-more" href="/notes/">All study notes</a>
+      </div>
+
+      <div class="split-col">
+        <div class="section-head">
+          <p class="eyebrow">Latest</p>
+          <h2>Latest from Medical Study Notes</h2>
+          <p>Educational articles, exam tips, and medical resources.</p>
+        </div>
+
+        <ul class="entry-list">
+          {latestPosts.map((post) => (
+            <li>
+              <ArticleCard
+                href={`/blog/${post.slug}/`}
+                title={post.data.title}
+                excerpt={post.data.description}
+                kicker={post.data.category.replace(/-/g, ' ')}
+                date={post.data.publishedDate}
+              />
+            </li>
+          ))}
+        </ul>
+
+        <a class="link-arrow split-more" href="/blog/">All articles</a>
+      </div>
+    </section>
+  </div>
+
+  {/* --- 4. Practice band: a tinted strip, not a dark marketing block ---- */}
+  <section class="practice">
+    <div class="container practice-inner">
+      <div>
+        <p class="eyebrow">Self-testing</p>
+        <h2>{questions.length} practice questions with worked answers</h2>
+        <p class="lead practice-lead">
+          Filter by subject, level, or question type. Every answer explains the
+          reasoning, not just the correct option.
+        </p>
+      </div>
+      <div class="btn-row">
+        <a class="btn btn-primary" href="/practice/">Start practising</a>
+        <a class="btn btn-secondary" href="/topics/">Browse topics</a>
+      </div>
+    </div>
   </section>
 
-  <section>
-    <h2>Popular this month</h2>
-    {popularNotes.map((note) => <NoteCard note={note} />)}
-    {popularPosts.map((post) => <PostCard post={post} />)}
-  </section>
+  <div class="container">
+    {/* --- 5. What a note contains, shown rather than described ---------- */}
+    <section class="section section-plain" aria-labelledby="inside-heading">
+      <div class="section-head">
+        <p class="eyebrow">Inside a note</p>
+        <h2 id="inside-heading">Every note breaks down into blocks you can revise from</h2>
+        <p>
+          The same components appear in every study note, so you always know
+          where the definition, the exam-relevant point, and the clinical
+          detail will be.
+        </p>
+      </div>
 
-  <section>
-    <h2>Latest articles</h2>
-    {latest.map((post) => <PostCard post={post} />)}
-    <p><a href="/blog/">All articles</a> · <a href="/blog/archive/">Complete archive</a></p>
-  </section>
+      <div class="samples">
+        <aside class="callout callout-definition">
+          <p class="callout-label"><Icon name="book" size={15} />Definition</p>
+          <p>
+            Gram-positive bacteria retain crystal violet during Gram staining
+            and appear purple under the microscope.
+          </p>
+        </aside>
+        <aside class="callout callout-key-point">
+          <p class="callout-label"><Icon name="bulb" size={15} />Key point</p>
+          <p>
+            The thick peptidoglycan cell wall is what prevents the dye being
+            lost during decolorisation.
+          </p>
+        </aside>
+        <aside class="callout callout-clinical-pearl">
+          <p class="callout-label"><Icon name="stethoscope" size={15} />Clinical pearl</p>
+          <p>
+            Teichoic acids are unique to gram-positive organisms and act as
+            important antigens.
+          </p>
+        </aside>
+        <aside class="callout callout-important">
+          <p class="callout-label"><Icon name="alert" size={15} />Important</p>
+          <p>
+            Gram-positive organisms are generally more sensitive to penicillin
+            and vancomycin. Expect this in examinations.
+          </p>
+        </aside>
+      </div>
+    </section>
 
-  <section>
-    <h2>Practice questions</h2>
-    <p>
-      {questions.length} questions with worked answers, spanning MCQs, short
-      and long answers, and numerical problems.
-    </p>
-    <p><a href="/practice/">Practice by subject or exam</a></p>
-  </section>
+    {/* --- 6. Questions ------------------------------------------------- */}
+    <Faq faqs={homeFaqs} heading="Common questions" />
 
-  <Faq faqs={homeFaqs} heading="Frequently asked questions" />
-
-  <section>
-    <h2>Topic hubs</h2>
-    <p>Deep-dive pages collecting notes, articles, and questions per topic:</p>
-    <ul>
-      {topics.slice(0, 6).map((topic) => (
-        <li><a href={`/topics/${topic.slug}/`}>{topic.data.title}</a></li>
-      ))}
-    </ul>
-  </section>
+    {/* --- 7. Secondary browse routes ----------------------------------- */}
+    <section class="section" aria-labelledby="browse-heading">
+      <div class="section-head">
+        <h2 id="browse-heading">More ways to browse</h2>
+      </div>
+      <div class="grid grid-3">
+        <div class="browse-col">
+          <h3 class="browse-title">By education level</h3>
+          <ul class="link-list">
+            {levels.map((level) => (
+              <li><a href={`/levels/${level.slug}/`}>{level.data.title}</a></li>
+            ))}
+          </ul>
+        </div>
+        <div class="browse-col">
+          <h3 class="browse-title">By content type</h3>
+          <ul class="link-list">
+            <li><a href="/notes/">Study notes</a></li>
+            <li><a href="/practice/">MCQs and practice questions</a></li>
+            <li><a href="/blog/">Articles</a></li>
+            <li><a href="/topics/">Topic hubs</a></li>
+          </ul>
+        </div>
+        <div class="browse-col">
+          <h3 class="browse-title">Popular topics</h3>
+          <ul class="link-list">
+            {topics.slice(0, 6).map((topic) => (
+              <li><a href={`/topics/${topic.slug}/`}>{topic.data.title}</a></li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  </div>
 </Layout>
+
+<style>
+  /* --- 1. hero -------------------------------------------------------- */
+  .hero {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .hero-inner {
+    display: grid;
+    gap: var(--space-8);
+    padding-block: var(--space-12);
+  }
+
+  @media (min-width: 900px) {
+    .hero-inner {
+      grid-template-columns: minmax(0, 1fr) 17rem;
+      gap: var(--space-16);
+      align-items: center;
+      padding-block: var(--space-16);
+    }
+  }
+
+  .hero-title {
+    /* Deliberately capped: a heading, not a billboard. */
+    font-size: clamp(2.25rem, 1.6rem + 3vw, 3.5rem);
+    line-height: 1.06;
+  }
+
+  .hero-em {
+    color: var(--primary);
+  }
+
+  .hero-lead {
+    max-width: 40ch;
+    margin-top: var(--space-4);
+  }
+
+  .hero-search {
+    margin-top: var(--space-8);
+  }
+
+  .hero-more {
+    margin-top: var(--space-4);
+  }
+
+  /* The quote panel is the only decorative element on the page, and it is a
+     flat tinted block with a rule — no gradient, no glow. */
+  .hero-quote {
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+  }
+
+  .hero-quote blockquote {
+    margin: 0;
+  }
+
+  .hero-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-md);
+    font-weight: var(--weight-semibold);
+    letter-spacing: -0.02em;
+    line-height: 1.28;
+    text-wrap: balance;
+  }
+
+  .hero-quote-rule {
+    width: 2rem;
+    height: 2px;
+    margin: var(--space-6) 0 var(--space-4);
+    background: var(--primary);
+  }
+
+  .hero-quote-attr {
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    line-height: 1.7;
+    text-transform: uppercase;
+  }
+
+  /* --- 2. subjects ---------------------------------------------------- */
+  @media (min-width: 640px) {
+    .subject-grid {
+      gap: var(--space-3);
+    }
+  }
+
+  /* --- 3. split ------------------------------------------------------- */
+  .split {
+    display: grid;
+    gap: var(--space-12);
+  }
+
+  @media (min-width: 1024px) {
+    .split {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-16);
+    }
+  }
+
+  .split-col {
+    min-width: 0;
+  }
+
+  .split-col .section-head {
+    margin-bottom: var(--space-4);
+  }
+
+  .split-more {
+    margin-top: var(--space-6);
+  }
+
+  /* --- 4. practice band ----------------------------------------------- */
+  .practice {
+    border-block: 1px solid var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  .practice-inner {
+    display: grid;
+    gap: var(--space-6);
+    padding-block: var(--space-12);
+  }
+
+  @media (min-width: 900px) {
+    .practice-inner {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--space-16);
+      align-items: center;
+    }
+  }
+
+  .practice h2 {
+    max-width: 32ch;
+  }
+
+  .practice-lead {
+    margin-top: var(--space-3);
+    color: var(--body);
+  }
+
+  /* --- 5. samples ----------------------------------------------------- */
+  .samples {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  @media (min-width: 768px) {
+    .samples {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  /* Inside the grid the callouts lose their prose margins. */
+  .samples .callout {
+    margin: 0;
+  }
+
+  /* --- 7. browse ------------------------------------------------------ */
+  .browse-col {
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border-strong);
+  }
+
+  .browse-title {
+    margin-bottom: var(--space-3);
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+    letter-spacing: -0.01em;
+  }
+</style>

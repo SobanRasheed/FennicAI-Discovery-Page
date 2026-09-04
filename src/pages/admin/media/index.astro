@@ -58,7 +58,7 @@ const pageLink = (p: number) => {
         <td>{m.mime_type as string}</td>
         <td>{kb(m.size_bytes as number)}</td>
         <td>{(m.alt_text as string) || <em style="color:#b91c1c;">missing</em>}</td>
-        <td><code>/media/{m.r2_key as string}</code></td>
+        <td><code><a href={`/media/${m.r2_key as string}/`}>/media/{m.r2_key as string}/</a></code></td>
         <td>
           <a class="btn" href={`/admin/media/${m.id}/`}>Edit alt text</a>
         </td>

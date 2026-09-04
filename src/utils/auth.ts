@@ -210,6 +210,10 @@ export async function login(
   const db = env(locals).DB;
   const ip = clientIp(locals);
 
+  // First-run convenience: create the initial admin from secrets if the
+  // users table is still empty (otherwise nobody could ever sign in).
+  await ensureBootstrapAdmin(locals);
+
   // Rate limit: 5 failures per identifier (or per IP) in the last 15 minutes.
   const { failures } = await db
     .prepare(

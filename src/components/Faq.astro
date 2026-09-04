@@ -1,9 +1,11 @@
 ---
 /**
- * FAQ block + matching FAQPage structured data. Rendered on posts, notes,
- * subject/topic/level hubs, and the site-wide FAQ page. Google's guidance:
- * FAQ content must be visible on the page, which this satisfies.
+ * FAQ block plus matching FAQPage structured data. Google requires the answer
+ * text to be present in the rendered HTML, which <details> satisfies — the
+ * content is in the DOM whether or not the disclosure is open.
  */
+import Icon from './Icon.astro';
+
 interface Faq {
   question: string;
   answer: string;
@@ -12,9 +14,21 @@ interface Faq {
 interface Props {
   faqs: Faq[];
   heading?: string;
+  level?: 2 | 3;
+  id?: string;
+  /** Suppress the JSON-LD where a page already emits FAQPage schema. */
+  schema?: boolean;
 }
 
-const { faqs, heading = 'Frequently Asked Questions' } = Astro.props;
+const {
+  faqs,
+  heading = 'Frequently asked questions',
+  level = 2,
+  id = 'faq',
+  schema = true,
+} = Astro.props;
+
+const Heading = `h${level}` as 'h2' | 'h3';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -22,40 +36,88 @@ const jsonLd = {
   mainEntity: faqs.map((faq) => ({
     '@type': 'Question',
     name: faq.question,
-    acceptedAnswer: {
-      '@type': 'Answer',
-      text: faq.answer,
-    },
+    acceptedAnswer: { '@type': 'Answer', text: faq.answer },
   })),
 };
 ---
 
-{
-  faqs.length > 0 && (
-    <section class="faq">
-      <h2>{heading}</h2>
+{faqs.length > 0 && (
+  <section class="section faq" aria-labelledby={id}>
+    <Heading id={id} class="faq-heading">{heading}</Heading>
+    <div class="faq-list">
       {faqs.map((faq) => (
-        <details>
-          <summary>{faq.question}</summary>
-          <p>{faq.answer}</p>
+        <details class="faq-item">
+          <summary>
+            <span class="faq-q">{faq.question}</span>
+            <span class="faq-caret" aria-hidden="true"><Icon name="chevron-down" size={16} /></span>
+          </summary>
+          <p class="faq-a">{faq.answer}</p>
         </details>
       ))}
-      <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
-    </section>
-  )
-}
+    </div>
+    {schema && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+  </section>
+)}
 
 <style>
-  .faq details {
-    border-bottom: 1px solid #e5e5e5;
-    padding: 0.75rem 0;
+  .faq-heading {
+    margin-bottom: var(--space-6);
   }
-  .faq summary {
-    font-weight: 600;
+
+  .faq-list {
+    max-width: var(--prose-width);
+    border-top: 1px solid var(--border);
+  }
+
+  .faq-item {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .faq-item summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: var(--space-4) 0;
     cursor: pointer;
+    list-style: none;
   }
-  .faq p {
-    margin: 0.5rem 0 0;
-    line-height: 1.6;
+
+  .faq-item summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .faq-q {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+    letter-spacing: -0.01em;
+    line-height: var(--leading-snug);
+    transition: color 0.15s var(--ease);
+  }
+
+  .faq-item summary:hover .faq-q {
+    color: var(--primary);
+  }
+
+  .faq-caret {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--mute);
+    transition: transform 0.15s var(--ease);
+  }
+
+  .faq-item[open] .faq-caret {
+    transform: rotate(180deg);
+    color: var(--primary);
+  }
+
+  .faq-a {
+    max-width: 68ch;
+    padding-bottom: var(--space-4);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-prose);
   }
 </style>

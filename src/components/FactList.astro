@@ -1,0 +1,53 @@
+---
+/**
+ * FactList: the "Quick facts" list used in the article sidebar — one icon per
+ * row, a short statement, no bullets. Kept separate from RelatedContent
+ * because these rows are statements, not links.
+ */
+import Icon from './Icon.astro';
+import type { IconName } from './Icon.astro';
+
+interface Props {
+  items: string[];
+  icon?: IconName;
+}
+
+const { items, icon = 'chevron-right' } = Astro.props;
+---
+
+{items.length > 0 && (
+  <ul class="facts">
+    {items.map((item) => (
+      <li>
+        <Icon name={icon} size={14} />
+        <span>{item}</span>
+      </li>
+    ))}
+  </ul>
+)}
+
+<style>
+  .facts {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .facts li {
+    display: flex;
+    gap: var(--space-2);
+    padding-block: var(--space-2);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .facts li + li {
+    border-top: 1px solid color-mix(in srgb, var(--primary-border) 55%, transparent);
+  }
+
+  .facts svg {
+    margin-top: 0.3em;
+    color: var(--primary);
+  }
+</style>

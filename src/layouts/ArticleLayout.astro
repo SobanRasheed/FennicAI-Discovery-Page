@@ -1,0 +1,165 @@
+---
+/**
+ * ArticleLayout: the reading shell for study notes and articles.
+ *
+ * Three regions at desktop — a table-of-contents rail, the reading column
+ * capped at the prose measure, and a sidebar for quick facts and related
+ * material. Below 1024px they stack: TOC first (collapsed), article, sidebar.
+ *
+ * The article sits directly on the page rather than inside a card, which is
+ * what makes it read like a reference page instead of a dashboard panel.
+ */
+import Layout from './Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  path: string;
+  noindex?: boolean;
+  publishedTime?: Date;
+  modifiedTime?: Date;
+  crumbs?: { href?: string; label: string }[];
+  /** Set false when the page emits its own BreadcrumbList JSON-LD. */
+  crumbSchema?: boolean;
+  footerSubjects?: { href: string; label: string }[];
+}
+
+const {
+  title,
+  description,
+  path,
+  noindex = false,
+  publishedTime,
+  modifiedTime,
+  crumbs = [],
+  crumbSchema = true,
+  footerSubjects = [],
+} = Astro.props;
+
+const hasRail = Astro.slots.has('rail');
+const hasSidebar = Astro.slots.has('sidebar');
+---
+
+<Layout
+  {title}
+  {description}
+  {path}
+  {noindex}
+  ogType="article"
+  {publishedTime}
+  {modifiedTime}
+  {footerSubjects}
+  wide
+>
+  {crumbs.length > 0 && (
+    <div class="art-crumbs">
+      <div class="container">
+        <Breadcrumbs {crumbs} schema={crumbSchema} />
+      </div>
+    </div>
+  )}
+
+  <div class="container">
+    <div class:list={['art', hasRail && 'art-has-rail', hasSidebar && 'art-has-side']}>
+      {hasRail && (
+        <div class="art-rail">
+          <div class="art-sticky"><slot name="rail" /></div>
+        </div>
+      )}
+
+      <article class="art-main">
+        <slot />
+      </article>
+
+      {hasSidebar && (
+        <aside class="art-side" aria-label="Article information">
+          <div class="art-sticky"><slot name="sidebar" /></div>
+        </aside>
+      )}
+    </div>
+  </div>
+
+  <slot name="after" />
+</Layout>
+
+<style>
+  .art-crumbs {
+    padding-block: var(--space-3);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .art {
+    display: grid;
+    gap: var(--space-8);
+    padding-block: var(--space-8) var(--space-16);
+  }
+
+  .art-rail,
+  .art-side,
+  .art-main {
+    min-width: 0;
+  }
+
+  /* The reading column is capped by the prose measure, and the article's own
+     header shares that cap so the headline and body align. */
+  .art-main > :global(*) {
+    max-width: var(--prose-width);
+  }
+
+  /* Tables, figures, and callouts may run wider than the text where the
+     column allows it. */
+  .art-main > :global(.art-wide) {
+    max-width: none;
+  }
+
+  @media (min-width: 1024px) {
+    .art {
+      gap: var(--space-8);
+      padding-block: var(--space-8) var(--space-20);
+    }
+
+    .art-has-rail {
+      grid-template-columns: 13rem minmax(0, 1fr);
+    }
+
+    .art-has-side {
+      grid-template-columns: minmax(0, 1fr) 19rem;
+    }
+
+    .art-has-rail.art-has-side {
+      grid-template-columns: 13rem minmax(0, 1fr) 19rem;
+    }
+
+    /* The rail and sidebar hold position beside the article as it scrolls,
+       which is what makes a long note navigable. */
+    .art-sticky {
+      position: sticky;
+      top: calc(var(--header-height) + var(--space-6));
+      max-height: calc(100vh - var(--header-height) - var(--space-12));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .art-has-rail.art-has-side {
+      grid-template-columns: 14rem minmax(0, 1fr) 20rem;
+      gap: var(--space-12);
+    }
+  }
+
+  /* Stacked layout: the TOC leads, the sidebar follows the article. */
+  @media (max-width: 1023px) {
+    .art-rail {
+      order: -1;
+    }
+
+    .art-side {
+      padding-top: var(--space-8);
+      border-top: 1px solid var(--border);
+    }
+  }
+</style>

@@ -1,0 +1,56 @@
+---
+/**
+ * MedicalCallout: the study blocks that give a medical reference its voice.
+ *
+ * Five kinds, one shape: a hairline panel with a coloured left rule and a mono
+ * label. The colour and icon carry the meaning (a caution is not a definition),
+ * so the set is fixed rather than open-ended, and every hue is muted enough to
+ * sit inside body copy without shouting.
+ */
+import Icon from './Icon.astro';
+import type { IconName } from './Icon.astro';
+
+export type CalloutKind =
+  | 'key-point'
+  | 'clinical-pearl'
+  | 'important'
+  | 'caution'
+  | 'definition'
+  | 'note';
+
+interface Props {
+  kind?: CalloutKind;
+  /** Overrides the default label for the kind. */
+  label?: string;
+  class?: string;
+}
+
+const { kind = 'key-point', label, class: className } = Astro.props;
+
+const config: Record<CalloutKind, { label: string; icon: IconName }> = {
+  'key-point': { label: 'Key point', icon: 'bulb' },
+  'clinical-pearl': { label: 'Clinical pearl', icon: 'stethoscope' },
+  important: { label: 'Important', icon: 'alert' },
+  caution: { label: 'Caution', icon: 'alert' },
+  definition: { label: 'Definition', icon: 'book' },
+  note: { label: 'Note', icon: 'notes' },
+};
+
+const { label: defaultLabel, icon } = config[kind];
+---
+
+<aside class:list={['callout', `callout-${kind}`, className]}>
+  <p class="callout-label">
+    <Icon name={icon} size={15} />
+    {label ?? defaultLabel}
+  </p>
+  <div class="callout-body">
+    <slot />
+  </div>
+</aside>
+
+<style>
+  .callout-body > * + * {
+    margin-top: var(--space-2);
+  }
+</style>

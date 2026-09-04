@@ -1,0 +1,99 @@
+---
+/**
+ * The site's entire icon set: one file, one visual language (1.6px stroke,
+ * 24px grid, round caps and joins). Icons are inlined so there is no sprite
+ * request and no icon-font FOUT, and the set is deliberately small — an icon
+ * earns its place by carrying meaning the label does not.
+ */
+export type IconName =
+  | 'search'
+  | 'chevron-right'
+  | 'chevron-down'
+  | 'arrow-right'
+  | 'menu'
+  | 'close'
+  | 'book'
+  | 'notes'
+  | 'question'
+  | 'star'
+  | 'link'
+  | 'calendar'
+  | 'clock'
+  | 'user'
+  | 'bulb'
+  | 'stethoscope'
+  | 'alert'
+  | 'list'
+  | 'print'
+  | 'share'
+  | 'layers'
+  | 'image'
+  | 'file';
+
+interface Props {
+  name: IconName;
+  size?: number;
+  class?: string;
+  /** Set when the icon is the only content of its control. */
+  label?: string;
+}
+
+const { name, size = 16, class: className, label } = Astro.props;
+
+// Each entry is the inner markup of a 24x24 stroked icon.
+const paths: Record<IconName, string> = {
+  search: '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.9-3.9"/>',
+  'chevron-right': '<path d="M9 6l6 6-6 6"/>',
+  'chevron-down': '<path d="M6 9l6 6 6-6"/>',
+  'arrow-right': '<path d="M4 12h15"/><path d="M13 6l6 6-6 6"/>',
+  menu: '<path d="M3 6h18"/><path d="M3 12h18"/><path d="M3 18h18"/>',
+  close: '<path d="M6 6l12 12"/><path d="M18 6L6 18"/>',
+  book:
+    '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v3H6.5A2.5 2.5 0 0 1 4 20.5z"/>',
+  notes:
+    '<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9.5 12h6"/><path d="M9.5 16h4"/>',
+  question:
+    '<circle cx="12" cy="12" r="9"/><path d="M9.6 9.2A2.5 2.5 0 0 1 14.5 10c0 1.7-2.5 2-2.5 3.6"/><path d="M12 17.2h.01"/>',
+  star: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.7l5.9-.8z"/>',
+  link:
+    '<path d="M10 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1"/><path d="M14 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1"/>',
+  calendar:
+    '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17"/><path d="M8 3.5V6"/><path d="M16 3.5V6"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/>',
+  user:
+    '<circle cx="12" cy="8.5" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>',
+  bulb:
+    '<path d="M9 17.5h6"/><path d="M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.8V17.5h7V13.8A6 6 0 0 0 12 3z"/>',
+  stethoscope:
+    '<path d="M6 3v5a4 4 0 0 0 8 0V3"/><path d="M10 12v3a4.5 4.5 0 0 0 9 0v-2"/><circle cx="19" cy="10" r="2"/>',
+  alert:
+    '<path d="M12 4.5L2.8 20h18.4z"/><path d="M12 10v4.5"/><path d="M12 17.5h.01"/>',
+  list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3.5 6h.01"/><path d="M3.5 12h.01"/><path d="M3.5 18h.01"/>',
+  print:
+    '<path d="M7 8V3.5h10V8"/><rect x="3.5" y="8" width="17" height="8" rx="2"/><path d="M7 13h10v7.5H7z"/>',
+  share:
+    '<circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="M8.2 10.8l7.6-3.6"/><path d="M8.2 13.2l7.6 3.6"/>',
+  layers:
+    '<path d="M12 3l8.5 4.5L12 12 3.5 7.5z"/><path d="M3.5 12.5L12 17l8.5-4.5"/><path d="M3.5 17L12 21.5l8.5-4.5"/>',
+  image:
+    '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l4.8-4.4 4.2 3.6 2.6-2.2L20 18"/>',
+  file:
+    '<path d="M6 3h8l4.5 4.5V21H6z"/><path d="M14 3v4.5h4.5"/><path d="M9 13h6"/><path d="M9 17h4"/>',
+};
+---
+
+<svg
+  class={className}
+  width={size}
+  height={size}
+  viewBox="0 0 24 24"
+  fill="none"
+  stroke="currentColor"
+  stroke-width="1.6"
+  stroke-linecap="round"
+  stroke-linejoin="round"
+  aria-hidden={label ? undefined : 'true'}
+  role={label ? 'img' : undefined}
+  aria-label={label}
+  set:html={paths[name]}
+/>

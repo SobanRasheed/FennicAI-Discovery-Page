@@ -9,7 +9,9 @@ import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SITE = 'https://devsyllabus.com';
-const DIST = fileURLToPath(new URL('../dist/', import.meta.url));
+// The Cloudflare adapter emits static assets to dist/client/ (the Worker
+// entry lives in dist/server/ and serves these at the site root).
+const DIST = fileURLToPath(new URL('../dist/client/', import.meta.url));
 
 // Pages that must never appear in the sitemap.
 const NOINDEX_MARKER = /<meta\s+name="robots"\s+content="noindex[^"]*"/i;

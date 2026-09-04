@@ -47,7 +47,10 @@ export const onRequest = defineMiddleware(
       !path.match(/\.[a-z0-9]+$/)
     ) {
       try {
-        const to = await findRedirect(locals, path);
+        // Redirect paths are stored with a trailing slash (see
+        // recordSlugRedirect); match the raw pathname as well as the
+        // normalized one so slashless requests still hit the map.
+        const to = (await findRedirect(locals, url.pathname)) ?? (await findRedirect(locals, path));
         if (to) return redirect(to, 301);
       } catch {
         // D1 unavailable: fall through to normal rendering.

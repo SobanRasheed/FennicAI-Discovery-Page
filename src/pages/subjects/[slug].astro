@@ -1,10 +1,27 @@
 ---
+/**
+ * A subject hub: the central page for one subject.
+ *
+ * Structure: header with real counts, a tab strip (Study Notes / MCQs /
+ * Important topics), then the chapter taxonomy rendered as bordered panels
+ * with chevron link lists, and a sidebar of quick links and related subjects.
+ * The tabs are anchor links to real sections rather than JS panels, so every
+ * section is crawlable and linkable.
+ */
 import Layout from '../../layouts/Layout.astro';
-import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import SubjectCard from '../../components/SubjectCard.astro';
+import SidebarPanel from '../../components/SidebarPanel.astro';
+import RelatedContent from '../../components/RelatedContent.astro';
 import Faq from '../../components/Faq.astro';
-import NoteCard from '../../components/NoteCard.astro';
-import { getNotesBySubject, getQuestionsBySubject, getNotes, getBlogPosts } from '../../utils/collections';
-import { getCollection } from '../../utils/collections';
+import Icon from '../../components/Icon.astro';
+import {
+  getNotesBySubject,
+  getQuestionsBySubject,
+  getNotes,
+  getBlogPosts,
+  getCollection,
+} from '../../utils/collections';
 
 export async function getStaticPaths() {
   const subjects = await getCollection('subjects');
@@ -14,137 +31,507 @@ export async function getStaticPaths() {
 const { subject } = Astro.props;
 const { data } = subject;
 
-const [grouped, questions, notes, posts, topics, levels] = await Promise.all([
+const [grouped, questions, notes, posts, topics, levels, subjects] = await Promise.all([
   getNotesBySubject(subject.slug, data.chapters),
   getQuestionsBySubject(subject.slug),
   getNotes(),
   getBlogPosts(),
   getCollection('topics'),
   getCollection('levels'),
+  getCollection('subjects'),
 ]);
 
-// Level slugs actually used by this subject's notes.
-const subjectLevels = [
-  ...new Set(notes.filter((n) => n.data.subject === subject.slug).map((n) => n.data.level)),
-].map((slug) => levels.find((l) => l.slug === slug)).filter(Boolean);
+const subjectNotes = notes.filter((n) => n.data.subject === subject.slug);
 
-// Topic hubs whose slugs appear in this subject's notes' topics arrays.
-const subjectTopicSlugs = [
-  ...new Set(
-    notes.filter((n) => n.data.subject === subject.slug).flatMap((n) => n.data.topics),
-  ),
-];
+// Levels actually used by this subject's notes.
+const subjectLevels = [...new Set(subjectNotes.map((n) => n.data.level))]
+  .map((slug) => levels.find((l) => l.slug === slug))
+  .filter((l): l is NonNullable<typeof l> => Boolean(l));
+
+// Topic hubs whose slugs appear in this subject's notes.
+const subjectTopicSlugs = [...new Set(subjectNotes.flatMap((n) => n.data.topics))];
 const subjectTopics = topics.filter((t) => subjectTopicSlugs.includes(t.slug));
 
-// Blog articles whose relatedNotes belong to this subject, or share a topic.
-const subjectNoteSlugs = notes.filter((n) => n.data.subject === subject.slug).map((n) => n.slug);
+// Articles connected to this subject through related notes or shared topics.
+const subjectNoteSlugs = subjectNotes.map((n) => n.slug);
 const relatedPosts = posts.filter(
   (p) =>
     p.data.relatedNotes.some((slug) => subjectNoteSlugs.includes(slug)) ||
     p.data.topics.some((t) => subjectTopicSlugs.includes(t)),
 );
+
+// Other subjects, for the sidebar.
+const otherSubjects = subjects
+  .filter((s) => s.slug !== subject.slug)
+  .map((s) => ({
+    href: `/subjects/${s.slug}/`,
+    title: s.data.title,
+    context: s.data.description.split('.')[0],
+  }))
+  .slice(0, 4);
+
+const groupsWithNotes = grouped.filter((g) => g.notes.length > 0);
+const featuredNote = subjectNotes.find((n) => n.data.popular) ?? subjectNotes[0];
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
+
+const tabs = [
+  { href: '#study-notes', label: 'Study Notes', icon: 'book' as const },
+  ...(questions.length > 0
+    ? [{ href: '#mcqs', label: 'MCQs', icon: 'question' as const }]
+    : []),
+  ...(data.importantConcepts.length > 0
+    ? [{ href: '#important-topics', label: 'Important Topics', icon: 'star' as const }]
+    : []),
+  ...(relatedPosts.length > 0
+    ? [{ href: '#articles', label: 'Related Articles', icon: 'notes' as const }]
+    : []),
+];
 ---
 
 <Layout
-  title={`${data.title} Study Notes and Practice Questions | devsyllabus`}
+  title={`${data.title} Study Notes and Practice Questions | Medical Study Notes`}
   description={data.description}
   path={`/subjects/${subject.slug}/`}
+  footerSubjects={footerSubjects}
+  wide
 >
-  <Breadcrumbs crumbs={[{ label: 'Subjects', href: '/subjects/' }, { label: data.title }]} />
+  <PageHeader
+    kicker="Subject"
+    title={data.title}
+    lead={data.introduction}
+    crumbs={[{ label: 'Subjects', href: '/subjects/' }, { label: data.title }]}
+    stats={[
+      { value: subjectNotes.length, label: 'Study notes', icon: 'book' },
+      ...(questions.length > 0
+        ? [{ value: questions.length, label: 'Practice questions', icon: 'question' as const }]
+        : []),
+      ...(data.chapters.length > 0
+        ? [{ value: data.chapters.length, label: 'Chapters', icon: 'layers' as const }]
+        : []),
+    ]}
+  >
+    {subjectLevels.length > 0 && (
+      <p class="hub-levels">
+        Also organised by level:
+        {subjectLevels.map((level, i) => (
+          <>
+            {i > 0 && <span aria-hidden="true">, </span>}
+            <a href={`/levels/${level.slug}/`}>{level.data.title}</a>
+          </>
+        ))}
+      </p>
+    )}
+  </PageHeader>
 
-  <h1>{data.title}</h1>
-  <p class="overview">{data.introduction}</p>
-
-  {subjectLevels.length > 0 && (
-    <p>
-      Also available by education level:
-      {subjectLevels.map((level, i) => (
-        <>
-          {i > 0 && <span>, </span>}
-          <a href={`/levels/${level.slug}/`}>{level.data.title}</a>
-        </>
-      ))}
-    </p>
-  )}
-
-  <section>
-    <h2>Chapters</h2>
-    {grouped.map(({ chapter, notes: chapterNotes }) => (
-      <div class="chapter">
-        <h3>{chapter.title}</h3>
-        <p>{chapter.description}</p>
-        {chapterNotes.length > 0 ? (
-          <ul>
-            {chapterNotes.map((note) => (
-              <li><a href={`/notes/${note.slug}/`}>{note.data.title}</a></li>
-            ))}
-          </ul>
-        ) : (
-          <p class="empty">Notes for this chapter are in progress.</p>
-        )}
+  {/* Section navigation: real anchors, horizontally scrollable on mobile. */}
+  {tabs.length > 1 && (
+    <nav class="tabs" aria-label="Sections on this page">
+      <div class="container">
+        <ul>
+          {tabs.map((tab) => (
+            <li>
+              <a href={tab.href}>
+                <Icon name={tab.icon} size={16} />
+                {tab.label}
+              </a>
+            </li>
+          ))}
+        </ul>
       </div>
-    ))}
-  </section>
-
-  {data.importantConcepts.length > 0 && (
-    <section>
-      <h2>Important concepts</h2>
-      <ul>
-        {data.importantConcepts.map((concept) => <li>{concept}</li>)}
-      </ul>
-    </section>
+    </nav>
   )}
 
-  {questions.length > 0 && (
-    <section>
-      <h2>Practice questions ({questions.length})</h2>
-      <p><a href={`/practice/subject/${subject.slug}/`}>Practice {data.title} questions</a></p>
-    </section>
-  )}
+  <div class="container">
+    <div class="hub">
+      <div class="hub-main">
+        {/* --- chapters / topics ------------------------------------------ */}
+        <section class="section section-plain" aria-labelledby="study-notes">
+          <div class="section-head">
+            <h2 id="study-notes">Topics in {data.title}</h2>
+            <p>
+              Browse study notes by topic. Each section groups the notes for one
+              chapter of the subject.
+            </p>
+          </div>
 
-  {subjectTopics.length > 0 && (
-    <section>
-      <h2>Topic hubs</h2>
-      <ul>
-        {subjectTopics.map((topic) => (
-          <li><a href={`/topics/${topic.slug}/`}>{topic.data.title}</a></li>
-        ))}
-      </ul>
-    </section>
-  )}
+          {groupsWithNotes.length > 0 ? (
+            <div class="chapters">
+              {groupsWithNotes.map(({ chapter, notes: chapterNotes }) => (
+                <section class="chapter" aria-labelledby={`ch-${chapter.slug}`}>
+                  <h3 id={`ch-${chapter.slug}`} class="chapter-title">{chapter.title}</h3>
+                  {chapter.description && (
+                    <p class="chapter-desc">{chapter.description}</p>
+                  )}
+                  <ul class="chevron-list chapter-notes">
+                    {chapterNotes.map((note) => (
+                      <li><a href={`/notes/${note.slug}/`}>{note.data.title}</a></li>
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          ) : (
+            <div class="empty-state">
+              <h3>Notes in progress</h3>
+              <p>
+                No published notes for this subject yet. Browse the
+                <a href="/notes/"> full note index</a> in the meantime.
+              </p>
+            </div>
+          )}
 
-  {relatedPosts.length > 0 && (
-    <section>
-      <h2>Related articles</h2>
-      <ul>
-        {relatedPosts.map((post) => (
-          <li><a href={`/blog/${post.slug}/`}>{post.data.title}</a></li>
-        ))}
-      </ul>
-    </section>
-  )}
+          {/* Chapters with no notes yet are listed plainly rather than shown
+              as empty panels. */}
+          {grouped.some((g) => g.notes.length === 0) && (
+            <p class="upcoming">
+              Also planned:
+              {grouped
+                .filter((g) => g.notes.length === 0)
+                .map((g, i) => (
+                  <>
+                    {i > 0 && <span aria-hidden="true">, </span>}
+                    <span>{g.chapter.title}</span>
+                  </>
+                ))}
+            </p>
+          )}
+        </section>
 
-  {data.exams.length > 0 && (
-    <section>
-      <h2>Exams and boards</h2>
-      <ul>
-        {data.exams.map((exam) => <li>{exam}</li>)}
-      </ul>
-    </section>
-  )}
+        {/* --- MCQs ------------------------------------------------------- */}
+        {questions.length > 0 && (
+          <section class="section" aria-labelledby="mcqs">
+            <div class="section-head-row">
+              <div>
+                <h2 id="mcqs">Practice questions</h2>
+                <p>
+                  {questions.length} question{questions.length === 1 ? '' : 's'} on
+                  {' '}{data.title}, each with the full answer and an explanation.
+                </p>
+              </div>
+              <a class="link-arrow" href={`/practice/subject/${subject.slug}/`}>
+                Practise all questions
+              </a>
+            </div>
 
-  <Faq faqs={data.faqs} />
+            <ul class="chevron-list bordered-list">
+              {questions.slice(0, 6).map((q) => (
+                <li>
+                  <a href={`/practice/${q.slug}/`}>
+                    <span class="q-text">{q.data.question}</span>
+                    <span class="tag">{q.data.type}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* --- important concepts ---------------------------------------- */}
+        {data.importantConcepts.length > 0 && (
+          <section class="section" aria-labelledby="important-topics">
+            <div class="section-head">
+              <h2 id="important-topics">Important topics</h2>
+              <p>High-yield concepts examiners return to.</p>
+            </div>
+            <ul class="concepts">
+              {data.importantConcepts.map((concept) => <li>{concept}</li>)}
+            </ul>
+          </section>
+        )}
+
+        {/* --- related articles ------------------------------------------ */}
+        {relatedPosts.length > 0 && (
+          <section class="section" aria-labelledby="articles">
+            <div class="section-head">
+              <h2 id="articles">Related articles</h2>
+            </div>
+            <ul class="chevron-list bordered-list">
+              {relatedPosts.map((post) => (
+                <li><a href={`/blog/${post.slug}/`}>{post.data.title}</a></li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {data.exams.length > 0 && (
+          <section class="section" aria-labelledby="exams">
+            <div class="section-head">
+              <h2 id="exams">Exams and boards</h2>
+              <p>This material maps to the following examinations.</p>
+            </div>
+            <ul class="link-list exam-list">
+              {data.exams.map((exam) => <li>{exam}</li>)}
+            </ul>
+          </section>
+        )}
+
+        <Faq faqs={data.faqs} />
+      </div>
+
+      {/* --- sidebar ---------------------------------------------------- */}
+      <aside class="hub-side" aria-label="Subject links">
+        <div class="hub-sticky">
+          <SidebarPanel heading="Quick links" icon="link">
+            <ul class="chevron-list">
+              <li><a href="/notes/">All {data.title} notes</a></li>
+              {questions.length > 0 && (
+                <li><a href={`/practice/subject/${subject.slug}/`}>{data.title} MCQs</a></li>
+              )}
+              <li><a href="/topics/">Topic hubs</a></li>
+              <li><a href="/resources/">Recommended reading</a></li>
+              <li><a href="/sources/">References and sources</a></li>
+            </ul>
+          </SidebarPanel>
+
+          {featuredNote && (
+            <SidebarPanel heading="Featured note" icon="star" variant="tint">
+              <p class="feat-title">
+                <a href={`/notes/${featuredNote.slug}/`}>{featuredNote.data.title}</a>
+              </p>
+              <p class="feat-desc">{featuredNote.data.description}</p>
+              <a class="link-arrow" href={`/notes/${featuredNote.slug}/`}>Read the note</a>
+            </SidebarPanel>
+          )}
+
+          {subjectTopics.length > 0 && (
+            <SidebarPanel heading="Topics covered" icon="layers">
+              <ul class="chevron-list">
+                {subjectTopics.map((topic) => (
+                  <li><a href={`/topics/${topic.slug}/`}>{topic.data.title}</a></li>
+                ))}
+              </ul>
+            </SidebarPanel>
+          )}
+
+          {otherSubjects.length > 0 && (
+            <SidebarPanel heading="Related subjects" icon="book">
+              <RelatedContent
+                items={otherSubjects}
+                variant="list"
+                heading=""
+                level={3}
+                id="side-subjects"
+              />
+            </SidebarPanel>
+          )}
+        </div>
+      </aside>
+    </div>
+  </div>
 </Layout>
 
 <style>
-  .overview {
-    font-size: 1.1rem;
+  .hub-levels {
+    margin-top: var(--space-4);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
   }
+
+  /* --- tab strip ------------------------------------------------------- */
+  .tabs {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .tabs ul {
+    display: flex;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    list-style: none;
+  }
+
+  .tabs ul::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tabs a {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-4) var(--space-4);
+    border-bottom: 2px solid transparent;
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+  }
+
+  .tabs a svg {
+    color: var(--faint);
+    transition: color 0.15s var(--ease);
+  }
+
+  .tabs a:hover {
+    border-bottom-color: var(--primary-border);
+    color: var(--primary);
+  }
+
+  .tabs a:hover svg {
+    color: var(--primary);
+  }
+
+  /* --- hub layout ------------------------------------------------------ */
+  .hub {
+    display: grid;
+    gap: var(--space-8);
+    padding-block: 0 var(--space-16);
+  }
+
+  .hub-main,
+  .hub-side {
+    min-width: 0;
+  }
+
+  @media (min-width: 1024px) {
+    .hub {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+      gap: var(--space-12);
+    }
+
+    .hub-sticky {
+      position: sticky;
+      top: calc(var(--header-height) + var(--space-6));
+      max-height: calc(100vh - var(--header-height) - var(--space-12));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+    }
+  }
+
+  @media (max-width: 1023px) {
+    .hub-side {
+      padding-top: var(--space-8);
+      border-top: 1px solid var(--border);
+    }
+  }
+
+  /* --- chapter panels -------------------------------------------------- */
+  .chapters {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  @media (min-width: 700px) {
+    .chapters {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
   .chapter {
-    margin-bottom: 1.5rem;
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
   }
-  .empty {
-    color: #777;
-    font-style: italic;
+
+  .chapter-title {
+    font-size: var(--text-display-sm);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.015em;
+  }
+
+  .chapter-desc {
+    margin-top: var(--space-1);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .chapter-notes {
+    margin-top: var(--space-4);
+    padding-top: var(--space-1);
+    border-top: 1px solid var(--border);
+  }
+
+  .upcoming {
+    margin-top: var(--space-6);
+    color: var(--faint);
+    font-size: var(--text-body-sm);
+  }
+
+  /* --- shared list treatments ----------------------------------------- */
+  .bordered-list {
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .bordered-list a {
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding-block: var(--space-3);
+  }
+
+  .q-text {
+    flex: 1;
+  }
+
+  .concepts {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  @media (min-width: 640px) {
+    .concepts {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-2) var(--space-6);
+    }
+  }
+
+  .concepts li {
+    position: relative;
+    padding-left: var(--space-6);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .concepts li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0.62em;
+    width: 0.625rem;
+    height: 2px;
+    background: var(--primary);
+  }
+
+  .exam-list li {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+
+  /* --- sidebar bits ---------------------------------------------------- */
+  .feat-title {
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+    letter-spacing: -0.015em;
+    line-height: var(--leading-snug);
+  }
+
+  .feat-title a {
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .feat-title a:hover {
+    color: var(--primary);
+  }
+
+  .feat-desc {
+    color: var(--body);
+    font-size: var(--text-body-sm);
   }
 </style>

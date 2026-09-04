@@ -1,0 +1,146 @@
+---
+/**
+ * Search: the site-wide search form.
+ *
+ * A real GET form to /search/, so it works with JavaScript disabled and a
+ * shared /search/?q=... URL reproduces the result. Three sizes: `hero` (the
+ * homepage field with a submit button), `page` (the search page field), and
+ * `inline` (compact, for sidebars and empty states).
+ */
+import Icon from './Icon.astro';
+
+interface Props {
+  variant?: 'hero' | 'page' | 'inline';
+  placeholder?: string;
+  /** Prefills the field on the search results page. */
+  value?: string;
+  label?: string;
+  id?: string;
+  autofocus?: boolean;
+}
+
+const {
+  variant = 'page',
+  placeholder = 'Search anatomy, microbiology, pharmacology...',
+  value = '',
+  label = 'Search study notes, articles, and MCQs',
+  id = 'site-search',
+  autofocus = false,
+} = Astro.props;
+---
+
+<form class:list={['srch', `srch-${variant}`]} role="search" action="/search/" method="get">
+  <label class="visually-hidden" for={id}>{label}</label>
+  <span class="srch-icon" aria-hidden="true"><Icon name="search" size={18} /></span>
+  <input
+    id={id}
+    type="search"
+    name="q"
+    value={value}
+    placeholder={placeholder}
+    autocomplete="off"
+    autofocus={autofocus || undefined}
+  />
+  {variant === 'hero' ? (
+    <button class="btn btn-primary srch-submit" type="submit">Search</button>
+  ) : (
+    <button class="srch-go" type="submit">
+      <Icon name="arrow-right" size={16} label="Search" />
+    </button>
+  )}
+</form>
+
+<style>
+  .srch {
+    display: flex;
+    align-items: stretch;
+    max-width: 34rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+  }
+
+  .srch:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
+  }
+
+  .srch-icon {
+    display: inline-flex;
+    align-items: center;
+    padding-left: var(--space-4);
+    color: var(--mute);
+    pointer-events: none;
+  }
+
+  .srch input {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    padding: var(--space-3) var(--space-3);
+    border: 0;
+    background: none;
+    font-size: var(--text-body-sm);
+  }
+
+  .srch input:focus {
+    outline: none;
+    box-shadow: none;
+  }
+
+  /* The compact submit: an arrow button that only shows itself on hover or
+     focus, so the field reads as a field rather than a widget. */
+  .srch-go {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    border: 0;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: none;
+    color: var(--mute);
+    cursor: pointer;
+    transition: color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .srch-go:hover {
+    background: var(--surface-sunken);
+    color: var(--primary);
+  }
+
+  /* --- hero: taller, with a solid submit button ----------------------- */
+  .srch-hero {
+    max-width: 36rem;
+  }
+
+  .srch-hero input {
+    padding-block: var(--space-4);
+    font-size: var(--text-body);
+  }
+
+  .srch-submit {
+    height: auto;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding-inline: var(--space-6);
+    font-size: var(--text-body-sm);
+  }
+
+  /* --- inline: sidebar scale ------------------------------------------ */
+  .srch-inline {
+    max-width: none;
+  }
+
+  .srch-inline .srch-icon {
+    padding-left: var(--space-3);
+  }
+
+  .srch-inline input {
+    padding-block: var(--space-2);
+  }
+
+  .srch-inline .srch-go {
+    width: 34px;
+  }
+</style>

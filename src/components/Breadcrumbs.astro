@@ -1,8 +1,11 @@
 ---
 /**
- * Visible breadcrumb trail with matching BreadcrumbList structured data.
- * The last crumb is the current page (no link, per Google's guidelines).
- * Item 1 is always Home.
+ * Breadcrumb trail with matching BreadcrumbList structured data. The last
+ * crumb is the current page and is not a link, per Google's guidance. Item 1
+ * is always Home.
+ *
+ * On narrow screens the trail scrolls horizontally rather than wrapping into
+ * three ragged lines.
  */
 interface Crumb {
   label: string;
@@ -11,9 +14,11 @@ interface Crumb {
 
 interface Props {
   crumbs: Crumb[];
+  /** Suppresses the JSON-LD when a page already emits its own BreadcrumbList. */
+  schema?: boolean;
 }
 
-const { crumbs } = Astro.props;
+const { crumbs, schema = true } = Astro.props;
 
 const allCrumbs = [{ label: 'Home', href: '/' }, ...crumbs];
 const site = Astro.site!;
@@ -30,42 +35,74 @@ const jsonLd = {
 };
 ---
 
-<nav aria-label="Breadcrumb">
-  <ol class="breadcrumbs">
-    {
-      allCrumbs.map((crumb, index) => (
-        <li>
-          {crumb.href ? (
-            <a href={crumb.href}>{crumb.label}</a>
-          ) : (
-            <span aria-current="page">{crumb.label}</span>
-          )}
-          {index < allCrumbs.length - 1 && <span class="separator">/</span>}
-        </li>
-      ))
-    }
+<nav class="crumbs" aria-label="Breadcrumb">
+  <ol>
+    {allCrumbs.map((crumb, index) => (
+      <li>
+        {crumb.href && index < allCrumbs.length - 1 ? (
+          <a href={crumb.href}>{crumb.label}</a>
+        ) : (
+          <span aria-current="page">{crumb.label}</span>
+        )}
+      </li>
+    ))}
   </ol>
 </nav>
-<script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
+{schema && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
 
 <style>
-  .breadcrumbs {
+  .crumbs {
+    /* Full-width scroll on mobile without clipping the focus ring. */
+    overflow-x: auto;
+    scrollbar-width: none;
+    font-size: var(--text-body-sm);
+  }
+
+  .crumbs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .crumbs ol {
     display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-    list-style: none;
-    margin: 0 0 1.5rem;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
     padding: 0;
-    font-size: 0.9rem;
+    list-style: none;
+    white-space: nowrap;
   }
-  .breadcrumbs a {
-    color: #444;
+
+  .crumbs li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
   }
-  .breadcrumbs [aria-current] {
-    color: #111;
+
+  /* Chevron drawn with borders — no icon request for a separator. */
+  .crumbs li + li::before {
+    content: '';
+    flex-shrink: 0;
+    width: 0.3125rem;
+    height: 0.3125rem;
+    border-top: 1.5px solid var(--faint);
+    border-right: 1.5px solid var(--faint);
+    transform: rotate(45deg);
   }
-  .separator {
-    margin-left: 0.25rem;
-    color: #999;
+
+  .crumbs a {
+    color: var(--mute);
+    text-decoration: none;
+  }
+
+  .crumbs a:hover {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  .crumbs [aria-current='page'] {
+    color: var(--ink);
+    font-weight: var(--weight-medium);
   }
 </style>

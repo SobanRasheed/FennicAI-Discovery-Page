@@ -1,0 +1,406 @@
+---
+/**
+ * Site header: compact, one line at desktop, thin rule underneath.
+ *
+ * Desktop  — wordmark | primary nav | search field | About
+ * Mobile   — wordmark | search icon | menu toggle
+ *
+ * The mobile menu and the mobile search panel are CSS-only disclosures driven
+ * by hidden checkboxes, so the header needs no client-side JavaScript at all.
+ * Both panels close on navigation because each is a real page load.
+ */
+import Icon from './Icon.astro';
+
+interface Props {
+  /** Current path, used to mark the active nav item. */
+  path: string;
+}
+
+const { path } = Astro.props;
+
+const nav = [
+  { href: '/subjects/', label: 'Subjects' },
+  { href: '/notes/', label: 'Study Notes' },
+  { href: '/practice/', label: 'MCQs' },
+  { href: '/blog/', label: 'Blog' },
+];
+
+const isCurrent = (href: string) =>
+  href === '/' ? path === '/' : path === href || path.startsWith(href);
+---
+
+<header class="hdr">
+  <div class="container hdr-inner">
+    <a class="hdr-brand" href="/">
+      <span class="hdr-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
+          <path
+            d="M3.2 5.4A1.8 1.8 0 0 1 5 3.6h5.2c.5 0 .9.4.9.9v14.9a.6.6 0 0 1-.9.5A5.4 5.4 0 0 0 7.6 19H5a1.8 1.8 0 0 1-1.8-1.8z"
+            fill="currentColor" opacity="0.9"
+          />
+          <path
+            d="M20.8 5.4A1.8 1.8 0 0 0 19 3.6h-5.2a.9.9 0 0 0-.9.9v14.9c0 .45.48.72.87.51A5.4 5.4 0 0 1 16.4 19H19a1.8 1.8 0 0 0 1.8-1.8z"
+            fill="currentColor" opacity="0.55"
+          />
+        </svg>
+      </span>
+      <span class="hdr-brand-text">
+        <span class="hdr-name">Medical Study Notes</span>
+        <span class="hdr-tagline">Learn · Study · Succeed</span>
+      </span>
+    </a>
+
+    <nav class="hdr-nav" aria-label="Primary">
+      <ul>
+        {nav.map((item) => (
+          <li>
+            <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
+              {item.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+
+    <form class="hdr-search" role="search" action="/search/" method="get">
+      <label class="visually-hidden" for="hdr-q">Search medical topics</label>
+      <span class="hdr-search-icon" aria-hidden="true"><Icon name="search" size={16} /></span>
+      <input
+        id="hdr-q"
+        type="search"
+        name="q"
+        placeholder="Search medical topics..."
+        autocomplete="off"
+      />
+    </form>
+
+    <a class="hdr-about" href="/about/" aria-current={isCurrent('/about/') ? 'page' : undefined}>
+      About
+    </a>
+
+    {/* --- mobile controls: CSS-only disclosures --------------------------- */}
+    <input class="hdr-toggle" type="checkbox" id="hdr-search-toggle" hidden />
+    <label class="hdr-icon-btn hdr-search-btn" for="hdr-search-toggle">
+      <Icon name="search" size={19} label="Search" />
+    </label>
+
+    <input class="hdr-toggle" type="checkbox" id="hdr-menu-toggle" hidden />
+    <label class="hdr-icon-btn hdr-menu-btn" for="hdr-menu-toggle">
+      <span class="hdr-menu-open"><Icon name="menu" size={20} label="Open menu" /></span>
+      <span class="hdr-menu-close"><Icon name="close" size={20} label="Close menu" /></span>
+    </label>
+
+    <div class="hdr-panel hdr-panel-search">
+      <form role="search" action="/search/" method="get" class="search-field">
+        <label class="visually-hidden" for="hdr-q-mobile">Search medical topics</label>
+        <Icon name="search" size={16} />
+        <input
+          id="hdr-q-mobile"
+          type="search"
+          name="q"
+          placeholder="Search anatomy, microbiology..."
+          autocomplete="off"
+        />
+      </form>
+    </div>
+
+    <nav class="hdr-panel hdr-panel-menu" aria-label="Mobile">
+      <ul>
+        {nav.map((item) => (
+          <li>
+            <a href={item.href} aria-current={isCurrent(item.href) ? 'page' : undefined}>
+              {item.label}
+              <Icon name="chevron-right" size={16} />
+            </a>
+          </li>
+        ))}
+        <li>
+          <a href="/about/">About<Icon name="chevron-right" size={16} /></a>
+        </li>
+        <li>
+          <a href="/search/">Search<Icon name="chevron-right" size={16} /></a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<style>
+  .hdr {
+    position: sticky;
+    top: 0;
+    z-index: 60;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .hdr-inner {
+    display: flex;
+    align-items: center;
+    gap: var(--space-6);
+    min-height: var(--header-height);
+  }
+
+  /* --- wordmark ------------------------------------------------------- */
+  .hdr-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-shrink: 0;
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .hdr-mark {
+    display: inline-flex;
+    color: var(--primary);
+  }
+
+  .hdr-brand-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .hdr-name {
+    font-family: var(--font-display);
+    font-size: 1.0625rem;
+    font-weight: var(--weight-display);
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+
+  .hdr-tagline {
+    color: var(--mute);
+    font-size: var(--text-micro);
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+  }
+
+  /* --- desktop nav ---------------------------------------------------- */
+  .hdr-nav {
+    display: none;
+  }
+
+  .hdr-nav ul {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hdr-nav a {
+    display: block;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+    white-space: nowrap;
+    transition: color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .hdr-nav a:hover {
+    background: var(--surface-sunken);
+    color: var(--ink);
+  }
+
+  /* Active item: green text plus a short underline sitting on the header
+     rule, which is how a documentation site marks its section. */
+  .hdr-nav a[aria-current='page'] {
+    position: relative;
+    color: var(--primary);
+  }
+
+  .hdr-nav a[aria-current='page']::after {
+    content: '';
+    position: absolute;
+    left: var(--space-3);
+    right: var(--space-3);
+    bottom: calc(-1 * (var(--header-height) / 2 - 50%) - 1px);
+    height: 2px;
+    background: var(--primary);
+  }
+
+  /* --- desktop search ------------------------------------------------- */
+  .hdr-search {
+    display: none;
+    position: relative;
+    flex: 0 1 20rem;
+    margin-left: auto;
+  }
+
+  .hdr-search-icon {
+    position: absolute;
+    left: var(--space-3);
+    top: 50%;
+    transform: translateY(-50%);
+    display: inline-flex;
+    color: var(--mute);
+    pointer-events: none;
+  }
+
+  .hdr-search input {
+    height: 38px;
+    min-height: 0;
+    padding-left: calc(var(--space-4) + var(--space-6));
+  }
+
+  .hdr-about {
+    display: none;
+    flex-shrink: 0;
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+  }
+
+  .hdr-about:hover,
+  .hdr-about[aria-current='page'] {
+    color: var(--primary);
+  }
+
+  /* --- mobile controls ------------------------------------------------ */
+  .hdr-toggle {
+    display: none;
+  }
+
+  .hdr-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--body);
+    cursor: pointer;
+    transition: background-color 0.15s var(--ease), color 0.15s var(--ease);
+  }
+
+  .hdr-icon-btn:hover {
+    background: var(--surface-sunken);
+    color: var(--ink);
+  }
+
+  .hdr-search-btn {
+    margin-left: auto;
+  }
+
+  .hdr-menu-close,
+  .hdr-menu-open {
+    display: inline-flex;
+  }
+
+  .hdr-menu-close {
+    display: none;
+  }
+
+  #hdr-menu-toggle:checked ~ .hdr-menu-btn .hdr-menu-open {
+    display: none;
+  }
+
+  #hdr-menu-toggle:checked ~ .hdr-menu-btn .hdr-menu-close {
+    display: inline-flex;
+  }
+
+  #hdr-search-toggle:checked ~ .hdr-search-btn,
+  #hdr-menu-toggle:checked ~ .hdr-menu-btn {
+    background: var(--surface-sunken);
+    color: var(--primary);
+  }
+
+  /* Keyboard access for the label-as-button pattern. */
+  .hdr-toggle:focus-visible ~ .hdr-icon-btn {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* --- mobile panels -------------------------------------------------- */
+  .hdr-panel {
+    display: none;
+    flex-basis: 100%;
+    padding-block: var(--space-3) var(--space-4);
+    border-top: 1px solid var(--border);
+  }
+
+  #hdr-search-toggle:checked ~ .hdr-panel-search,
+  #hdr-menu-toggle:checked ~ .hdr-panel-menu {
+    display: block;
+  }
+
+  .hdr-panel-menu ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hdr-panel-menu li + li {
+    border-top: 1px solid var(--border);
+  }
+
+  .hdr-panel-menu a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    /* 48px tap target */
+    padding: var(--space-3) var(--space-1);
+    color: var(--ink);
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+  }
+
+  .hdr-panel-menu a svg {
+    color: var(--faint);
+  }
+
+  .hdr-panel-menu a[aria-current='page'] {
+    color: var(--primary);
+  }
+
+  /* --- desktop switch ------------------------------------------------- */
+  @media (min-width: 1024px) {
+    .hdr-nav,
+    .hdr-search,
+    .hdr-about {
+      display: block;
+    }
+
+    .hdr-search {
+      display: block;
+    }
+
+    .hdr-icon-btn,
+    .hdr-panel {
+      display: none !important;
+    }
+
+    .hdr-inner {
+      gap: var(--space-4);
+    }
+
+    .hdr-nav {
+      margin-left: var(--space-4);
+    }
+  }
+
+  /* Between 640 and 1024 the wordmark keeps its tagline but the nav is in the
+     menu; below 640 the tagline is dropped so the row stays one line. */
+  @media (max-width: 480px) {
+    .hdr-tagline {
+      display: none;
+    }
+    .hdr-name {
+      font-size: 1rem;
+    }
+    .hdr-inner {
+      gap: var(--space-2);
+    }
+  }
+</style>

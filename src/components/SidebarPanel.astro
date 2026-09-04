@@ -1,0 +1,75 @@
+---
+/**
+ * SidebarPanel: a bordered block in the article sidebar — quick facts, an
+ * important note, a list of links. One heading with an optional icon, then
+ * whatever the caller slots in.
+ */
+import Icon from './Icon.astro';
+import type { IconName } from './Icon.astro';
+
+interface Props {
+  heading?: string;
+  icon?: IconName;
+  /** `tint` uses the pale green surface, for the quick-facts block. */
+  variant?: 'plain' | 'tint';
+  class?: string;
+}
+
+const { heading, icon, variant = 'plain', class: className } = Astro.props;
+---
+
+<section class:list={['spanel', variant === 'tint' && 'spanel-tint', className]}>
+  {heading && (
+    <h2 class="spanel-heading">
+      {icon && <Icon name={icon} size={16} />}
+      {heading}
+    </h2>
+  )}
+  <div class="spanel-body">
+    <slot />
+  </div>
+</section>
+
+<style>
+  .spanel {
+    padding: var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .spanel + :global(.spanel) {
+    margin-top: var(--space-4);
+  }
+
+  .spanel-tint {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  .spanel-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.01em;
+  }
+
+  .spanel-heading svg {
+    color: var(--primary);
+  }
+
+  .spanel-body {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .spanel-body > :global(* + *) {
+    margin-top: var(--space-2);
+  }
+</style>

@@ -20,6 +20,7 @@ import {
   recordSlugRedirect,
   getSubjectBySlug,
 } from '../../../utils/content';
+import { audit } from '../../../utils/audit';
 
 export const prerender = false;
 

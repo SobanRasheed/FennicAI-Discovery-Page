@@ -12,7 +12,9 @@ import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const distDir = fileURLToPath(new URL('../dist/', import.meta.url));
+// The Cloudflare adapter emits static assets to dist/client/ (the Worker
+// entry lives in dist/server/ and serves these at the site root).
+const distDir = fileURLToPath(new URL('../dist/client/', import.meta.url));
 
 function walkHtml(dir) {
   const out = [];

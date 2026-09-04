@@ -1,13 +1,26 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import TOC from '../../components/TOC.astro';
+/**
+ * A study note: the site's flagship reading page.
+ *
+ * Layout is the three-region article shell — TOC rail, reading column, sidebar
+ * of quick facts and related material. The note's own structured fields
+ * (objectives, key terms, formulas, important points, summary) are rendered as
+ * real sections inside the reading column so they sit in the table of contents
+ * alongside the markdown headings.
+ */
+import ArticleLayout from '../../layouts/ArticleLayout.astro';
+import ArticleHeader from '../../components/ArticleHeader.astro';
+import TableOfContents from '../../components/TableOfContents.astro';
+import SidebarPanel from '../../components/SidebarPanel.astro';
+import FactList from '../../components/FactList.astro';
+import RelatedContent from '../../components/RelatedContent.astro';
+import ReferenceList from '../../components/ReferenceList.astro';
+import MedicalCallout from '../../components/MedicalCallout.astro';
 import Faq from '../../components/Faq.astro';
 import JsonLd from '../../components/JsonLd.astro';
-import NoteCard from '../../components/NoteCard.astro';
-import { getNotes, getQuestions, formatDate, isoDate } from '../../utils/collections';
+import Icon from '../../components/Icon.astro';
+import { getNotes, getQuestions, getCollection, isoDate } from '../../utils/collections';
 import { render } from 'astro:content';
-import { getCollection } from '../../utils/collections';
 
 export async function getStaticPaths() {
   const notes = await getNotes();
@@ -33,18 +46,51 @@ const author = authors.find((a) => a.slug === data.author);
 const chapterEntry = subject?.data.chapters.find((c) => c.slug === data.chapter);
 const chapterTitle = chapterEntry?.title ?? data.chapter;
 
-// Related: same subject, other chapters; then same level.
 const relatedNotes = allNotes
   .filter((n) => n.slug !== note.slug && n.data.subject === data.subject)
-  .slice(0, 3);
+  .slice(0, 6);
 
-// Questions pointing at this note's subject and chapter.
 const relatedQuestions = allQuestions.filter(
   (q) => q.data.subject === data.subject && q.data.chapter === data.chapter,
 );
 
+const subjectTopics = (await getCollection('topics')).filter((t) =>
+  data.topics.includes(t.slug),
+);
+
+/**
+ * The rail's table of contents lists the note's fixed sections first, then the
+ * markdown headings, then the closing sections — matching document order so a
+ * reader following the list never jumps backwards.
+ */
+const tocHeadings = [
+  { depth: 2, text: 'Learning objectives', slug: 'learning-objectives' },
+  ...(data.keyTerms.length > 0
+    ? [{ depth: 2, text: 'Key terms', slug: 'key-terms' }]
+    : []),
+  ...headings.filter((h) => h.depth === 2 || h.depth === 3),
+  ...(data.formulas.length > 0
+    ? [{ depth: 2, text: 'Formulas', slug: 'formulas' }]
+    : []),
+  ...(data.importantPoints.length > 0
+    ? [{ depth: 2, text: 'Important points', slug: 'important-points' }]
+    : []),
+  { depth: 2, text: 'Summary', slug: 'summary' },
+  ...(relatedQuestions.length > 0
+    ? [{ depth: 2, text: 'Practice questions', slug: 'practice-questions' }]
+    : []),
+  ...(data.references.length > 0
+    ? [{ depth: 2, text: 'References', slug: 'references' }]
+    : []),
+];
+
 const title = data.seoTitle ?? data.title;
 const site = Astro.site!;
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
 
 const articleSchema = {
   '@context': 'https://schema.org',
@@ -60,7 +106,11 @@ const articleSchema = {
         url: new URL(`/authors/${author.slug}/`, site).href,
       }
     : undefined,
-  publisher: { '@type': 'Organization', name: 'devsyllabus', url: site.href },
+  publisher: {
+    '@type': 'Organization',
+    name: 'Medical Study Notes',
+    url: site.href,
+  },
   mainEntityOfPage: {
     '@type': 'WebPage',
     '@id': new URL(`/notes/${note.slug}/`, site).href,
@@ -69,163 +119,362 @@ const articleSchema = {
 };
 ---
 
-<Layout
-  title={`${title} | devsyllabus`}
+<ArticleLayout
+  title={`${title} | Medical Study Notes`}
   description={data.description}
   path={`/notes/${note.slug}/`}
   noindex={data.noindex}
-  ogType="article"
   publishedTime={data.publishedDate}
   modifiedTime={data.updatedDate}
+  footerSubjects={footerSubjects}
+  crumbs={[
+    { label: subject?.data.title ?? data.subject, href: `/subjects/${data.subject}/` },
+    { label: chapterTitle },
+    { label: data.title },
+  ]}
 >
   <JsonLd data={articleSchema} />
 
-  <Breadcrumbs
-    crumbs={[
-      { label: level?.data.title ?? data.level, href: `/levels/${data.level}/` },
-      { label: subject?.data.title ?? data.subject, href: `/subjects/${data.subject}/` },
-      { label: chapterTitle },
-      { label: data.title },
-    ]}
+  {/* --- left rail: table of contents plus page actions ----------------- */}
+  <Fragment slot="rail">
+    <TableOfContents headings={tocHeadings} />
+
+    <div class="rail-actions">
+      <a class="rail-action" href="#references">
+        <Icon name="file" size={15} />
+        Jump to references
+      </a>
+      <a class="rail-action" href={`/subjects/${data.subject}/`}>
+        <Icon name="book" size={15} />
+        All {subject?.data.title ?? data.subject} notes
+      </a>
+    </div>
+  </Fragment>
+
+  {/* --- reading column ------------------------------------------------- */}
+  <ArticleHeader
+    title={data.title}
+    kicker={subject?.data.title ?? data.subject}
+    kickerHref={`/subjects/${data.subject}/`}
+    standfirst={data.overview}
+    updated={data.updatedDate}
+    author={author?.data.title}
+    authorHref={author ? `/authors/${author.slug}/` : undefined}
   />
 
-  <article>
-    <h1>{data.title}</h1>
+  <section class="note-section" aria-labelledby="learning-objectives">
+    <h2 id="learning-objectives">Learning objectives</h2>
+    <p class="note-section-intro">After working through this note you should be able to:</p>
+    <ul class="objectives">
+      {data.learningObjectives.map((objective) => (
+        <li>{objective}</li>
+      ))}
+    </ul>
+  </section>
 
-    <p class="byline">
-      {subject && <a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a>}
-      {level && <span> · <a href={`/levels/${level.slug}/`}>{level.data.title}</a></span>}
-      {author && <span> · by <a href={`/authors/${author.slug}/`}>{author.data.title}</a></span>}
-    </p>
-    <p class="byline">
-      <time datetime={isoDate(data.publishedDate)}>Published {formatDate(data.publishedDate)}</time>
-      · <time datetime={isoDate(data.updatedDate)}>Updated {formatDate(data.updatedDate)}</time>
-    </p>
-
-    <p class="overview">{data.overview}</p>
-
-    <section>
-      <h2 id="learning-objectives">Learning objectives</h2>
-      <ul>
-        {data.learningObjectives.map((objective) => <li>{objective}</li>)}
-      </ul>
-    </section>
-
-    <TOC headings={headings} />
-
-    <section class="key-terms">
+  {data.keyTerms.length > 0 && (
+    <section class="note-section" aria-labelledby="key-terms">
       <h2 id="key-terms">Key terms</h2>
-      <dl>
+      <dl class="terms">
         {data.keyTerms.map((term) => (
-          <>
+          <div class="term">
             <dt>{term.term}</dt>
             <dd>{term.definition}</dd>
-          </>
+          </div>
         ))}
       </dl>
     </section>
+  )}
 
-    <div class="content">
-      <NoteBody />
-    </div>
+  <div class="prose note-body">
+    <NoteBody />
+  </div>
 
-    {data.formulas.length > 0 && (
-      <section>
-        <h2 id="formulas">Formulas and definitions</h2>
-        <dl>
-          {data.formulas.map((formula) => (
-            <>
-              <dt><code>{formula.expression}</code></dt>
-              <dd>{formula.meaning}</dd>
-            </>
-          ))}
-        </dl>
-      </section>
-    )}
+  {data.formulas.length > 0 && (
+    <section class="note-section" aria-labelledby="formulas">
+      <h2 id="formulas">Formulas and definitions</h2>
+      <dl class="terms terms-mono">
+        {data.formulas.map((formula) => (
+          <div class="term">
+            <dt><code>{formula.expression}</code></dt>
+            <dd>{formula.meaning}</dd>
+          </div>
+        ))}
+      </dl>
+    </section>
+  )}
 
-    {data.importantPoints.length > 0 && (
-      <section>
-        <h2 id="important-points">Important points</h2>
+  {data.importantPoints.length > 0 && (
+    <section class="note-section" aria-labelledby="important-points">
+      <h2 id="important-points">Important points</h2>
+      <MedicalCallout kind="key-point" label="Remember">
         <ul>
           {data.importantPoints.map((point) => <li>{point}</li>)}
         </ul>
-      </section>
-    )}
-
-    <section>
-      <h2 id="summary">Summary</h2>
-      <p>{data.summary}</p>
+      </MedicalCallout>
     </section>
+  )}
 
-    {relatedQuestions.length > 0 && (
-      <section>
-        <h2 id="practice-questions">Practice questions</h2>
-        <ul>
-          {relatedQuestions.map((q) => (
-            <li>
-              <a href={`/practice/${q.slug}/`}>{q.data.question}</a>
-              <span> ({q.data.type})</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-    )}
+  <section class="note-section" aria-labelledby="summary">
+    <h2 id="summary">Summary</h2>
+    <p class="summary-text">{data.summary}</p>
+  </section>
+
+  {relatedQuestions.length > 0 && (
+    <section class="note-section" aria-labelledby="practice-questions">
+      <h2 id="practice-questions">Practice questions</h2>
+      <p class="note-section-intro">
+        {relatedQuestions.length} question{relatedQuestions.length === 1 ? '' : 's'} on
+        this chapter, each with a worked answer.
+      </p>
+      <ul class="chevron-list question-list">
+        {relatedQuestions.map((q) => (
+          <li>
+            <a href={`/practice/${q.slug}/`}>
+              <span class="question-text">{q.data.question}</span>
+              <span class="tag">{q.data.type}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  <ReferenceList references={data.references} />
+
+  {author && (
+    <section class="note-section author-box" aria-labelledby="about-the-author">
+      <h2 id="about-the-author" class="author-heading">About the author</h2>
+      <p class="author-name">
+        <a href={`/authors/${author.slug}/`}>{author.data.title}</a>
+        <span class="author-role">{author.data.role}</span>
+      </p>
+      <p class="author-bio">{author.data.bio}</p>
+    </section>
+  )}
+
+  <Faq faqs={data.faqs} level={2} id="note-faq" />
+
+  {/* --- sidebar -------------------------------------------------------- */}
+  <Fragment slot="sidebar">
+    <SidebarPanel heading="Quick facts" icon="file" variant="tint">
+      <FactList
+        items={[
+          `Subject: ${subject?.data.title ?? data.subject}`,
+          `Chapter: ${chapterTitle}`,
+          ...(level ? [`Level: ${level.data.title}`] : []),
+          `${data.keyTerms.length} key term${data.keyTerms.length === 1 ? '' : 's'}`,
+          `${data.learningObjectives.length} learning objectives`,
+        ]}
+      />
+    </SidebarPanel>
 
     {relatedNotes.length > 0 && (
-      <section>
-        <h2 id="related-notes">Related notes</h2>
-        {relatedNotes.map((n) => <NoteCard note={n} />)}
-      </section>
+      <SidebarPanel heading="Related study notes" icon="book">
+        <RelatedContent
+          items={relatedNotes.map((n) => ({
+            href: `/notes/${n.slug}/`,
+            title: n.data.title,
+            context: subjects.find((s) => s.slug === n.data.subject)?.data.title,
+          }))}
+          variant="list"
+          heading=""
+          level={3}
+          id="side-related"
+          moreHref={`/subjects/${data.subject}/`}
+          moreLabel={`View all ${subject?.data.title ?? ''} notes`}
+        />
+      </SidebarPanel>
     )}
 
-    <section class="author-box">
-      <h2 id="about-the-author">About the author</h2>
-      {author && (
-        <>
-          <p><a href={`/authors/${author.slug}/`}><strong>{author.data.title}</strong></a> — {author.data.role}</p>
-          <p>{author.data.bio}</p>
-        </>
-      )}
-    </section>
-
-    {data.references.length > 0 && (
-      <section>
-        <h2 id="references">References</h2>
-        <ol>
-          {data.references.map((ref) => (
-            <li>
-              {ref.url ? <a href={ref.url} rel="noopener">{ref.title}</a> : ref.title}
-              {ref.source && <span> — {ref.source}</span>}
-            </li>
+    {subjectTopics.length > 0 && (
+      <SidebarPanel heading="Topic hubs" icon="layers">
+        <ul class="chevron-list">
+          {subjectTopics.map((topic) => (
+            <li><a href={`/topics/${topic.slug}/`}>{topic.data.title}</a></li>
           ))}
-        </ol>
-      </section>
+        </ul>
+      </SidebarPanel>
     )}
-
-    <Faq faqs={data.faqs} />
-  </article>
-</Layout>
+  </Fragment>
+</ArticleLayout>
 
 <style>
-  .byline {
-    color: #555;
-    font-size: 0.9rem;
+  /* --- rail ----------------------------------------------------------- */
+  .rail-actions {
+    display: none;
+    margin-top: var(--space-6);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border);
   }
-  .overview {
-    font-size: 1.1rem;
-    line-height: 1.6;
+
+  @media (min-width: 1024px) {
+    .rail-actions {
+      display: grid;
+      gap: var(--space-1);
+    }
   }
-  .key-terms dt,
-  section dt {
-    font-weight: 600;
-    margin-top: 0.75rem;
+
+  .rail-action {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    text-decoration: none;
+    line-height: var(--leading-snug);
   }
-  .key-terms dd,
-  section dd {
-    margin-left: 0;
+
+  .rail-action:hover {
+    color: var(--primary);
   }
+
+  /* --- reading column sections ---------------------------------------- */
+  .note-section {
+    margin-top: var(--space-12);
+  }
+
+  .note-section > h2 {
+    font-size: clamp(1.375rem, 1.2rem + 0.8vw, 1.75rem);
+  }
+
+  .note-section-intro {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .note-body {
+    margin-top: var(--space-12);
+  }
+
+  /* Objectives read as a checklist, so they get a green rule marker rather
+     than a bullet. */
+  .objectives {
+    margin: var(--space-4) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .objectives li {
+    position: relative;
+    padding: var(--space-2) 0 var(--space-2) var(--space-6);
+    color: var(--ink);
+    font-size: var(--text-prose);
+    line-height: var(--leading-normal);
+  }
+
+  .objectives li + li {
+    border-top: 1px solid var(--border);
+  }
+
+  .objectives li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 1.05em;
+    width: 0.625rem;
+    height: 2px;
+    background: var(--primary);
+  }
+
+  /* --- definition lists ----------------------------------------------- */
+  .terms {
+    margin: var(--space-4) 0 0;
+  }
+
+  .term {
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .term:first-child {
+    border-top: 1px solid var(--border);
+  }
+
+  .terms dt {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+    letter-spacing: -0.01em;
+  }
+
+  .terms-mono dt code {
+    font-size: var(--text-body-sm);
+  }
+
+  .terms dd {
+    margin: var(--space-2) 0 0;
+    color: var(--body);
+    font-size: var(--text-body-lg);
+    line-height: var(--leading-prose);
+  }
+
+  /* --- summary -------------------------------------------------------- */
+  .summary-text {
+    margin-top: var(--space-4);
+    padding: var(--space-4) var(--space-6);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--primary);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: var(--text-prose);
+    line-height: var(--leading-prose);
+  }
+
+  /* --- practice questions --------------------------------------------- */
+  .question-list {
+    margin-top: var(--space-4);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .question-list a {
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding-block: var(--space-3);
+  }
+
+  .question-text {
+    flex: 1;
+  }
+
+  /* --- author --------------------------------------------------------- */
   .author-box {
-    border-top: 1px solid #e5e5e5;
-    padding-top: 1rem;
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border);
+  }
+
+  .author-heading {
+    font-size: var(--text-display-md);
+  }
+
+  .author-name {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: baseline;
+    margin-top: var(--space-3);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .author-role {
+    color: var(--mute);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-body);
+  }
+
+  .author-bio {
+    max-width: 68ch;
+    margin-top: var(--space-2);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-prose);
   }
 </style>

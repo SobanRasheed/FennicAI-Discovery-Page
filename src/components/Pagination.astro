@@ -1,21 +1,26 @@
 ---
 /**
- * Crawlable pagination: every page number is a real <a>, and the links
- * flow through rel="prev"/"next"-style semantics via aria. Page 1 is
- * always /base/ (no page param), which keeps the first page canonical.
+ * Crawlable pagination: every page number is a real <a>, page 1 is always
+ * `basePath/` with no page param so it stays canonical, and prev/next carry
+ * rel hints. The window is five pages wide with the count stated in words for
+ * screen readers.
  */
+import Icon from './Icon.astro';
+
 interface Props {
   basePath: string; // e.g. '/blog' — page 1 = basePath + '/'
   totalItems: number;
   itemsPerPage: number;
   currentPage: number;
+  /** Overrides href construction, e.g. for query-string pagination. */
+  hrefFor?: (page: number) => string;
 }
 
-const { basePath, totalItems, itemsPerPage, currentPage } = Astro.props;
+const { basePath, totalItems, itemsPerPage, currentPage, hrefFor } = Astro.props;
 
 const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
 const pageHref = (page: number) =>
-  page === 1 ? `${basePath}/` : `${basePath}/page/${page}/`;
+  hrefFor ? hrefFor(page) : page === 1 ? `${basePath}/` : `${basePath}/page/${page}/`;
 
 const windowStart = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
 const windowEnd = Math.min(totalPages, windowStart + 4);
@@ -23,42 +28,156 @@ const pages: number[] = [];
 for (let p = windowStart; p <= windowEnd; p++) pages.push(p);
 ---
 
-{
-  totalPages > 1 && (
-    <nav class="pagination" aria-label="Pagination">
-      {currentPage > 1 && (
-        <a href={pageHref(currentPage - 1)} rel="prev">Previous</a>
-      )}
-      {pages.map((page) =>
-        page === currentPage ? (
-          <span aria-current="page" class="current">{page}</span>
-        ) : (
-          <a href={pageHref(page)}>{page}</a>
-        ),
-      )}
-      {currentPage < totalPages && (
-        <a href={pageHref(currentPage + 1)} rel="next">Next</a>
-      )}
-      <span class="page-count">
-        Page {currentPage} of {totalPages}
+{totalPages > 1 && (
+  <nav class="pgn" aria-label="Pagination">
+    {currentPage > 1 ? (
+      <a class="pgn-step" href={pageHref(currentPage - 1)} rel="prev">
+        <span class="pgn-flip" aria-hidden="true"><Icon name="chevron-right" size={15} /></span>
+        Previous
+      </a>
+    ) : (
+      <span class="pgn-step pgn-disabled" aria-hidden="true">
+        <span class="pgn-flip"><Icon name="chevron-right" size={15} /></span>
+        Previous
       </span>
-    </nav>
-  )
-}
+    )}
+
+    <ol class="pgn-pages">
+      {windowStart > 1 && (
+        <>
+          <li><a href={pageHref(1)}>1</a></li>
+          {windowStart > 2 && <li class="pgn-gap" aria-hidden="true">…</li>}
+        </>
+      )}
+      {pages.map((page) => (
+        <li>
+          {page === currentPage ? (
+            <span aria-current="page" class="pgn-current">{page}</span>
+          ) : (
+            <a href={pageHref(page)}>{page}</a>
+          )}
+        </li>
+      ))}
+      {windowEnd < totalPages && (
+        <>
+          {windowEnd < totalPages - 1 && <li class="pgn-gap" aria-hidden="true">…</li>}
+          <li><a href={pageHref(totalPages)}>{totalPages}</a></li>
+        </>
+      )}
+    </ol>
+
+    {currentPage < totalPages ? (
+      <a class="pgn-step" href={pageHref(currentPage + 1)} rel="next">
+        Next
+        <Icon name="chevron-right" size={15} />
+      </a>
+    ) : (
+      <span class="pgn-step pgn-disabled" aria-hidden="true">
+        Next
+        <Icon name="chevron-right" size={15} />
+      </span>
+    )}
+
+    <p class="visually-hidden">Page {currentPage} of {totalPages}</p>
+  </nav>
+)}
 
 <style>
-  .pagination {
+  .pgn {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.75rem;
+    gap: var(--space-3);
     align-items: center;
-    padding: 1.5rem 0;
+    justify-content: space-between;
+    margin-top: var(--space-8);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border);
   }
-  .current {
-    font-weight: 700;
+
+  .pgn-step {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 36px;
+    padding-inline: var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+    transition: border-color 0.15s var(--ease), color 0.15s var(--ease),
+      background-color 0.15s var(--ease);
   }
-  .page-count {
-    font-size: 0.85rem;
-    color: #666;
+
+  a.pgn-step:hover {
+    border-color: var(--primary);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .pgn-disabled {
+    border-color: var(--border);
+    color: var(--faint);
+  }
+
+  .pgn-flip {
+    display: inline-flex;
+    transform: rotate(180deg);
+  }
+
+  .pgn-pages {
+    display: flex;
+    gap: var(--space-1);
+    align-items: center;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .pgn-pages :is(a, .pgn-current) {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    height: 36px;
+    padding-inline: var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    font-variant-numeric: tabular-nums;
+    text-decoration: none;
+    transition: background-color 0.15s var(--ease), color 0.15s var(--ease);
+  }
+
+  .pgn-pages a:hover {
+    background: var(--surface-sunken);
+    color: var(--ink);
+  }
+
+  .pgn-current {
+    border-color: var(--primary-border) !important;
+    background: var(--primary-surface);
+    color: var(--primary) !important;
+    font-weight: var(--weight-semibold);
+  }
+
+  .pgn-gap {
+    padding-inline: var(--space-1);
+    color: var(--faint);
+    font-size: var(--text-body-sm);
+  }
+
+  /* Mobile: prev/next on one row, numbers on the next. */
+  @media (max-width: 560px) {
+    .pgn {
+      justify-content: center;
+    }
+    .pgn-pages {
+      order: -1;
+      flex-basis: 100%;
+      justify-content: center;
+    }
   }
 </style>

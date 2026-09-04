@@ -1,0 +1,136 @@
+---
+/**
+ * PageHeader: the top of a hub or listing page — kicker, H1, a short lead,
+ * and an optional stats row. Sits on the white surface with a hairline under
+ * it, so every listing page opens the same way.
+ */
+import Breadcrumbs from './Breadcrumbs.astro';
+import Icon from './Icon.astro';
+import type { IconName } from './Icon.astro';
+
+interface Stat {
+  value: string | number;
+  label: string;
+  icon?: IconName;
+}
+
+interface Props {
+  title: string;
+  kicker?: string;
+  lead?: string;
+  crumbs?: { href?: string; label: string }[];
+  stats?: Stat[];
+  /** A single quote or note in the right column. */
+  aside?: boolean;
+}
+
+const { title, kicker, lead, crumbs = [], stats = [] } = Astro.props;
+const hasAside = Astro.slots.has('aside');
+---
+
+<div class="phdr">
+  {crumbs.length > 0 && (
+    <div class="container phdr-crumbs">
+      <Breadcrumbs {crumbs} />
+    </div>
+  )}
+
+  <div class="container">
+    <div class:list={['phdr-inner', hasAside && 'phdr-split']}>
+      <div class="phdr-copy">
+        {kicker && <p class="kicker">{kicker}</p>}
+        <h1 class="phdr-title">{title}</h1>
+        {lead && <p class="lead phdr-lead">{lead}</p>}
+        <slot />
+
+        {stats.length > 0 && (
+          <dl class="phdr-stats">
+            {stats.map((stat) => (
+              <div class="phdr-stat">
+                {stat.icon && <Icon name={stat.icon} size={18} />}
+                <div>
+                  <dt>{stat.value}</dt>
+                  <dd>{stat.label}</dd>
+                </div>
+              </div>
+            ))}
+          </dl>
+        )}
+      </div>
+
+      {hasAside && (
+        <div class="phdr-aside">
+          <slot name="aside" />
+        </div>
+      )}
+    </div>
+  </div>
+</div>
+
+<style>
+  .phdr {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .phdr-crumbs {
+    padding-top: var(--space-4);
+  }
+
+  .phdr-inner {
+    display: grid;
+    gap: var(--space-8);
+    padding-block: var(--space-8) var(--space-12);
+  }
+
+  @media (min-width: 900px) {
+    .phdr-split {
+      grid-template-columns: minmax(0, 1fr) 17rem;
+      gap: var(--space-16);
+      align-items: center;
+    }
+  }
+
+  .phdr-title {
+    margin-top: var(--space-2);
+  }
+
+  .phdr-lead {
+    margin-top: var(--space-4);
+  }
+
+  /* --- stats row ------------------------------------------------------ */
+  .phdr-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-6) var(--space-8);
+    margin: var(--space-8) 0 0;
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border);
+  }
+
+  .phdr-stat {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .phdr-stat svg {
+    color: var(--primary);
+  }
+
+  .phdr-stats dt {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-display);
+    letter-spacing: -0.015em;
+    line-height: 1.2;
+  }
+
+  .phdr-stats dd {
+    margin: 0;
+    color: var(--mute);
+    font-size: var(--text-caption);
+  }
+</style>

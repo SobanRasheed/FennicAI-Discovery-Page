@@ -375,7 +375,7 @@ export function initEditor(articleId: number): void {
           item.textContent = `${m.filename}${m.alt_text ? ` — "${m.alt_text}"` : ' — no alt text'}`;
           item.className = 'media-item';
           item.addEventListener('click', () => {
-            resolve({ url: `/media/${m.r2_key}`, alt: m.alt_text });
+            resolve({ url: `/media/${m.r2_key}/`, alt: m.alt_text });
             dlg.remove();
           });
           list.appendChild(item);
@@ -597,7 +597,7 @@ export function initEditor(articleId: number): void {
     const res = await fetch(`/api/media/?q=${encodeURIComponent(m.alt || '')}`);
     if (res.ok) {
       const data = await res.json() as { media: { id: number; r2_key: string }[] };
-      const hit = data.media.find((x) => `/media/${x.r2_key}` === m.url);
+      const hit = data.media.find((x) => `/media/${x.r2_key}/` === m.url);
       if (hit) (field('featuredMediaId') as HTMLInputElement).value = String(hit.id);
       scheduleSave();
     }

@@ -234,7 +234,7 @@ CREATE INDEX idx_mcq_options_mcq ON mcq_options(mcq_id, sort_order);
 -- References
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE `"references"` (
+CREATE TABLE "references" (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   -- 'textbook' | 'journal' | 'guideline' | 'organization' | 'educational'
   ref_type TEXT NOT NULL DEFAULT 'textbook'
@@ -254,7 +254,7 @@ CREATE TABLE `"references"` (
 
 CREATE TABLE article_references (
   article_id INTEGER NOT NULL REFERENCES articles(id) ON DELETE CASCADE,
-  reference_id INTEGER NOT NULL REFERENCES `"references"`(id) ON DELETE CASCADE,
+  reference_id INTEGER NOT NULL REFERENCES "references"(id) ON DELETE CASCADE,
   sort_order INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (article_id, reference_id)
 );

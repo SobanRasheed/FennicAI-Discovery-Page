@@ -20,7 +20,7 @@ const isImage = String(media.mime_type).startsWith('image/');
 const altRequired = isImage && media.mime_type !== 'image/svg+xml';
 const user = Astro.locals.user!;
 const error = Astro.url.searchParams.get('error');
-const publicUrl = `/media/${media.r2_key}`;
+const publicUrl = `/media/${media.r2_key}/`;
 ---
 <AdminLayout title={`Media: ${media.filename}`} user={user} active="media">
   <p><a href="/admin/media/">← Back to media library</a></p>

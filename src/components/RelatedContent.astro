@@ -1,0 +1,176 @@
+---
+/**
+ * RelatedContent: the "Continue studying" block at the end of an article, and
+ * the related-notes list in the article sidebar.
+ *
+ * Simple bordered rows rather than large cards — the reader is scanning for a
+ * title, not browsing a gallery. Two densities: `list` (sidebar, one column)
+ * and `grid` (end of article, two or three columns).
+ */
+import Icon from './Icon.astro';
+
+interface Item {
+  href: string;
+  title: string;
+  /** Subject or category, shown under the title. */
+  context?: string;
+}
+
+interface Props {
+  items: Item[];
+  heading?: string;
+  /** Small line above the heading, e.g. "Related to Microbiology". */
+  kicker?: string;
+  variant?: 'grid' | 'list';
+  /** A trailing link, e.g. "Explore more related topics". */
+  moreHref?: string;
+  moreLabel?: string;
+  level?: 2 | 3;
+  id?: string;
+}
+
+const {
+  items,
+  heading = 'Continue studying',
+  kicker,
+  variant = 'grid',
+  moreHref,
+  moreLabel = 'Explore more',
+  level = 2,
+  id = 'related',
+} = Astro.props;
+
+const Heading = `h${level}` as 'h2' | 'h3';
+---
+
+{items.length > 0 && (
+  <section
+    class:list={['related', `related-${variant}`]}
+    aria-labelledby={heading ? id : undefined}
+    aria-label={heading ? undefined : 'Related content'}
+  >
+    {kicker && <p class="kicker related-kicker">{kicker}</p>}
+    {heading && <Heading id={id} class="related-heading">{heading}</Heading>}
+
+    <ul class="related-items">
+      {items.map((item) => (
+        <li>
+          <a href={item.href}>
+            <span class="related-text">
+              <span class="related-title">{item.title}</span>
+              {item.context && <span class="related-context">{item.context}</span>}
+            </span>
+            <Icon name="chevron-right" size={15} />
+          </a>
+        </li>
+      ))}
+    </ul>
+
+    {moreHref && (
+      <a class="link-arrow related-more" href={moreHref}>{moreLabel}</a>
+    )}
+  </section>
+)}
+
+<style>
+  .related-kicker {
+    margin-bottom: var(--space-1);
+  }
+
+  .related-heading {
+    margin-bottom: var(--space-4);
+    font-size: var(--text-display-md);
+  }
+
+  .related-items {
+    display: grid;
+    gap: 0;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .related-items a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    color: inherit;
+    text-decoration: none;
+    transition: color 0.15s var(--ease), border-color 0.15s var(--ease),
+      background-color 0.15s var(--ease);
+  }
+
+  .related-title {
+    display: block;
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-semibold);
+    letter-spacing: -0.01em;
+    line-height: var(--leading-snug);
+    transition: color 0.15s var(--ease);
+  }
+
+  .related-items a:hover .related-title {
+    color: var(--primary);
+  }
+
+  .related-context {
+    display: block;
+    margin-top: 1px;
+    color: var(--mute);
+    font-size: var(--text-caption);
+  }
+
+  .related-items a svg {
+    color: var(--faint);
+  }
+
+  .related-items a:hover svg {
+    color: var(--primary);
+  }
+
+  /* --- list: the sidebar density -------------------------------------- */
+  .related-list .related-items > li + li {
+    border-top: 1px solid var(--border);
+  }
+
+  .related-list .related-items a {
+    padding-block: var(--space-3);
+  }
+
+  /* --- grid: bordered tiles at the end of an article ------------------ */
+  .related-grid .related-items {
+    gap: var(--space-3);
+  }
+
+  @media (min-width: 640px) {
+    .related-grid .related-items {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .related-grid .related-items {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .related-grid .related-items a {
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    height: 100%;
+  }
+
+  .related-grid .related-items a:hover {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  .related-more {
+    margin-top: var(--space-4);
+  }
+</style>

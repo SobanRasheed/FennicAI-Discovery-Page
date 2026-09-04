@@ -1,0 +1,83 @@
+---
+/**
+ * ReferenceList: the bibliography at the foot of every article, set like an
+ * academic publication — a numbered list, the title in the citation slot, the
+ * source metadata trailing it, and an external link where one exists.
+ *
+ * Accepts both content-collection references ({ title, url, source }) and the
+ * richer D1 reference rows ({ authors, edition, year, doi }), so both content
+ * pipelines render identically.
+ */
+interface Reference {
+  title: string;
+  url?: string | null;
+  source?: string | null;
+  authors?: string | null;
+  edition?: string | null;
+  year?: string | number | null;
+  doi?: string | null;
+}
+
+interface Props {
+  references: Reference[];
+  heading?: string;
+  /** Renders as an h2 by default; subject pages may want h3. */
+  level?: 2 | 3;
+  id?: string;
+}
+
+const {
+  references,
+  heading = 'References',
+  level = 2,
+  id = 'references',
+} = Astro.props;
+
+const Heading = `h${level}` as 'h2' | 'h3';
+---
+
+{references.length > 0 && (
+  <section class="refs" aria-labelledby={id}>
+    <Heading id={id} class="refs-heading">{heading}</Heading>
+    <ol class="reference-list">
+      {references.map((ref) => (
+        <li>
+          {ref.authors && <span class="refs-authors">{ref.authors}. </span>}
+          <cite>
+            {ref.url ? (
+              <a href={ref.url} rel="noopener nofollow">{ref.title}</a>
+            ) : (
+              ref.title
+            )}
+          </cite>
+          {ref.source && <span>. {ref.source}</span>}
+          {ref.edition && <span>, {ref.edition} ed.</span>}
+          {ref.year && <span>, {ref.year}</span>}
+          {ref.doi && <span class="refs-doi">. doi:{ref.doi}</span>}
+        </li>
+      ))}
+    </ol>
+  </section>
+)}
+
+<style>
+  .refs {
+    margin-top: var(--space-12);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border);
+  }
+
+  .refs-heading {
+    margin-bottom: var(--space-2);
+    font-size: var(--text-display-md);
+  }
+
+  .refs-authors {
+    color: var(--mute);
+  }
+
+  .refs-doi {
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+  }
+</style>

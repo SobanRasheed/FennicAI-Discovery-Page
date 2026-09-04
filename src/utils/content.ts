@@ -191,7 +191,7 @@ export async function listArticles(
     .first<{ total: number }>();
   const rows = await db
     .prepare(
-      `${ARTICLE_SELECT.replace(/FROM articles/, 'FROM articles a')} a ${whereSql} ${orderBy} LIMIT ? OFFSET ?`,
+      `${ARTICLE_SELECT.replace(/FROM articles/, 'FROM articles a')} ${whereSql} ${orderBy} LIMIT ? OFFSET ?`,
     )
     .bind(...params, perPage, offset)
     .all<ArticleRow>();
