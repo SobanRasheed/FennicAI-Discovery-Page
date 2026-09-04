@@ -42,7 +42,8 @@ interface Env {
 
 declare namespace App {
   interface Locals {
-    runtime?: { env: Env; ctx: ExecutionContext; cf?: Record<string, unknown> };
+    /** Set by middleware so request-scoped helpers (client IP, user agent) can read it. */
+    request?: Request;
     user: import('./utils/auth').SessionUser | null;
     csrfToken: string | null;
   }

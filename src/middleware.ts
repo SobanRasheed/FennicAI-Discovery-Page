@@ -6,6 +6,7 @@
 import { defineMiddleware } from 'astro:middleware';
 import { resolveSession, ensureBootstrapAdmin } from './utils/auth';
 import { findRedirect } from './utils/content';
+import { loadBindings, bindingsReady } from './utils/backend';
 
 const PUBLIC_API = new Set([
   '/api/auth/login',
@@ -16,6 +17,14 @@ const PUBLIC_API = new Set([
 export const onRequest = defineMiddleware(
   async (context, next): Promise<Response> => {
     const { locals, url, request, redirect } = context;
+
+    // Expose the request to request-scoped helpers (client IP, user agent).
+    locals.request = request;
+
+    // Resolve the Cloudflare bindings (D1/R2) once per Worker process. Code
+    // running outside the Workers runtime (build-time prerendering) simply
+    // has no bindings and every DB-backed branch degrades gracefully.
+    await loadBindings();
 
     // Every request gets a resolved session (or null). Public pages never
     // need it, so failures here are non-fatal for them.
@@ -33,7 +42,7 @@ export const onRequest = defineMiddleware(
       request.method === 'GET' &&
       !path.startsWith('/admin') &&
       !path.startsWith('/api') &&
-      locals.runtime?.env?.DB &&
+      bindingsReady() &&
       !path.startsWith('/_') &&
       !path.match(/\.[a-z0-9]+$/)
     ) {
