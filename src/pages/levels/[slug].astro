@@ -34,6 +34,7 @@ const levelSubjects = [
 >
   <Breadcrumbs crumbs={[{ label: 'Education Levels', href: '/levels/' }, { label: data.title }]} />
 
+  <div class="doc">
   <h1>{data.title}</h1>
   <p class="overview">{data.introduction}</p>
 
@@ -69,6 +70,7 @@ const levelSubjects = [
   )}
 
   <Faq faqs={data.faqs} />
+  </div>
 </Layout>
 
 <style>

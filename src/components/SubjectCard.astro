@@ -1,12 +1,13 @@
 ---
 /**
- * SubjectCard: one bordered row per medical subject.
+ * SubjectCard: one bordered row per subject.
  *
- * Deliberately restrained — a title, a one-line "Study Notes · MCQs" sub, and
- * a chevron. No coloured card per subject, no illustration, no count badge
- * unless a real count exists.
+ * Deliberately restrained — a small hand-drawn line illustration, a title, a
+ * one-line "Study Notes · MCQs" sub, and a chevron. No coloured card per
+ * subject, no count badge unless a real count exists.
  */
 import Icon from './Icon.astro';
+import Illustration, { illustrationForSubject } from './Illustration.astro';
 
 interface Props {
   href: string;
@@ -15,12 +16,21 @@ interface Props {
   sub?: string;
   /** Real note count. Omitted rather than shown as zero. */
   count?: number;
+  /** Subject slug, which picks the line illustration. */
+  subject?: string;
+  /** Or name a drawing directly when there is no slug. */
+  illustration?: import('./Illustration.astro').IllustrationName;
 }
 
-const { href, title, sub = 'Study Notes · MCQs', count } = Astro.props;
+const { href, title, sub = 'Study Notes · MCQs', count, subject, illustration } = Astro.props;
+
+const drawing = illustration ?? (subject ? illustrationForSubject(subject) : 'stethoscope');
 ---
 
 <a class="subject" href={href}>
+  <span class="subject-art" aria-hidden="true">
+    <Illustration name={drawing} size={34} />
+  </span>
   <span class="subject-text">
     <span class="subject-title">{title}</span>
     <span class="subject-sub">{sub}</span>
@@ -49,6 +59,27 @@ const { href, title, sub = 'Study Notes · MCQs', count } = Astro.props;
     background: var(--primary-surface);
   }
 
+  /* The drawing sits in a square tinted well so the tiles read as a set
+     without introducing colour per subject. */
+  .subject-art {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 3.25rem;
+    height: 3.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    color: var(--primary);
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .subject:hover .subject-art {
+    border-color: var(--primary-border);
+    background: var(--surface);
+  }
+
   .subject-text {
     flex: 1;
     min-width: 0;
@@ -60,7 +91,6 @@ const { href, title, sub = 'Study Notes · MCQs', count } = Astro.props;
     font-family: var(--font-display);
     font-size: var(--text-body-lg);
     font-weight: var(--weight-semibold);
-    letter-spacing: -0.015em;
     line-height: var(--leading-snug);
     transition: color 0.15s var(--ease);
   }
@@ -83,6 +113,7 @@ const { href, title, sub = 'Study Notes · MCQs', count } = Astro.props;
     font-variant-numeric: tabular-nums;
   }
 
+  /* The chevron is the only direct svg child; the illustration is wrapped. */
   .subject > svg {
     color: var(--faint);
     transition: color 0.15s var(--ease), transform 0.15s var(--ease-out);

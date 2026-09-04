@@ -1,6 +1,9 @@
 ---
 /**
  * Link card for a blog post in listings and related-content blocks.
+ *
+ * Restyled onto the design system: a hairline editorial row with a mono
+ * category kicker, serif title, and quiet date, matching the entry lists.
  */
 interface Props {
   post: {
@@ -21,41 +24,56 @@ import { formatDate } from '../utils/collections';
 const { post, showDate = true } = Astro.props;
 ---
 
-<article class="post-card">
-  <div class="post-card-meta">
-    <a href={`/blog/category/${post.data.category}/`} class="category-link">
-      {post.data.category}
+<article class="pcard">
+  <p class="pcard-meta">
+    <a class="kicker" href={`/blog/category/${post.data.category}/`}>
+      {post.data.category.replace(/-/g, ' ')}
     </a>
-    {showDate && <time datetime={post.data.publishedDate.toISOString()}>
-      {formatDate(post.data.publishedDate)}
-    </time>}
+    {showDate && (
+      <time datetime={post.data.publishedDate.toISOString()}>
+        {formatDate(post.data.publishedDate)}
+      </time>
+    )}
     {post.data.updatedDate && <span>updated {formatDate(post.data.updatedDate)}</span>}
-  </div>
-  <h3><a href={`/blog/${post.slug}/`}>{post.data.title}</a></h3>
-  <p>{post.data.description}</p>
+  </p>
+  <h3 class="pcard-title"><a href={`/blog/${post.slug}/`}>{post.data.title}</a></h3>
+  <p class="pcard-desc">{post.data.description}</p>
 </article>
 
 <style>
-  .post-card {
-    padding: 1rem 0;
-    border-bottom: 1px solid #e5e5e5;
+  .pcard {
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--border);
   }
-  .post-card-meta {
+
+  .pcard-meta {
     display: flex;
-    gap: 0.75rem;
-    font-size: 0.85rem;
-    color: #666;
-    margin-bottom: 0.25rem;
+    gap: var(--space-3);
+    align-items: baseline;
+    margin: 0 0 var(--space-1);
+    color: var(--faint);
+    font-size: var(--text-body-sm);
   }
-  .post-card h3 {
-    margin: 0 0 0.25rem;
+
+  .pcard-title {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-body-lg);
   }
-  .post-card p {
+
+  .pcard-title a {
+    color: var(--ink);
+    text-decoration: none;
+    transition: color 0.15s var(--ease);
+  }
+
+  .pcard-title a:hover {
+    color: var(--primary);
+  }
+
+  .pcard-desc {
     margin: 0;
-    color: #444;
-    line-height: 1.5;
-  }
-  .category-link {
-    text-transform: capitalize;
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
   }
 </style>

@@ -2,6 +2,9 @@
 /**
  * Link card for a study note. Shows the subject/level context so cards on
  * hub and listing pages carry their hierarchy with them.
+ *
+ * Restyled onto the design system: a hairline editorial row with mono kicker
+ * links and a serif title, matching the entry lists used elsewhere.
  */
 interface Props {
   note: {
@@ -35,40 +38,57 @@ const subject = subjectLabels[note.data.subject] ?? note.data.subject;
 const level = levelLabels[note.data.level] ?? note.data.level;
 ---
 
-<article class="note-card">
-  <div class="note-card-meta">
-    <a href={`/subjects/${note.data.subject}/`}>{subject}</a>
-    <span>·</span>
-    <a href={`/levels/${note.data.level}/`}>{level}</a>
-  </div>
-  <h3><a href={`/notes/${note.slug}/`}>{note.data.title}</a></h3>
-  <p>{note.data.description}</p>
-  <time datetime={note.data.updatedDate.toISOString()}>
+<article class="ncard">
+  <p class="ncard-meta">
+    <a class="kicker" href={`/subjects/${note.data.subject}/`}>{subject}</a>
+    <span aria-hidden="true">·</span>
+    <a class="kicker" href={`/levels/${note.data.level}/`}>{level}</a>
+  </p>
+  <h3 class="ncard-title"><a href={`/notes/${note.slug}/`}>{note.data.title}</a></h3>
+  <p class="ncard-desc">{note.data.description}</p>
+  <time class="ncard-date" datetime={note.data.updatedDate.toISOString()}>
     Updated {formatDate(note.data.updatedDate)}
   </time>
 </article>
 
 <style>
-  .note-card {
-    padding: 1rem 0;
-    border-bottom: 1px solid #e5e5e5;
+  .ncard {
+    padding: var(--space-4) 0;
+    border-bottom: 1px solid var(--border);
   }
-  .note-card-meta {
+
+  .ncard-meta {
     display: flex;
-    gap: 0.5rem;
-    font-size: 0.85rem;
-    margin-bottom: 0.25rem;
+    gap: var(--space-2);
+    align-items: baseline;
+    margin: 0 0 var(--space-1);
+    color: var(--faint);
   }
-  .note-card h3 {
-    margin: 0 0 0.25rem;
+
+  .ncard-title {
+    margin: 0 0 var(--space-1);
+    font-size: var(--text-body-lg);
   }
-  .note-card p {
-    margin: 0 0 0.25rem;
-    color: #444;
-    line-height: 1.5;
+
+  .ncard-title a {
+    color: var(--ink);
+    text-decoration: none;
+    transition: color 0.15s var(--ease);
   }
-  .note-card time {
-    font-size: 0.85rem;
-    color: #666;
+
+  .ncard-title a:hover {
+    color: var(--primary);
+  }
+
+  .ncard-desc {
+    margin: 0 0 var(--space-2);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .ncard-date {
+    color: var(--faint);
+    font-size: var(--text-caption);
   }
 </style>

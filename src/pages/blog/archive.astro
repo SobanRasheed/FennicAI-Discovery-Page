@@ -23,6 +23,7 @@ const years = [...byYear.keys()].sort((a, b) => b - a);
 >
   <Breadcrumbs crumbs={[{ label: 'Blog', href: '/blog/' }, { label: 'Archive' }]} />
 
+  <div class="doc">
   <h1>Article archive</h1>
   <p>
     Every article published on devsyllabus, newest first. For browsing by
@@ -56,4 +57,5 @@ const years = [...byYear.keys()].sort((a, b) => b - a);
       </>
     ))}
   </p>
+  </div>
 </Layout>

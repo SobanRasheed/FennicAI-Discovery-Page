@@ -41,6 +41,7 @@ const personSchema = {
 
   <Breadcrumbs crumbs={[{ label: 'Authors', href: '/authors/' }, { label: data.title }]} />
 
+  <div class="doc">
   <h1>{data.title}</h1>
   <p class="role">{data.role}</p>
 
@@ -77,6 +78,7 @@ const personSchema = {
       {authorPosts.map((post) => <PostCard post={post} />)}
     </section>
   )}
+  </div>
 </Layout>
 
 <style>

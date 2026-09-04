@@ -3,8 +3,12 @@ import SEO from '../components/SEO.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 // Self-hosted variable fonts: no third-party font request, no blocking <link>,
-// no flash of unstyled text.
-import '@fontsource-variable/plus-jakarta-sans';
+// no flash of unstyled text. Serif display (Source Serif 4) for headings,
+// titles and pull quotes; Inter for body and UI; JetBrains Mono for eyebrows
+// and metadata. The italic entry is imported separately — the variable font's
+// index ships normal styles only.
+import '@fontsource-variable/source-serif-4';
+import '@fontsource-variable/source-serif-4/wght-italic.css';
 import '@fontsource-variable/inter';
 import '@fontsource-variable/jetbrains-mono';
 import '../styles/tokens.css';
