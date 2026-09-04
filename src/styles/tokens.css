@@ -20,8 +20,11 @@
   color-scheme: light dark;
 
   /* --- type ------------------------------------------------------------- */
-  --font-display: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', Inter,
-    system-ui, -apple-system, 'Segoe UI', sans-serif;
+  /* Serif display type is the biggest differentiator from a generic product
+     site: it reads as a textbook. Inter carries body and UI, JetBrains Mono
+     carries eyebrows, kickers, and metadata. */
+  --font-display: 'Source Serif 4 Variable', 'Source Serif 4', Georgia,
+    'Times New Roman', serif;
   --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI',
     sans-serif;
   --font-mono: 'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace,
@@ -44,11 +47,12 @@
   --text-prose: 1.0625rem;      /* 17px mobile */
   --text-prose-lg: 1.1875rem;   /* 19px desktop */
 
-  /* Tracking: tight on display, neutral on body. Academic, not fashion. */
-  --track-display-xl: -0.035em;
-  --track-display-lg: -0.025em;
-  --track-display-md: -0.02em;
-  --track-display-sm: -0.015em;
+  /* Tracking: serifs need far less tightening than grotesques — at these
+     values the headings sit naturally rather than looking squeezed. */
+  --track-display-xl: -0.015em;
+  --track-display-lg: -0.012em;
+  --track-display-md: -0.008em;
+  --track-display-sm: -0.004em;
   --track-caps: 0.09em;
 
   --weight-body: 400;
@@ -463,6 +467,53 @@ table {
   line-height: var(--leading-normal);
 }
 
+/* Document pages: about, policies, and simple indexes that use Layout's
+   default container rather than a page-specific shell. Everything resets
+   to zero margins, so this class restores the flow — a document measure,
+   a lead paragraph after the title, ruled section headings. */
+.doc {
+  max-width: 46rem;
+}
+
+.doc > * + * {
+  margin-block-start: var(--space-4);
+}
+
+/* The first paragraph after the title reads as a standfirst. */
+.doc > h1 + p {
+  max-width: 62ch;
+  color: var(--body);
+  font-size: var(--text-body-lg);
+  line-height: var(--leading-normal);
+}
+
+.doc h2 {
+  margin-block-start: var(--space-10);
+}
+
+.doc h2 + *,
+.doc h3 + * {
+  margin-block-start: var(--space-2);
+}
+
+.doc section {
+  margin-block-start: var(--space-10);
+}
+
+.doc section > h2 {
+  margin-block-start: 0;
+}
+
+.doc p,
+.doc ul,
+.doc ol {
+  max-width: 70ch;
+}
+
+.doc li + li {
+  margin-block-start: var(--space-1);
+}
+
 /* Metadata row: date, reading time, author. */
 .meta {
   display: flex;
@@ -686,7 +737,6 @@ a.kicker:hover {
   font-family: var(--font-display);
   font-size: var(--text-body-lg);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.01em;
   line-height: var(--leading-snug);
 }
 
@@ -762,7 +812,6 @@ a.kicker:hover {
   font-family: var(--font-display);
   font-size: var(--text-body-lg);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.012em;
   line-height: var(--leading-snug);
   transition: color 0.15s var(--ease);
 }
@@ -958,13 +1007,24 @@ a.kicker:hover {
   font-weight: var(--weight-semibold);
 }
 
+/* Pull quotes are set in display italic — the one place the reading column
+   raises its voice, as a printed textbook does for emphasis. */
 .prose blockquote {
   margin: var(--space-8) 0;
   padding: var(--space-1) 0 var(--space-1) var(--space-6);
   border: 0;
   border-left: 2px solid var(--primary-border);
-  color: var(--body);
-  font-style: normal;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.25em;
+  font-style: italic;
+  font-weight: var(--weight-medium);
+  line-height: 1.45;
+  text-wrap: balance;
+}
+
+.prose blockquote p {
+  text-wrap: balance;
 }
 
 .prose figure {

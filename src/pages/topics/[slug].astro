@@ -44,6 +44,7 @@ const subjectLinks = topicSubjects
 >
   <Breadcrumbs crumbs={[{ label: 'Topic Hubs', href: '/topics/' }, { label: data.title }]} />
 
+  <div class="doc">
   <h1>{data.title}</h1>
   <p class="overview">{data.description}</p>
 
@@ -103,6 +104,7 @@ const subjectLinks = topicSubjects
   )}
 
   <Faq faqs={data.faqs} />
+  </div>
 </Layout>
 
 <style>

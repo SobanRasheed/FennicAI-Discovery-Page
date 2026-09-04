@@ -6,6 +6,7 @@ import ArticleCard from '../components/ArticleCard.astro';
 import Faq from '../components/Faq.astro';
 import JsonLd from '../components/JsonLd.astro';
 import Icon from '../components/Icon.astro';
+import Illustration from '../components/Illustration.astro';
 import { getNotes, getBlogPosts, getQuestions, getCollection } from '../utils/collections';
 
 const [notes, posts, questions, subjects, levels, topics] = await Promise.all([
@@ -117,8 +118,11 @@ const jsonLd = {
         <a class="link-arrow hero-more" href="/subjects/">Browse all subjects</a>
       </div>
 
-      <aside class="hero-quote">
-        <blockquote>
+      <aside class="hero-aside">
+        <div class="hero-art" aria-hidden="true">
+          <Illustration name="cardiovascular" size={190} />
+        </div>
+        <blockquote class="hero-quote">
           <p>Good medical knowledge improves lives.</p>
         </blockquote>
         <hr class="hero-quote-rule" />
@@ -144,6 +148,7 @@ const jsonLd = {
           <SubjectCard
             href={`/subjects/${subject.slug}/`}
             title={subject.data.title}
+            subject={subject.slug}
             sub={
               subject.mcqCount > 0 ? 'Study Notes · MCQs' : 'Study Notes'
             }
@@ -322,7 +327,7 @@ const jsonLd = {
 
   @media (min-width: 900px) {
     .hero-inner {
-      grid-template-columns: minmax(0, 1fr) 17rem;
+      grid-template-columns: minmax(0, 1fr) 19rem;
       gap: var(--space-16);
       align-items: center;
       padding-block: var(--space-16);
@@ -331,12 +336,13 @@ const jsonLd = {
 
   .hero-title {
     /* Deliberately capped: a heading, not a billboard. */
-    font-size: clamp(2.25rem, 1.6rem + 3vw, 3.5rem);
-    line-height: 1.06;
+    font-size: clamp(2.375rem, 1.7rem + 3.2vw, 3.75rem);
+    line-height: 1.08;
   }
 
   .hero-em {
     color: var(--primary);
+    font-style: italic;
   }
 
   .hero-lead {
@@ -352,26 +358,45 @@ const jsonLd = {
     margin-top: var(--space-4);
   }
 
-  /* The quote panel is the only decorative element on the page, and it is a
-     flat tinted block with a rule — no gradient, no glow. */
-  .hero-quote {
-    padding: var(--space-6);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
+  /* The hero aside is the one decorative element on the page: a hand-drawn
+     anatomical heart in a hairline panel, with a serif italic line beneath.
+     Flat tint, no gradient, no glow. */
+  .hero-aside {
+    display: none;
   }
 
-  .hero-quote blockquote {
-    margin: 0;
+  @media (min-width: 900px) {
+    .hero-aside {
+      display: block;
+      padding: var(--space-6);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      background: var(--surface-sunken);
+    }
+  }
+
+  .hero-art {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+    border: 1px solid var(--primary-border);
+    border-radius: var(--radius-sm);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .hero-quote {
+    margin: var(--space-6) 0 0;
   }
 
   .hero-quote p {
     color: var(--ink);
     font-family: var(--font-display);
     font-size: var(--text-display-md);
-    font-weight: var(--weight-semibold);
-    letter-spacing: -0.02em;
-    line-height: 1.28;
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.3;
     text-wrap: balance;
   }
 
@@ -479,6 +504,5 @@ const jsonLd = {
     margin-bottom: var(--space-3);
     font-size: var(--text-body);
     font-weight: var(--weight-semibold);
-    letter-spacing: -0.01em;
   }
 </style>

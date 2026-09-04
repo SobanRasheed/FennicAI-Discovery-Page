@@ -72,40 +72,39 @@ const quizSchema = {
     ]}
   />
 
-  <article>
+  <article class="doc question-doc">
     <h1>{data.question}</h1>
 
-    <p class="question-meta">
+    <p class="meta question-meta">
       {data.type.toUpperCase()} · {data.difficulty}
       {data.examTag && <span> · {data.examTag}</span>}
       {level && <span> · <a href={`/levels/${level.slug}/`}>{level.data.title}</a></span>}
     </p>
 
     {data.options.length > 0 && (
-      <section>
+      <section aria-labelledby="options">
         <h2 id="options">Options</h2>
-        <ol type="A">
+        <ol class="q-options" type="A">
           {data.options.map((option) => <li>{option}</li>)}
         </ol>
       </section>
     )}
 
-    <section>
+    <section class="q-answer" aria-labelledby="answer">
       <h2 id="answer">Answer</h2>
-      <p><strong>{data.answer}</strong></p>
+      <p class="q-answer-text">{data.answer}</p>
     </section>
 
-    <section>
+    <section aria-labelledby="explanation">
       <h2 id="explanation">Explanation</h2>
+      <div class="prose"><QuestionBody /></div>
       <p>{data.explanation}</p>
     </section>
 
-    <QuestionBody />
-
     {related.length > 0 && (
-      <section>
+      <section aria-labelledby="more-practice">
         <h2 id="more-practice">More practice on this subject</h2>
-        <ul>
+        <ul class="chevron-list q-related">
           {related.slice(0, 5).map((q) => (
             <li><a href={`/practice/${q.slug}/`}>{q.data.question}</a></li>
           ))}
@@ -116,8 +115,46 @@ const quizSchema = {
 </Layout>
 
 <style>
-  .question-meta {
-    font-size: 0.9rem;
-    color: #555;
+  /* The question itself is long-form text, so the title reads slightly
+     smaller than a page title. */
+  .question-doc > h1 {
+    font-size: clamp(1.375rem, 1.2rem + 0.9vw, 1.875rem);
+  }
+
+  .q-options {
+    margin: var(--space-3) 0 0;
+    padding-left: 1.75rem;
+    color: var(--body);
+    font-size: var(--text-prose);
+    line-height: var(--leading-normal);
+  }
+
+  .q-options li + li {
+    margin-top: var(--space-2);
+  }
+
+  /* The answer gets the summary treatment: a ruled panel the eye lands on. */
+  .q-answer-text {
+    margin-top: var(--space-3);
+    padding: var(--space-3) var(--space-5);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--primary);
+    border-radius: 0 var(--radius-md) var(--radius-md) 0;
+    background: var(--surface);
+    color: var(--ink);
+    font-size: var(--text-prose);
+    line-height: var(--leading-prose);
+  }
+
+  .q-related {
+    margin-top: var(--space-3);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .q-related a {
+    padding-block: var(--space-3);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
   }
 </style>

@@ -5,6 +5,8 @@
  * edge caching; links into article pages by subject/topic.
  */
 import Layout from '../../layouts/Layout.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import Illustration, { illustrationForSubject } from '../../components/Illustration.astro';
 import {
   getSubjectBySlug,
   listTopicsBySubject,
@@ -58,103 +60,275 @@ const pageLink = (p: number) => {
   return `/${subject.slug}/?${sp.toString()}`;
 };
 ---
-<Layout title={`${title} | devsyllabus`} description={description} path={path}>
-  <nav aria-label="Breadcrumb" class="breadcrumbs">
-    <a href="/">Home</a> › <span>{subject.title}</span>
-  </nav>
+<Layout title={`${title} | devsyllabus`} description={description} path={path} wide>
+  <PageHeader
+    kicker="Subject"
+    title={subject.title}
+    lead={subject.description}
+    crumbs={[{ label: 'Home', href: '/' }, { label: subject.title }]}
+    stats={[
+      { value: total, label: `published article${total === 1 ? '' : 's'}`, icon: 'book' },
+      ...(mcqCount?.n
+        ? [{ value: mcqCount.n, label: `practice question${mcqCount.n === 1 ? '' : 's'}`, icon: 'question' as const }]
+        : []),
+    ]}
+  >
+    {subjectImage && subjectImage.mime_type.startsWith('image/') && (
+      <p class="subject-image-wrap">
+        <img
+          src={`/media/${subjectImage.r2_key}/`}
+          alt={subjectImage.alt_text || subject.title}
+          class="subject-image"
+        />
+      </p>
+    )}
 
-  <h1>{subject.title}</h1>
-  {subjectImage && subjectImage.mime_type.startsWith('image/') && (
-    <img src={`/media/${subjectImage.r2_key}/`} alt={subjectImage.alt_text || subject.title} class="subject-image" />
-  )}
-  {subject.description && <p class="description">{subject.description}</p>}
-  {subject.introduction && <div class="introduction" set:html={subject.introduction} />}
+    <Fragment slot="aside">
+      <div class="hub-art" aria-hidden="true">
+        <Illustration name={illustrationForSubject(subject.slug)} size={150} />
+      </div>
+    </Fragment>
+  </PageHeader>
 
-  <p class="counts">
-    {total} published article{total === 1 ? '' : 's'}
-    {mcqCount?.n ? <> · {mcqCount.n} practice question{mcqCount.n === 1 ? '' : 's'}</> : ''}
-  </p>
+  <div class="container hub">
+    {subject.introduction && (
+      <section class="section section-plain" aria-label="Introduction">
+        <div class="prose introduction" set:html={subject.introduction} />
+      </section>
+    )}
 
-  <div class="type-filter">
-    <a href={`/${subject.slug}/`} class={!articleType ? 'active' : ''}>All</a>
-    <a href={`/${subject.slug}/?type=study-note`} class={articleType === 'study-note' ? 'active' : ''}>Study notes</a>
-    <a href={`/${subject.slug}/?type=article`} class={articleType === 'article' ? 'active' : ''}>Articles</a>
-  </div>
-
-  {topics.length > 0 && (
-    <section aria-labelledby="topics-heading">
-      <h2 id="topics-heading">Topics</h2>
-      <ul class="topic-list">
-        {topics
-          .filter((t) => !t.parent_topic_id)
-          .map((t) => (
-            <li key={t.id}>
-              <a id={t.slug} href={`#${t.slug}`}>{t.title}</a>
-              {t.description && <span> — {t.description}</span>}
-              {topics.some((c) => c.parent_topic_id === t.id) && (
-                <ul>
-                  {topics.filter((c) => c.parent_topic_id === t.id).map((c) => (
-                    <li key={c.id}><a href={`#${c.slug}`}>{c.title}</a></li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          ))}
-      </ul>
-    </section>
-  )}
-
-  <section aria-labelledby="notes-heading">
-    <h2 id="notes-heading">{articleType === 'study-note' ? 'Study notes' : articleType === 'article' ? 'Articles' : 'Latest notes & articles'}</h2>
-
-    {[...byTopic.entries()]
-      .sort((a, b) => {
-        const ta = a[0] ? topicById.get(a[0])?.sort_order ?? 9999 : -1;
-        const tb = b[0] ? topicById.get(b[0])?.sort_order ?? 9999 : -1;
-        return ta - tb;
-      })
-      .map(([topicId, list]) => {
-        const topic = topicId ? topicById.get(topicId) : null;
-        return (
-          <div class="topic-group">
-            {topic && <h3 id={topic.slug}>{topic.title}</h3>}
-            <ul class="article-list">
-              {list.map((a) => (
-                <li>
-                  <a href={`/${a.subject_slug}/${a.slug}/`}>{a.title}</a>
-                  {a.article_type === 'study-note' && <span class="type-tag">Study note</span>}
-                  <span class="meta"> · {a.reading_minutes} min · {fmtDate(a.published_at)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        );
-      })}
-
-    {articles.length === 0 && <p>No published content in this subject yet.</p>}
-  </section>
-
-  {totalPages > 1 && (
-    <nav class="pagination" aria-label="Pagination">
-      {page > 1 && <a href={pageLink(page - 1)}>← Previous</a>}
-      <span>Page {page} of {totalPages}</span>
-      {page < totalPages && <a href={pageLink(page + 1)}>Next →</a>}
+    {/* Segmented type filter — real links, so it works without JavaScript. */}
+    <nav class="type-filter" aria-label="Filter by content type">
+      <a href={`/${subject.slug}/`} class={!articleType ? 'active' : ''}>All</a>
+      <a href={`/${subject.slug}/?type=study-note`} class={articleType === 'study-note' ? 'active' : ''}>Study notes</a>
+      <a href={`/${subject.slug}/?type=article`} class={articleType === 'article' ? 'active' : ''}>Articles</a>
     </nav>
-  )}
+
+    {topics.length > 0 && (
+      <section class="section section-plain" aria-labelledby="topics-heading">
+        <div class="section-head">
+          <p class="eyebrow">Topics</p>
+          <h2 id="topics-heading">Topics in {subject.title}</h2>
+        </div>
+        <ul class="index-grid topic-list">
+          {topics
+            .filter((t) => !t.parent_topic_id)
+            .map((t) => (
+              <li key={t.id}>
+                <a id={t.slug} href={`#${t.slug}`}>
+                  {t.title}
+                  {topics.some((c) => c.parent_topic_id === t.id) && (
+                    <span class="count">
+                      {topics.filter((c) => c.parent_topic_id === t.id).length + 1}
+                    </span>
+                  )}
+                </a>
+                {t.description && <p class="topic-desc">{t.description}</p>}
+                {topics.some((c) => c.parent_topic_id === t.id) && (
+                  <ul class="topic-children">
+                    {topics.filter((c) => c.parent_topic_id === t.id).map((c) => (
+                      <li key={c.id}><a href={`#${c.slug}`}>{c.title}</a></li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+        </ul>
+      </section>
+    )}
+
+    <section class="section" aria-labelledby="notes-heading">
+      <div class="section-head">
+        <p class="eyebrow">Library</p>
+        <h2 id="notes-heading">
+          {articleType === 'study-note' ? 'Study notes' : articleType === 'article' ? 'Articles' : 'Latest notes & articles'}
+        </h2>
+      </div>
+
+      {[...byTopic.entries()]
+        .sort((a, b) => {
+          const ta = a[0] ? topicById.get(a[0])?.sort_order ?? 9999 : -1;
+          const tb = b[0] ? topicById.get(b[0])?.sort_order ?? 9999 : -1;
+          return ta - tb;
+        })
+        .map(([topicId, list]) => {
+          const topic = topicId ? topicById.get(topicId) : null;
+          return (
+            <div class="topic-group">
+              {topic && <h3 id={topic.slug} class="topic-group-title">{topic.title}</h3>}
+              <ul class="entry-list">
+                {list.map((a) => (
+                  <li>
+                    <a class="entry" href={`/${a.subject_slug}/${a.slug}/`}>
+                      <span class="entry-title">
+                        {a.title}
+                        {a.article_type === 'study-note' && <span class="tag">Study note</span>}
+                      </span>
+                      <span class="entry-meta">{a.reading_minutes} min · {fmtDate(a.published_at)}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+
+      {articles.length === 0 && (
+        <div class="empty-state">
+          <h3>Nothing published yet</h3>
+          <p>No published content in this subject yet.</p>
+        </div>
+      )}
+    </section>
+
+    {totalPages > 1 && (
+      <nav class="pagination" aria-label="Pagination">
+        {page > 1 && <a class="btn btn-secondary btn-sm" href={pageLink(page - 1)}>← Previous</a>}
+        <span class="page-status">Page {page} of {totalPages}</span>
+        {page < totalPages && <a class="btn btn-secondary btn-sm" href={pageLink(page + 1)}>Next →</a>}
+      </nav>
+    )}
+  </div>
 </Layout>
 
 <style>
-  .breadcrumbs { font-size: 0.85rem; color: #666; margin-bottom: 1rem; }
-  .description { color: #444; }
-  .subject-image { max-width: 100%; height: auto; }
-  .counts { color: #555; font-size: 0.9rem; }
-  .type-filter { display: flex; gap: 0.75rem; margin: 1rem 0; font-size: 0.9rem; }
-  .type-filter .active { font-weight: 700; }
-  .topic-list { padding-left: 1.25rem; }
-  .topic-group h3 { margin-bottom: 0.25rem; }
-  .article-list { padding-left: 1.25rem; }
-  .article-list li { margin: 0.35rem 0; }
-  .type-tag { display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem; font-size: 0.75rem; background: #eef; border-radius: 3px; }
-  .meta { color: #777; font-size: 0.85rem; }
-  .pagination { display: flex; gap: 1rem; align-items: center; margin-top: 2rem; }
+  .hub {
+    padding-block: var(--space-8) var(--space-16);
+  }
+
+  .subject-image-wrap {
+    margin-top: var(--space-6);
+  }
+
+  .subject-image {
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .introduction {
+    margin-inline: auto;
+  }
+
+  /* The subject's drawing in the header aside. */
+  .hub-art {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-6);
+    border: 1px solid var(--primary-border);
+    border-radius: var(--radius-md);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  /* --- type filter: a quiet segmented link row -------------------------- */
+  .type-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    padding-block: var(--space-3);
+    border-block: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .type-filter a {
+    display: inline-flex;
+    align-items: center;
+    height: 32px;
+    padding-inline: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease),
+      color 0.15s var(--ease);
+  }
+
+  .type-filter a:hover {
+    border-color: var(--border-strong);
+    color: var(--ink);
+  }
+
+  .type-filter a.active {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  /* --- topic list ------------------------------------------------------ */
+  .topic-desc {
+    margin: 0 0 var(--space-2);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+    text-align: left;
+  }
+
+  .index-grid li {
+    padding-block: var(--space-3);
+  }
+
+  .topic-children {
+    margin: var(--space-1) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .topic-children li {
+    padding: var(--space-1) 0;
+    border-bottom: 0;
+  }
+
+  .topic-children a {
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-body);
+    text-decoration: none;
+  }
+
+  .topic-children a:hover {
+    color: var(--primary);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+
+  /* --- article groups -------------------------------------------------- */
+  .topic-group + .topic-group {
+    margin-top: var(--space-8);
+  }
+
+  .topic-group-title {
+    margin-bottom: var(--space-3);
+    font-size: var(--text-display-md);
+  }
+
+  .entry-title .tag {
+    margin-left: var(--space-2);
+    vertical-align: 0.1em;
+  }
+
+  .entry-meta {
+    color: var(--faint);
+    font-size: var(--text-body-sm);
+    white-space: nowrap;
+  }
+
+  /* --- pagination ------------------------------------------------------ */
+  .pagination {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    margin-top: var(--space-12);
+  }
+
+  .page-status {
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
 </style>

@@ -15,6 +15,7 @@ import SidebarPanel from '../../components/SidebarPanel.astro';
 import RelatedContent from '../../components/RelatedContent.astro';
 import Faq from '../../components/Faq.astro';
 import Icon from '../../components/Icon.astro';
+import Illustration, { illustrationForSubject } from '../../components/Illustration.astro';
 import {
   getNotesBySubject,
   getQuestionsBySubject,
@@ -125,6 +126,12 @@ const tabs = [
         ))}
       </p>
     )}
+
+    <Fragment slot="aside">
+      <div class="hub-art" aria-hidden="true">
+        <Illustration name={illustrationForSubject(subject.slug)} size={150} />
+      </div>
+    </Fragment>
   </PageHeader>
 
   {/* Section navigation: real anchors, horizontally scrollable on mobile. */}
@@ -331,6 +338,19 @@ const tabs = [
     font-size: var(--text-body-sm);
   }
 
+  /* The subject's drawing in the header aside — same treatment as the hero
+     panel on the homepage. */
+  .hub-art {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-6);
+    border: 1px solid var(--primary-border);
+    border-radius: var(--radius-md);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
   /* --- tab strip ------------------------------------------------------- */
   .tabs {
     border-bottom: 1px solid var(--border);
@@ -436,7 +456,6 @@ const tabs = [
   .chapter-title {
     font-size: var(--text-display-sm);
     font-weight: var(--weight-display);
-    letter-spacing: -0.015em;
   }
 
   .chapter-desc {
@@ -517,7 +536,6 @@ const tabs = [
     font-family: var(--font-display);
     font-size: var(--text-body-lg);
     font-weight: var(--weight-semibold);
-    letter-spacing: -0.015em;
     line-height: var(--leading-snug);
   }
 
