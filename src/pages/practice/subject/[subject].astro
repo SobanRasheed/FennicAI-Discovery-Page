@@ -1,8 +1,8 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import Breadcrumbs from '../../../components/Breadcrumbs.astro';
-import { getQuestions } from '../../../utils/collections';
-import { getCollection } from '../../../utils/collections';
+import PageHeader from '../../../components/PageHeader.astro';
+import QuestionList from '../../../components/QuestionList.astro';
+import { getQuestions, getCollection } from '../../../utils/collections';
 
 export async function getStaticPaths() {
   const [questions, subjects] = await Promise.all([
@@ -15,35 +15,62 @@ export async function getStaticPaths() {
 }
 
 const { subject } = Astro.props;
-const questions = (await getQuestions()).filter(
-  (q) => q.data.subject === subject.slug,
-);
+const [allQuestions, subjects] = await Promise.all([
+  getQuestions(),
+  getCollection('subjects'),
+]);
+const questions = allQuestions.filter((q) => q.data.subject === subject.slug);
+
+const byType = ['mcq', 'short', 'long', 'numerical']
+  .map((type) => ({ type, count: questions.filter((q) => q.data.type === type).length }))
+  .filter((group) => group.count > 0);
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
 ---
 
 <Layout
-  title={`${subject.data.title} Practice Questions | devsyllabus`}
+  title={`${subject.data.title} Practice Questions | Medical Study Notes`}
   description={`Practice questions for ${subject.data.title} with full answers and explanations, spanning MCQs, short answers, long answers, and numerical problems.`}
   path={`/practice/subject/${subject.slug}/`}
+  footerSubjects={footerSubjects}
+  wide
 >
-  <Breadcrumbs
+  <PageHeader
+    kicker={subject.data.title}
+    title={`${subject.data.title} practice questions`}
+    lead={`${questions.length} question${questions.length === 1 ? '' : 's'} with worked answers.`}
     crumbs={[
       { label: 'Practice', href: '/practice/' },
       { label: subject.data.title },
     ]}
-  />
+    stats={byType.map((group) => ({
+      value: group.count,
+      label: group.type === 'mcq' ? 'MCQs' : `${group.type} answer`,
+      icon: 'question' as const,
+    }))}
+  >
+    <p class="hub-link">
+      Also see the
+      <a href={`/subjects/${subject.slug}/`}>{subject.data.title} study notes</a>.
+    </p>
+  </PageHeader>
 
-  <h1>{subject.data.title} practice questions</h1>
-  <p>
-    {questions.length} question{questions.length === 1 ? '' : 's'} with worked
-    answers. Also see the <a href={`/subjects/${subject.slug}/`}>{subject.data.title} study notes</a>.
-  </p>
-
-  <ul>
-    {questions.map((q) => (
-      <li>
-        <a href={`/practice/${q.slug}/`}>{q.data.question}</a>
-        <span> — {q.data.type}, {q.data.difficulty}</span>
-      </li>
-    ))}
-  </ul>
+  <div class="container page-body">
+    <QuestionList {questions} />
+  </div>
 </Layout>
+
+<style>
+  .hub-link {
+    margin-top: var(--space-4);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .page-body {
+    padding-block: var(--space-8) var(--space-16);
+  }
+</style>

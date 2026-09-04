@@ -1,9 +1,8 @@
 ---
 import Layout from '../../../../../layouts/Layout.astro';
-import Breadcrumbs from '../../../../../components/Breadcrumbs.astro';
-import PostCard from '../../../../../components/PostCard.astro';
-import Pagination from '../../../../../components/Pagination.astro';
-import { getPostsByCategory } from '../../../../../utils/collections';
+import PageHeader from '../../../../../components/PageHeader.astro';
+import BlogListing from '../../../../../components/BlogListing.astro';
+import { getPostsByCategory, getCollection } from '../../../../../utils/collections';
 
 const POSTS_PER_PAGE = 6;
 
@@ -25,33 +24,52 @@ export async function getStaticPaths() {
 
 const { category, page } = Astro.props;
 const currentPage = Number(page);
-const posts = await getPostsByCategory(category);
+const [posts, subjects] = await Promise.all([
+  getPostsByCategory(category),
+  getCollection('subjects'),
+]);
 const pagePosts = posts.slice(
   (currentPage - 1) * POSTS_PER_PAGE,
   currentPage * POSTS_PER_PAGE,
 );
 const label = category.replace(/-/g, ' ');
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
 ---
 
 <Layout
-  title={`${label} Articles — Page ${currentPage} | devsyllabus Blog`}
-  description={`All ${label} articles on devsyllabus, page ${currentPage}.`}
+  title={`${label} Articles — Page ${currentPage} | Medical Study Notes`}
+  description={`All ${label} articles on Medical Study Notes, page ${currentPage}.`}
   path={`/blog/category/${category}/page/${currentPage}/`}
+  footerSubjects={footerSubjects}
+  wide
 >
-  <Breadcrumbs
+  <PageHeader
+    kicker={`Page ${currentPage}`}
+    title={label}
     crumbs={[
       { label: 'Blog', href: '/blog/' },
-      { label: label, href: `/blog/category/${category}/` },
+      { label, href: `/blog/category/${category}/` },
       { label: `Page ${currentPage}` },
     ]}
   />
 
-  <h1>{label} articles</h1>
-  {pagePosts.map((post) => <PostCard post={post} />)}
-  <Pagination
-    basePath={`/blog/category/${category}`}
-    totalItems={posts.length}
-    itemsPerPage={POSTS_PER_PAGE}
-    currentPage={currentPage}
-  />
+  <div class="container listing">
+    <BlogListing
+      posts={pagePosts}
+      totalPosts={posts.length}
+      currentPage={currentPage}
+      basePath={`/blog/category/${category}`}
+      perPage={POSTS_PER_PAGE}
+    />
+  </div>
 </Layout>
+
+<style>
+  .listing {
+    padding-block: var(--space-8) var(--space-16);
+  }
+</style>

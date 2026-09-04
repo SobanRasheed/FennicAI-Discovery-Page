@@ -1,10 +1,9 @@
 ---
 /**
- * Shared blog-listing block used by /blog/ (page 1) and /blog/page/N/.
- * Kept as a fragment so both routes render identical listings, differing
- * only in which slice of posts they show.
+ * Shared blog listing used by /blog/ and /blog/page/N/, so both routes render
+ * an identical list and differ only in the slice of posts they receive.
  */
-import PostCard from './PostCard.astro';
+import ArticleCard from './ArticleCard.astro';
 import Pagination from './Pagination.astro';
 
 interface Props {
@@ -21,13 +20,43 @@ interface Props {
   }[];
   totalPosts: number;
   currentPage: number;
+  basePath?: string;
+  perPage?: number;
 }
 
-const { posts, totalPosts, currentPage } = Astro.props;
-const POSTS_PER_PAGE = 6;
+const {
+  posts,
+  totalPosts,
+  currentPage,
+  basePath = '/blog',
+  perPage = 6,
+} = Astro.props;
 ---
 
-<div class="blog-listing">
-  {posts.map((post) => <PostCard post={post} />)}
-  <Pagination basePath="/blog" totalItems={totalPosts} itemsPerPage={POSTS_PER_PAGE} currentPage={currentPage} />
-</div>
+{posts.length > 0 ? (
+  <ul class="entry-list">
+    {posts.map((post) => (
+      <li>
+        <ArticleCard
+          href={`/blog/${post.slug}/`}
+          title={post.data.title}
+          excerpt={post.data.description}
+          kicker={post.data.category.replace(/-/g, ' ')}
+          date={post.data.publishedDate}
+        />
+      </li>
+    ))}
+  </ul>
+) : (
+  <div class="empty-state">
+    <h3>No articles yet</h3>
+    <p>Nothing published in this section. Browse <a href="/notes/">study notes</a> instead.</p>
+  </div>
+)}
+
+<Pagination
+  {basePath}
+  totalItems={totalPosts}
+  itemsPerPage={perPage}
+  {currentPage}
+/>

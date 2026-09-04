@@ -1,16 +1,29 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import Breadcrumbs from '../../../components/Breadcrumbs.astro';
-import { getQuestions } from '../../../utils/collections';
+import PageHeader from '../../../components/PageHeader.astro';
+import QuestionList from '../../../components/QuestionList.astro';
+import { getQuestions, getCollection } from '../../../utils/collections';
 
 export async function getStaticPaths() {
   // Defined here, not in the frontmatter: getStaticPaths is hoisted into its
   // own module and cannot see component-scope constants.
   const typeLabels: Record<string, { label: string; description: string }> = {
-    mcq: { label: 'Multiple Choice Questions', description: 'MCQs with four options and the reasoning behind each distractor.' },
-    short: { label: 'Short Answer Questions', description: 'One- to three-line answers for definition and distinction questions.' },
-    long: { label: 'Long Answer Questions', description: 'Full worked answers with the structure markers expect.' },
-    numerical: { label: 'Numerical Problems', description: 'Problems with a number as the answer and the method behind it.' },
+    mcq: {
+      label: 'Multiple Choice Questions',
+      description: 'MCQs with four options and the reasoning behind each distractor.',
+    },
+    short: {
+      label: 'Short Answer Questions',
+      description: 'One- to three-line answers for definition and distinction questions.',
+    },
+    long: {
+      label: 'Long Answer Questions',
+      description: 'Full worked answers with the structure markers expect.',
+    },
+    numerical: {
+      label: 'Numerical Problems',
+      description: 'Problems with a number as the answer and the method behind it.',
+    },
   };
   return Object.keys(typeLabels).map((type) => ({
     params: { type },
@@ -19,30 +32,40 @@ export async function getStaticPaths() {
 }
 
 const { type, meta } = Astro.props;
-const questions = (await getQuestions()).filter((q) => q.data.type === type);
+const [allQuestions, subjects] = await Promise.all([
+  getQuestions(),
+  getCollection('subjects'),
+]);
+const questions = allQuestions.filter((q) => q.data.type === type);
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
 ---
 
 <Layout
-  title={`${meta.label} Practice | devsyllabus`}
+  title={`${meta.label} | Medical Study Notes`}
   description={`${meta.description} ${questions.length} questions across all subjects with full answers.`}
   path={`/practice/type/${type}/`}
+  footerSubjects={footerSubjects}
+  wide
 >
-  <Breadcrumbs
-    crumbs={[
-      { label: 'Practice', href: '/practice/' },
-      { label: meta.label },
-    ]}
+  <PageHeader
+    kicker="Question type"
+    title={meta.label}
+    lead={meta.description}
+    crumbs={[{ label: 'Practice', href: '/practice/' }, { label: meta.label }]}
+    stats={[{ value: questions.length, label: 'Questions', icon: 'question' }]}
   />
 
-  <h1>{meta.label}</h1>
-  <p>{meta.description}</p>
-
-  <ul>
-    {questions.map((q) => (
-      <li>
-        <a href={`/practice/${q.slug}/`}>{q.data.question}</a>
-        <span> — {q.data.difficulty}</span>
-      </li>
-    ))}
-  </ul>
+  <div class="container page-body">
+    <QuestionList {questions} showType={false} />
+  </div>
 </Layout>
+
+<style>
+  .page-body {
+    padding-block: var(--space-8) var(--space-16);
+  }
+</style>

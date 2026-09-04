@@ -1,12 +1,20 @@
 ---
-import Layout from '../../layouts/Layout.astro';
-import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import TOC from '../../components/TOC.astro';
+/**
+ * A blog article. Same reading shell as a study note, but the sidebar carries
+ * related notes and the author rather than quick facts, since an article has
+ * no chapter taxonomy behind it.
+ */
+import ArticleLayout from '../../layouts/ArticleLayout.astro';
+import ArticleHeader from '../../components/ArticleHeader.astro';
+import TableOfContents from '../../components/TableOfContents.astro';
+import SidebarPanel from '../../components/SidebarPanel.astro';
+import RelatedContent from '../../components/RelatedContent.astro';
+import ReferenceList from '../../components/ReferenceList.astro';
 import Faq from '../../components/Faq.astro';
 import JsonLd from '../../components/JsonLd.astro';
-import { getBlogPosts, getNotes, formatDate, isoDate } from '../../utils/collections';
+import Icon from '../../components/Icon.astro';
+import { getBlogPosts, getNotes, getCollection, isoDate } from '../../utils/collections';
 import { render } from 'astro:content';
-import { getCollection } from '../../utils/collections';
 
 export async function getStaticPaths() {
   const posts = await getBlogPosts();
@@ -17,10 +25,11 @@ const { post } = Astro.props;
 const { data } = post;
 const { Content: PostBody, headings } = await render(post);
 
-const [authors, allNotes, allPosts] = await Promise.all([
+const [authors, allNotes, allPosts, subjects] = await Promise.all([
   getCollection('authors'),
   getNotes(),
   getBlogPosts(),
+  getCollection('subjects'),
 ]);
 
 const author = authors.find((a) => a.slug === data.author);
@@ -31,15 +40,25 @@ const index = allPosts.findIndex((p) => p.slug === post.slug);
 const newer = index > 0 ? allPosts[index - 1] : undefined;
 const older = index < allPosts.length - 1 ? allPosts[index + 1] : undefined;
 
-// Posts sharing a topic, excluding this one, up to 3.
 const relatedPosts = allPosts
-  .filter(
-    (p) => p.slug !== post.slug && p.data.topics.some((t) => data.topics.includes(t)),
-  )
-  .slice(0, 3);
+  .filter((p) => p.slug !== post.slug && p.data.topics.some((t) => data.topics.includes(t)))
+  .slice(0, 4);
 
+const tocHeadings = [
+  ...headings.filter((h) => h.depth === 2 || h.depth === 3),
+  ...(data.references.length > 0
+    ? [{ depth: 2, text: 'References', slug: 'references' }]
+    : []),
+];
+
+const categoryLabel = data.category.replace(/-/g, ' ');
 const title = data.seoTitle ?? data.title;
 const site = Astro.site!;
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
 
 const articleSchema = {
   '@context': 'https://schema.org',
@@ -57,7 +76,7 @@ const articleSchema = {
     : undefined,
   publisher: {
     '@type': 'Organization',
-    name: 'devsyllabus',
+    name: 'Medical Study Notes',
     url: site.href,
   },
   mainEntityOfPage: {
@@ -68,122 +87,222 @@ const articleSchema = {
 };
 ---
 
-<Layout
-  title={`${title} | devsyllabus`}
+<ArticleLayout
+  title={`${title} | Medical Study Notes`}
   description={data.description}
   path={`/blog/${post.slug}/`}
   noindex={data.noindex}
-  ogType="article"
   publishedTime={data.publishedDate}
   modifiedTime={data.updatedDate ?? data.publishedDate}
+  footerSubjects={footerSubjects}
+  crumbs={[
+    { label: 'Blog', href: '/blog/' },
+    { label: categoryLabel, href: `/blog/category/${data.category}/` },
+    { label: data.title },
+  ]}
 >
   <JsonLd data={articleSchema} />
 
-  <Breadcrumbs
-    crumbs={[
-      { label: 'Blog', href: '/blog/' },
-      { label: data.category, href: `/blog/category/${data.category}/` },
-      { label: data.title },
-    ]}
+  {tocHeadings.length >= 3 && (
+    <Fragment slot="rail">
+      <TableOfContents headings={tocHeadings} numbered={false} />
+    </Fragment>
+  )}
+
+  <ArticleHeader
+    title={data.title}
+    kicker={categoryLabel}
+    kickerHref={`/blog/category/${data.category}/`}
+    standfirst={data.description}
+    published={data.publishedDate}
+    updated={data.updatedDate}
+    author={author?.data.title}
+    authorHref={author ? `/authors/${author.slug}/` : undefined}
   />
 
-  <article>
-    <h1>{data.title}</h1>
+  <div class="prose post-body">
+    <PostBody />
+  </div>
 
-    <p class="byline">
-      By <a href={`/authors/${data.author}/`}>{author?.data.title ?? data.author}</a>
-      · <time datetime={isoDate(data.publishedDate)}>Published {formatDate(data.publishedDate)}</time>
-      {data.updatedDate && (
-        <span> · <time datetime={isoDate(data.updatedDate)}>Updated {formatDate(data.updatedDate)}</time></span>
+  <ReferenceList references={data.references} />
+
+  {(older || newer) && (
+    <nav class="prev-next" aria-label="Article navigation">
+      {older ? (
+        <a class="pn-link pn-prev" href={`/blog/${older.slug}/`} rel="prev">
+          <span class="pn-label"><Icon name="chevron-right" size={14} /> Previous</span>
+          <span class="pn-title">{older.data.title}</span>
+        </a>
+      ) : <span />}
+      {newer && (
+        <a class="pn-link pn-next" href={`/blog/${newer.slug}/`} rel="next">
+          <span class="pn-label">Next <Icon name="chevron-right" size={14} /></span>
+          <span class="pn-title">{newer.data.title}</span>
+        </a>
       )}
-    </p>
+    </nav>
+  )}
 
-    <TOC headings={headings} />
+  {author && (
+    <section class="author-box" aria-labelledby="about-the-author">
+      <h2 id="about-the-author" class="author-heading">About the author</h2>
+      <p class="author-name">
+        <a href={`/authors/${author.slug}/`}>{author.data.title}</a>
+        <span class="author-role">{author.data.role}</span>
+      </p>
+      <p class="author-bio">{author.data.bio}</p>
+    </section>
+  )}
 
-    <div class="content">
-      <PostBody />
-    </div>
+  <Faq faqs={data.faqs} level={2} id="post-faq" />
 
-    {data.references.length > 0 && (
-      <section>
-        <h2 id="references">References</h2>
-        <ol>
-          {data.references.map((ref) => (
-            <li>
-              {ref.url ? (
-                <a href={ref.url} rel="noopener">{ref.title}</a>
-              ) : (
-                ref.title
-              )}
-              {ref.source && <span> — {ref.source}</span>}
-            </li>
-          ))}
-        </ol>
-      </section>
-    )}
-
+  <Fragment slot="sidebar">
     {relatedNotes.length > 0 && (
-      <section>
-        <h2 id="related-notes">Related study notes</h2>
-        <ul>
-          {relatedNotes.map((note) => (
-            <li>
-              <a href={`/notes/${note.slug}/`}>{note.data.title}</a>
-              <span> — {note.data.description}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <SidebarPanel heading="Related study notes" icon="book">
+        <RelatedContent
+          items={relatedNotes.map((n) => ({
+            href: `/notes/${n.slug}/`,
+            title: n.data.title,
+            context: subjects.find((s) => s.slug === n.data.subject)?.data.title,
+          }))}
+          variant="list"
+          heading=""
+          level={3}
+          id="side-notes"
+        />
+      </SidebarPanel>
     )}
 
     {relatedPosts.length > 0 && (
-      <section>
-        <h2 id="related-articles">Related articles</h2>
-        <ul>
-          {relatedPosts.map((p) => (
-            <li><a href={`/blog/${p.slug}/`}>{p.data.title}</a></li>
-          ))}
-        </ul>
-      </section>
+      <SidebarPanel heading="More on this topic" icon="notes">
+        <RelatedContent
+          items={relatedPosts.map((p) => ({
+            href: `/blog/${p.slug}/`,
+            title: p.data.title,
+            context: p.data.category.replace(/-/g, ' '),
+          }))}
+          variant="list"
+          heading=""
+          level={3}
+          id="side-posts"
+        />
+      </SidebarPanel>
     )}
 
-    {(older || newer) && (
-      <nav aria-label="Article navigation" class="prev-next">
-        {older && (
-          <a href={`/blog/${older.slug}/`} rel="prev">← {older.data.title}</a>
-        )}
-        {newer && (
-          <a href={`/blog/${newer.slug}/`} rel="next">{newer.data.title} →</a>
-        )}
-      </nav>
-    )}
-
-    {author && (
-      <section class="author-box">
-        <h2 id="about-the-author">About the author</h2>
-        <p><a href={`/authors/${author.slug}/`}><strong>{author.data.title}</strong></a> — {author.data.role}</p>
-        <p>{author.data.bio}</p>
-      </section>
-    )}
-
-    <Faq faqs={data.faqs} />
-  </article>
-</Layout>
+    <SidebarPanel heading="Keep reading" icon="link">
+      <ul class="chevron-list">
+        <li><a href="/blog/">All articles</a></li>
+        <li><a href="/notes/">Study notes</a></li>
+        <li><a href="/practice/">Practice questions</a></li>
+        <li><a href="/editorial-policy/">Editorial policy</a></li>
+      </ul>
+    </SidebarPanel>
+  </Fragment>
+</ArticleLayout>
 
 <style>
-  .byline {
-    color: #555;
-    font-size: 0.9rem;
+  .post-body {
+    margin-top: var(--space-8);
   }
+
+  /* --- prev / next ----------------------------------------------------- */
   .prev-next {
-    display: flex;
-    justify-content: space-between;
-    gap: 1rem;
-    padding: 1rem 0;
-    border-top: 1px solid #e5e5e5;
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-12);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border);
   }
+
+  @media (min-width: 640px) {
+    .prev-next {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .pn-link {
+    display: block;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .pn-link:hover {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  .pn-next {
+    text-align: right;
+  }
+
+  .pn-label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .pn-prev .pn-label svg {
+    transform: rotate(180deg);
+  }
+
+  .pn-title {
+    display: block;
+    margin-top: var(--space-1);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+  }
+
+  .pn-link:hover .pn-title {
+    color: var(--primary);
+  }
+
+  /* --- author ---------------------------------------------------------- */
   .author-box {
-    border-top: 1px solid #e5e5e5;
-    padding-top: 1rem;
+    margin-top: var(--space-12);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border);
+  }
+
+  .author-heading {
+    font-size: var(--text-display-md);
+  }
+
+  .author-name {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: baseline;
+    margin-top: var(--space-3);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .author-role {
+    color: var(--mute);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-body);
+  }
+
+  .author-bio {
+    max-width: 68ch;
+    margin-top: var(--space-2);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-prose);
   }
 </style>

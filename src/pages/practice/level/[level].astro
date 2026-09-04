@@ -1,8 +1,8 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import Breadcrumbs from '../../../components/Breadcrumbs.astro';
-import { getQuestions } from '../../../utils/collections';
-import { getCollection } from '../../../utils/collections';
+import PageHeader from '../../../components/PageHeader.astro';
+import QuestionList from '../../../components/QuestionList.astro';
+import { getQuestions, getCollection } from '../../../utils/collections';
 
 export async function getStaticPaths() {
   const [questions, levels] = await Promise.all([
@@ -15,33 +15,53 @@ export async function getStaticPaths() {
 }
 
 const { level } = Astro.props;
-const questions = (await getQuestions()).filter((q) => q.data.level === level.slug);
+const [allQuestions, subjects] = await Promise.all([
+  getQuestions(),
+  getCollection('subjects'),
+]);
+const questions = allQuestions.filter((q) => q.data.level === level.slug);
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
 ---
 
 <Layout
-  title={`${level.data.title} Practice Questions | devsyllabus`}
+  title={`${level.data.title} Practice Questions | Medical Study Notes`}
   description={`Practice questions for ${level.data.title} with full answers and explanations, matched to the syllabus at this level.`}
   path={`/practice/level/${level.slug}/`}
+  footerSubjects={footerSubjects}
+  wide
 >
-  <Breadcrumbs
+  <PageHeader
+    kicker="Education level"
+    title={`${level.data.title} practice questions`}
+    lead={`${questions.length} question${questions.length === 1 ? '' : 's'} matched to this level, each with a worked answer.`}
     crumbs={[
       { label: 'Practice', href: '/practice/' },
       { label: level.data.title },
     ]}
-  />
+  >
+    <p class="hub-link">
+      Also see the
+      <a href={`/levels/${level.slug}/`}>{level.data.title} study notes</a>.
+    </p>
+  </PageHeader>
 
-  <h1>{level.data.title} practice questions</h1>
-  <p>
-    {questions.length} question{questions.length === 1 ? '' : 's'} matched to
-    this level. Also see the <a href={`/levels/${level.slug}/`}>{level.data.title} study notes</a>.
-  </p>
-
-  <ul>
-    {questions.map((q) => (
-      <li>
-        <a href={`/practice/${q.slug}/`}>{q.data.question}</a>
-        <span> — {q.data.type}, {q.data.difficulty}</span>
-      </li>
-    ))}
-  </ul>
+  <div class="container page-body">
+    <QuestionList {questions} />
+  </div>
 </Layout>
+
+<style>
+  .hub-link {
+    margin-top: var(--space-4);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .page-body {
+    padding-block: var(--space-8) var(--space-16);
+  }
+</style>

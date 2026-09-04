@@ -1,8 +1,8 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import { getQuestions } from '../../utils/collections';
-import { getCollection } from '../../utils/collections';
+import PageHeader from '../../components/PageHeader.astro';
+import QuestionList from '../../components/QuestionList.astro';
+import { getQuestions, getCollection } from '../../utils/collections';
 
 const [questions, subjects, levels] = await Promise.all([
   getQuestions(),
@@ -10,8 +10,6 @@ const [questions, subjects, levels] = await Promise.all([
   getCollection('levels'),
 ]);
 
-const subjectOptions = subjects.map((s) => ({ slug: s.slug, label: s.data.title }));
-const levelOptions = levels.map((l) => ({ slug: l.slug, label: l.data.title }));
 const typeOptions = [
   { slug: 'mcq', label: 'Multiple choice' },
   { slug: 'short', label: 'Short answer' },
@@ -19,84 +17,111 @@ const typeOptions = [
   { slug: 'numerical', label: 'Numerical' },
 ];
 
-// The unfiltered index lists everything grouped by subject; filter pages
-// live at /practice/subject|level|type/[slug]/.
-const grouped = subjectOptions
-  .map((option) => ({
-    option,
-    questions: questions.filter((q) => q.data.subject === option.slug),
+/** The unfiltered index groups by subject; filter pages live one level down. */
+const grouped = subjects
+  .map((subject) => ({
+    subject,
+    questions: questions.filter((q) => q.data.subject === subject.slug),
   }))
   .filter((group) => group.questions.length > 0);
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
 ---
 
 <Layout
-  title="Practice Questions — MCQs, Short Answers, and Worked Problems | devsyllabus"
-  description="Practice questions for computer science subjects with full answers and explanations: MCQs, short and long answer questions, and numerical problems."
+  title="MCQs and Practice Questions with Worked Answers | Medical Study Notes"
+  description="Practice questions with full answers and explanations: MCQs, short and long answer questions, and numerical problems, filterable by subject, level, and type."
   path="/practice/"
+  footerSubjects={footerSubjects}
+  wide
 >
-  <Breadcrumbs crumbs={[{ label: 'Practice Questions' }]} />
+  <PageHeader
+    kicker="MCQs and practice"
+    title="Practice questions"
+    lead="Every question includes the full answer and a worked explanation, not just a letter. Practise by subject, level, or question type."
+    crumbs={[{ label: 'Practice Questions' }]}
+    stats={[
+      { value: questions.length, label: 'Questions', icon: 'question' },
+      { value: grouped.length, label: 'Subjects covered', icon: 'book' },
+      { value: typeOptions.length, label: 'Question types', icon: 'list' },
+    ]}
+  />
 
-  <h1>Practice questions</h1>
-  <p>
-    Every question includes the full answer and a worked explanation, not
-    just a letter. Practice by subject, level, or question type.
-  </p>
+  <div class="container page-body">
+    {/* Filters: three plain link groups rather than a filter widget, so each
+        combination is a real crawlable URL. */}
+    <section class="section section-plain" aria-labelledby="filters">
+      <div class="section-head">
+        <h2 id="filters">Filter questions</h2>
+      </div>
+      <div class="grid grid-3">
+        <div class="filter-col">
+          <h3 class="filter-title">By subject</h3>
+          <ul class="chevron-list">
+            {subjects.map((subject) => (
+              <li>
+                <a href={`/practice/subject/${subject.slug}/`}>{subject.data.title}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div class="filter-col">
+          <h3 class="filter-title">By level</h3>
+          <ul class="chevron-list">
+            {levels.map((level) => (
+              <li><a href={`/practice/level/${level.slug}/`}>{level.data.title}</a></li>
+            ))}
+          </ul>
+        </div>
+        <div class="filter-col">
+          <h3 class="filter-title">By type</h3>
+          <ul class="chevron-list">
+            {typeOptions.map((option) => (
+              <li><a href={`/practice/type/${option.slug}/`}>{option.label}</a></li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
 
-  <nav aria-label="Filter questions">
-    <h2>Filter</h2>
-    <div class="filters">
-      <div>
-        <h3>By subject</h3>
-        <ul>
-          {subjectOptions.map((option) => (
-            <li><a href={`/practice/subject/${option.slug}/`}>{option.label}</a></li>
-          ))}
-        </ul>
-      </div>
-      <div>
-        <h3>By level</h3>
-        <ul>
-          {levelOptions.map((option) => (
-            <li><a href={`/practice/level/${option.slug}/`}>{option.label}</a></li>
-          ))}
-        </ul>
-      </div>
-      <div>
-        <h3>By type</h3>
-        <ul>
-          {typeOptions.map((option) => (
-            <li><a href={`/practice/type/${option.slug}/`}>{option.label}</a></li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  </nav>
-
-  <section>
-    <h2>All questions ({questions.length})</h2>
-    {grouped.map((group) => (
-      <div class="subject-group">
-        <h3>{group.option.label}</h3>
-        <ul>
-          {group.questions.map((q) => (
-            <li>
-              <a href={`/practice/${q.slug}/`}>{q.data.question}</a>
-              <span> — {q.data.type}, {q.data.difficulty}</span>
-            </li>
-          ))}
-        </ul>
-      </div>
+    {grouped.map(({ subject, questions: subjectQuestions }) => (
+      <section class="section" aria-labelledby={`q-${subject.slug}`}>
+        <div class="section-head-row">
+          <div>
+            <p class="eyebrow">
+              {subjectQuestions.length} question{subjectQuestions.length === 1 ? '' : 's'}
+            </p>
+            <h2 id={`q-${subject.slug}`}>{subject.data.title}</h2>
+          </div>
+          <a class="link-arrow" href={`/practice/subject/${subject.slug}/`}>
+            Practise {subject.data.title}
+          </a>
+        </div>
+        <QuestionList questions={subjectQuestions} />
+      </section>
     ))}
-  </section>
+  </div>
 </Layout>
 
 <style>
-  .filters {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
-    gap: 1rem;
+  .page-body {
+    padding-bottom: var(--space-16);
   }
-  .subject-group {
-    margin-bottom: 1.5rem;
+
+  .filter-col {
+    padding: var(--space-4) var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .filter-title {
+    margin-bottom: var(--space-2);
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+    letter-spacing: -0.01em;
   }
 </style>

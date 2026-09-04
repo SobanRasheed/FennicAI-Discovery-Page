@@ -1,8 +1,8 @@
 ---
 import Layout from '../../../layouts/Layout.astro';
-import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import PageHeader from '../../../components/PageHeader.astro';
 import BlogListing from '../../../components/BlogListing.astro';
-import { getBlogPosts } from '../../../utils/collections';
+import { getBlogPosts, getCollection } from '../../../utils/collections';
 
 const POSTS_PER_PAGE = 6;
 
@@ -19,20 +19,38 @@ export async function getStaticPaths() {
 
 const { page } = Astro.params;
 const currentPage = Number(page);
-const posts = await getBlogPosts();
+const [posts, subjects] = await Promise.all([getBlogPosts(), getCollection('subjects')]);
 const pagePosts = posts.slice(
   (currentPage - 1) * POSTS_PER_PAGE,
   currentPage * POSTS_PER_PAGE,
 );
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
 ---
 
 <Layout
-  title={`Blog — Page ${currentPage} | devsyllabus`}
-  description={`All devsyllabus articles, page ${currentPage}. Study techniques, exam preparation, and computer science guides.`}
+  title={`Blog — Page ${currentPage} | Medical Study Notes`}
+  description={`All Medical Study Notes articles, page ${currentPage}. Study technique, exam preparation, and medical education guides.`}
   path={`/blog/page/${currentPage}/`}
+  footerSubjects={footerSubjects}
+  wide
 >
-  <Breadcrumbs crumbs={[{ label: 'Blog', href: '/blog/' }, { label: `Page ${currentPage}` }]} />
+  <PageHeader
+    kicker={`Page ${currentPage}`}
+    title="Articles and study guides"
+    crumbs={[{ label: 'Blog', href: '/blog/' }, { label: `Page ${currentPage}` }]}
+  />
 
-  <h1>All articles</h1>
-  <BlogListing posts={pagePosts} totalPosts={posts.length} currentPage={currentPage} />
+  <div class="container listing">
+    <BlogListing posts={pagePosts} totalPosts={posts.length} currentPage={currentPage} />
+  </div>
 </Layout>
+
+<style>
+  .listing {
+    padding-block: var(--space-8) var(--space-16);
+  }
+</style>

@@ -1,48 +1,124 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import NoteCard from '../../components/NoteCard.astro';
-import { getNotes } from '../../utils/collections';
-import { getCollection } from '../../utils/collections';
+import PageHeader from '../../components/PageHeader.astro';
+import ArticleCard from '../../components/ArticleCard.astro';
+import SubjectCard from '../../components/SubjectCard.astro';
+import { getNotes, getCollection } from '../../utils/collections';
 
 const [notes, subjects, levels] = await Promise.all([
   getNotes(),
   getCollection('subjects'),
   getCollection('levels'),
 ]);
+
+const subjectLabel = (slug: string) =>
+  subjects.find((s) => s.slug === slug)?.data.title ?? slug;
+
+/** Notes grouped by subject, so the index reads as a table of contents. */
+const bySubject = subjects
+  .map((subject) => ({
+    subject,
+    notes: notes.filter((n) => n.data.subject === subject.slug),
+  }))
+  .filter((group) => group.notes.length > 0);
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
 ---
 
 <Layout
-  title="Study Notes — All Subjects | devsyllabus"
-  description="Free computer science study notes for web development, databases, and programming fundamentals, organized by subject, education level, and chapter."
+  title="Study Notes — All Subjects | Medical Study Notes"
+  description="Every study note, organised by subject and chapter. Each note lists its objectives, defines key terms, works through the material, and cites its sources."
   path="/notes/"
+  footerSubjects={footerSubjects}
+  wide
 >
-  <Breadcrumbs crumbs={[{ label: 'Study Notes' }]} />
+  <PageHeader
+    kicker="Study notes"
+    title="Study notes"
+    lead="Structured revision notes. Every note opens with its learning objectives, defines the key terms, works through the material, and ends with a summary and references."
+    crumbs={[{ label: 'Study Notes' }]}
+    stats={[
+      { value: notes.length, label: 'Published notes', icon: 'notes' },
+      { value: subjects.length, label: 'Subjects', icon: 'book' },
+      { value: levels.length, label: 'Education levels', icon: 'layers' },
+    ]}
+  />
 
-  <h1>Study notes</h1>
-  <p>
-    Structured revision notes for computer science subjects. Every note
-    lists its learning objectives first, defines key terms, works through
-    examples, and ends with self-test scenarios and references.
-  </p>
+  <div class="container page-body">
+    <section class="section section-plain" aria-labelledby="by-subject">
+      <div class="section-head">
+        <h2 id="by-subject">Browse by subject</h2>
+        <p>Each subject hub groups its notes by chapter and links its question bank.</p>
+      </div>
+      <div class="grid grid-4 subject-grid">
+        {subjects.map((subject) => (
+          <SubjectCard
+            href={`/subjects/${subject.slug}/`}
+            title={subject.data.title}
+            count={notes.filter((n) => n.data.subject === subject.slug).length}
+          />
+        ))}
+      </div>
+    </section>
 
-  <nav aria-label="Browse notes">
-    <h2>Browse by subject</h2>
-    <ul>
-      {subjects.map((subject) => (
-        <li><a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a></li>
-      ))}
-    </ul>
-    <h2>Browse by education level</h2>
-    <ul>
-      {levels.map((level) => (
-        <li><a href={`/levels/${level.slug}/`}>{level.data.title}</a></li>
-      ))}
-    </ul>
-  </nav>
+    <section class="section" aria-labelledby="by-level">
+      <div class="section-head">
+        <h2 id="by-level">Browse by education level</h2>
+      </div>
+      <ul class="index-grid">
+        {levels.map((level) => (
+          <li>
+            <a href={`/levels/${level.slug}/`}>
+              <span>{level.data.title}</span>
+              <span class="count">
+                {notes.filter((n) => n.data.level === level.slug).length}
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
 
-  <section>
-    <h2>All notes ({notes.length})</h2>
-    {notes.map((note) => <NoteCard note={note} />)}
-  </section>
+    {bySubject.map(({ subject, notes: subjectNotes }) => (
+      <section class="section" aria-labelledby={`s-${subject.slug}`}>
+        <div class="section-head-row">
+          <div>
+            <p class="eyebrow">{subjectNotes.length} note{subjectNotes.length === 1 ? '' : 's'}</p>
+            <h2 id={`s-${subject.slug}`}>{subject.data.title}</h2>
+            <p>{subject.data.description}</p>
+          </div>
+          <a class="link-arrow" href={`/subjects/${subject.slug}/`}>Subject hub</a>
+        </div>
+        <ul class="entry-list">
+          {subjectNotes.map((note) => (
+            <li>
+              <ArticleCard
+                href={`/notes/${note.slug}/`}
+                title={note.data.title}
+                excerpt={note.data.description}
+                kicker={subjectLabel(note.data.subject)}
+                date={note.data.updatedDate}
+                dateLabel="Updated"
+              />
+            </li>
+          ))}
+        </ul>
+      </section>
+    ))}
+  </div>
 </Layout>
+
+<style>
+  .page-body {
+    padding-bottom: var(--space-16);
+  }
+
+  @media (min-width: 640px) {
+    .subject-grid {
+      gap: var(--space-3);
+    }
+  }
+</style>

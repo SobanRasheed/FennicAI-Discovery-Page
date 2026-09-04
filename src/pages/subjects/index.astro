@@ -1,36 +1,160 @@
 ---
 import Layout from '../../layouts/Layout.astro';
-import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import { getCollection } from '../../utils/collections';
-import { getNotes } from '../../utils/collections';
+import PageHeader from '../../components/PageHeader.astro';
+import Icon from '../../components/Icon.astro';
+import { getCollection, getNotes, getQuestions } from '../../utils/collections';
 
-const [subjects, notes] = await Promise.all([getCollection('subjects'), getNotes()]);
+const [subjects, notes, questions] = await Promise.all([
+  getCollection('subjects'),
+  getNotes(),
+  getQuestions(),
+]);
 
-const subjectsWithCounts = subjects.map((subject) => ({
+const rows = subjects.map((subject) => ({
   subject,
   noteCount: notes.filter((n) => n.data.subject === subject.slug).length,
+  mcqCount: questions.filter((q) => q.data.subject === subject.slug).length,
+  chapters: subject.data.chapters,
+}));
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
 }));
 ---
 
 <Layout
-  title="Subjects — Computer Science | devsyllabus"
-  description="All devsyllabus subjects: web development, database systems, and programming fundamentals, each with chapter-organized study notes."
+  title="Subjects | Medical Study Notes"
+  description="Every subject on Medical Study Notes, each with chapter-organised study notes, practice questions, and the exams the material maps to."
   path="/subjects/"
+  footerSubjects={footerSubjects}
+  wide
 >
-  <Breadcrumbs crumbs={[{ label: 'Subjects' }]} />
+  <PageHeader
+    kicker="Subjects"
+    title="Medical subjects"
+    lead="Each subject hub organises its notes by chapter, lists the exams the material maps to, and links every related topic hub."
+    crumbs={[{ label: 'Subjects' }]}
+    stats={[
+      { value: subjects.length, label: 'Subjects', icon: 'book' },
+      { value: notes.length, label: 'Study notes', icon: 'notes' },
+      { value: questions.length, label: 'Practice questions', icon: 'question' },
+    ]}
+  />
 
-  <h1>Subjects</h1>
-  <p>
-    Each subject hub organizes its notes by chapter, lists the exams the
-    material maps to, and links every topic hub related to the subject.
-  </p>
+  <div class="container page-body">
+    {/* One bordered panel per subject: title, description, real counts, and a
+        preview of the chapter taxonomy so the depth is visible up front. */}
+    <div class="subjects">
+      {rows.map(({ subject, noteCount, mcqCount, chapters }) => (
+        <section class="sub-panel" aria-labelledby={`sub-${subject.slug}`}>
+          <div class="sub-head">
+            <h2 id={`sub-${subject.slug}`} class="sub-title">
+              <a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a>
+            </h2>
+            <p class="sub-desc">{subject.data.description}</p>
+            <p class="sub-counts">
+              <span class="meta-item"><Icon name="notes" size={15} />{noteCount} note{noteCount === 1 ? '' : 's'}</span>
+              {mcqCount > 0 && (
+                <span class="meta-item"><Icon name="question" size={15} />{mcqCount} question{mcqCount === 1 ? '' : 's'}</span>
+              )}
+              {chapters.length > 0 && (
+                <span class="meta-item"><Icon name="layers" size={15} />{chapters.length} chapter{chapters.length === 1 ? '' : 's'}</span>
+              )}
+            </p>
+          </div>
 
-  <ul>
-    {subjectsWithCounts.map(({ subject, noteCount }) => (
-      <li>
-        <a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a>
-        <span> — {subject.data.description} ({noteCount} note{noteCount === 1 ? '' : 's'})</span>
-      </li>
-    ))}
-  </ul>
+          {chapters.length > 0 && (
+            <ul class="chevron-list sub-chapters">
+              {chapters.slice(0, 5).map((chapter) => (
+                <li>
+                  <a href={`/subjects/${subject.slug}/#ch-${chapter.slug}`}>{chapter.title}</a>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <a class="link-arrow sub-more" href={`/subjects/${subject.slug}/`}>
+            Open {subject.data.title}
+          </a>
+        </section>
+      ))}
+    </div>
+  </div>
 </Layout>
+
+<style>
+  .page-body {
+    padding-block: var(--space-12) var(--space-16);
+  }
+
+  .subjects {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  @media (min-width: 700px) {
+    .subjects {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1100px) {
+    .subjects {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .sub-panel {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .sub-title {
+    font-size: var(--text-display-md);
+  }
+
+  .sub-title a {
+    color: var(--ink);
+    text-decoration: none;
+  }
+
+  .sub-title a:hover {
+    color: var(--primary);
+  }
+
+  .sub-desc {
+    margin-top: var(--space-2);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .sub-counts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    margin-top: var(--space-4);
+    color: var(--mute);
+    font-size: var(--text-caption);
+  }
+
+  .sub-counts svg {
+    color: var(--faint);
+  }
+
+  .sub-chapters {
+    margin-top: var(--space-4);
+    padding-top: var(--space-1);
+    border-top: 1px solid var(--border);
+  }
+
+  .sub-more {
+    margin-top: auto;
+    padding-top: var(--space-4);
+  }
+</style>

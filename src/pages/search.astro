@@ -1,14 +1,21 @@
 ---
 import Layout from '../layouts/Layout.astro';
-import Breadcrumbs from '../components/Breadcrumbs.astro';
-import { getNotes, getBlogPosts, getQuestions } from '../utils/collections';
-import { getCollection } from '../utils/collections';
+import PageHeader from '../components/PageHeader.astro';
+import Search from '../components/Search.astro';
+import Icon from '../components/Icon.astro';
+import { getNotes, getBlogPosts, getQuestions, getCollection } from '../utils/collections';
 
 /**
- * Site search: a static index of every indexed page rendered inline, with a
- * small client-side filter. The q parameter is read on load so shared
- * search URLs work. Because the index ships with the page, search works
- * offline and adds no server dependency.
+ * Site search.
+ *
+ * The index ships inside the page, so filtering is instant and needs no
+ * backend. The form is a real GET to /search/, which means a shared
+ * /search/?q=... URL reproduces the result and the page still works with
+ * JavaScript disabled — in that case the full index renders as a browsable
+ * list grouped by type, which is a usable fallback rather than a dead end.
+ *
+ * Type filters are radio inputs styled as a segmented control, so filtering by
+ * category is also JS-free.
  */
 const [notes, posts, questions, subjects, topics, levels] = await Promise.all([
   getNotes(),
@@ -19,142 +26,325 @@ const [notes, posts, questions, subjects, topics, levels] = await Promise.all([
   getCollection('levels'),
 ]);
 
-const searchIndex = [
+type Kind = 'note' | 'article' | 'mcq' | 'subject' | 'topic' | 'level';
+
+interface Entry {
+  title: string;
+  url: string;
+  excerpt: string;
+  kind: Kind;
+  label: string;
+  keywords: string;
+}
+
+const searchIndex: Entry[] = [
   ...notes.map((note) => ({
     title: note.data.title,
     url: `/notes/${note.slug}/`,
     excerpt: note.data.description,
-    category: 'Study note',
-    keywords: `${note.data.title} ${note.data.description} ${note.data.overview} ${note.data.summary} ${note.data.keyTerms.map((t) => t.term).join(' ')}`.toLowerCase(),
+    kind: 'note' as const,
+    label: 'Study note',
+    keywords:
+      `${note.data.title} ${note.data.description} ${note.data.overview} ${note.data.summary} ${note.data.keyTerms.map((t) => t.term).join(' ')}`.toLowerCase(),
   })),
   ...posts.map((post) => ({
     title: post.data.title,
     url: `/blog/${post.slug}/`,
     excerpt: post.data.description,
-    category: 'Article',
-    keywords: `${post.data.title} ${post.data.description}`.toLowerCase(),
+    kind: 'article' as const,
+    label: 'Article',
+    keywords: `${post.data.title} ${post.data.description} ${post.data.category}`.toLowerCase(),
   })),
   ...questions.map((q) => ({
     title: q.data.question,
     url: `/practice/${q.slug}/`,
-    excerpt: q.data.explanation.slice(0, 160),
-    category: 'Practice question',
+    excerpt: q.data.explanation.slice(0, 180),
+    kind: 'mcq' as const,
+    label: q.data.type === 'mcq' ? 'MCQ' : 'Practice question',
     keywords: `${q.data.question} ${q.data.answer} ${q.data.explanation}`.toLowerCase(),
   })),
   ...subjects.map((subject) => ({
     title: `${subject.data.title} study notes`,
     url: `/subjects/${subject.slug}/`,
     excerpt: subject.data.description,
-    category: 'Subject hub',
-    keywords: `${subject.data.title} ${subject.data.description} ${subject.data.chapters.map((c) => c.title).join(' ')}`.toLowerCase(),
+    kind: 'subject' as const,
+    label: 'Subject',
+    keywords:
+      `${subject.data.title} ${subject.data.description} ${subject.data.chapters.map((c) => c.title).join(' ')}`.toLowerCase(),
   })),
   ...topics.map((topic) => ({
     title: topic.data.title,
     url: `/topics/${topic.slug}/`,
     excerpt: topic.data.description,
-    category: 'Topic hub',
-    keywords: `${topic.data.title} ${topic.data.description} ${topic.data.beginnerExplanation}`.toLowerCase(),
+    kind: 'topic' as const,
+    label: 'Topic',
+    keywords:
+      `${topic.data.title} ${topic.data.description} ${topic.data.beginnerExplanation}`.toLowerCase(),
   })),
   ...levels.map((level) => ({
     title: level.data.title,
     url: `/levels/${level.slug}/`,
     excerpt: level.data.description,
-    category: 'Education level',
+    kind: 'level' as const,
+    label: 'Education level',
     keywords: `${level.data.title} ${level.data.description}`.toLowerCase(),
   })),
 ];
+
+const filters = [
+  { value: 'all', label: 'All' },
+  { value: 'note', label: 'Study Notes' },
+  { value: 'article', label: 'Articles' },
+  { value: 'mcq', label: 'MCQs' },
+  { value: 'subject', label: 'Subjects' },
+  { value: 'topic', label: 'Topics' },
+];
+
+const initialQuery = Astro.url.searchParams.get('q') ?? '';
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
 ---
 
 <Layout
-  title="Search — Find Study Notes, Articles, and Questions | devsyllabus"
-  description="Search all devsyllabus study notes, blog articles, topic hubs, and practice questions in one place."
+  title="Search — Study Notes, Articles, and MCQs | Medical Study Notes"
+  description="Search every study note, article, topic hub, and practice question on Medical Study Notes from one place."
   path="/search/"
+  footerSubjects={footerSubjects}
+  noindex
+  wide
 >
-  <Breadcrumbs crumbs={[{ label: 'Search' }]} />
+  <PageHeader
+    kicker="Search"
+    title="Search the site"
+    lead="Study notes, articles, MCQs, subjects, and topic hubs, all in one index."
+    crumbs={[{ label: 'Search' }]}
+  >
+    <div class="srch-wrap">
+      <Search
+        variant="hero"
+        id="search-input"
+        value={initialQuery}
+        placeholder="Search anatomy, microbiology, pharmacology..."
+        autofocus
+      />
+    </div>
+  </PageHeader>
 
-  <h1>Search</h1>
-  <p>Search across all study notes, articles, topic hubs, and practice questions.</p>
+  <div class="container results-wrap">
+    {/* Segmented type filter. Radios keep it functional without JS: each
+        label toggles a CSS class on the results list via :has(). */}
+    <div class="filters" data-filters>
+      <fieldset>
+        <legend class="visually-hidden">Filter results by type</legend>
+        {filters.map((filter, i) => (
+          <>
+            <input
+              type="radio"
+              name="kind"
+              id={`kind-${filter.value}`}
+              value={filter.value}
+              checked={i === 0}
+              hidden
+            />
+            <label for={`kind-${filter.value}`}>{filter.label}</label>
+          </>
+        ))}
+      </fieldset>
+    </div>
 
-  <form role="search" onsubmit="return false;">
-    <label for="search-input">Search the site</label>
-    <input
-      type="search"
-      id="search-input"
-      placeholder="e.g. normalization, PATCH, factorial"
-      autocomplete="off"
-      style="width: 100%; max-width: 30rem; padding: 0.5rem; font: inherit;"
-    />
-  </form>
+    <p class="results-status" data-status aria-live="polite"></p>
 
-  <p id="search-status" aria-live="polite"></p>
-  <ul id="search-results"></ul>
-  <noscript>
-    <p>
-      JavaScript is disabled, so live search is unavailable. Browse instead:
-      <a href="/notes/">study notes</a>, <a href="/blog/">articles</a>,
-      <a href="/practice/">practice questions</a>, <a href="/topics/">topic hubs</a>.
-    </p>
-  </noscript>
+    <ul class="entry-list results" data-results></ul>
+
+    <div class="results-empty" data-empty hidden>
+      <div class="empty-state">
+        <h3>No matches</h3>
+        <p>
+          Try a shorter query or a different term, or browse
+          <a href="/notes/">all study notes</a>,
+          <a href="/subjects/">subjects</a>, or
+          <a href="/practice/">practice questions</a>.
+        </p>
+      </div>
+    </div>
+
+    {/* Without JS the whole index renders as a real, browsable list. */}
+    <noscript>
+      <div class="notice notice-info nojs-notice">
+        Live filtering needs JavaScript. The complete index is listed below.
+      </div>
+      <ul class="entry-list">
+        {searchIndex.map((entry) => (
+          <li>
+            <a class="entry entry-cols" href={entry.url}>
+              <span class="kicker">{entry.label}</span>
+              <span>
+                <span class="entry-title">{entry.title}</span>
+                <span class="entry-excerpt">{entry.excerpt}</span>
+              </span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </noscript>
+  </div>
+
+  <script type="application/json" id="search-data" set:html={JSON.stringify(searchIndex)} is:inline />
 
   <script>
-    const index = JSON.parse(document.getElementById('search-data')!.textContent!);
-    const input = document.getElementById('search-input') as HTMLInputElement;
-    const results = document.getElementById('search-results')!;
-    const status = document.getElementById('search-status')!;
-
-    function render(query: string) {
-      const q = query.trim().toLowerCase();
-      if (!q) {
-        results.innerHTML = '';
-        status.textContent = `${index.length} pages indexed. Type to search.`;
-        return;
-      }
-      const words = q.split(/\s+/);
-      const matches = index
-        .filter((entry: any) => words.every((word: string) => entry.keywords.includes(word)))
-        .slice(0, 20);
-      status.textContent = `${matches.length} result${matches.length === 1 ? '' : 's'} for “${query}”`;
-      results.innerHTML = matches
-        .map(
-          (entry: any) => `
-            <li>
-              <span class="result-category">${entry.category}</span>
-              <a href="${entry.url}">${entry.title}</a>
-              <p>${entry.excerpt}</p>
-            </li>`,
-        )
-        .join('');
+    interface Entry {
+      title: string;
+      url: string;
+      excerpt: string;
+      kind: string;
+      label: string;
+      keywords: string;
     }
 
-    input.addEventListener('input', () => render(input.value));
+    const dataEl = document.getElementById('search-data');
+    const input = document.getElementById('search-input') as HTMLInputElement | null;
+    const results = document.querySelector<HTMLElement>('[data-results]');
+    const status = document.querySelector<HTMLElement>('[data-status]');
+    const empty = document.querySelector<HTMLElement>('[data-empty]');
+    const filterBox = document.querySelector<HTMLElement>('[data-filters]');
 
-    // Support /search/?q=term URLs (used by the site's SearchAction schema).
-    const initial = new URLSearchParams(location.search).get('q');
-    if (initial) {
-      input.value = initial;
-      render(initial);
-    } else {
-      render('');
+    if (dataEl && input && results && status && empty && filterBox) {
+      const index: Entry[] = JSON.parse(dataEl.textContent ?? '[]');
+      let kind = 'all';
+
+      const escape = (value: string) =>
+        value.replace(/[&<>"']/g, (ch) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!,
+        );
+
+      function render() {
+        const query = input!.value.trim().toLowerCase();
+        const words = query ? query.split(/\s+/) : [];
+
+        const matches = index.filter((entry) => {
+          if (kind !== 'all' && entry.kind !== kind) return false;
+          return words.every((word) => entry.keywords.includes(word));
+        });
+
+        const shown = matches.slice(0, 40);
+
+        results!.innerHTML = shown
+          .map(
+            (entry) => `
+              <li>
+                <a class="entry entry-cols" href="${entry.url}">
+                  <span class="kicker">${escape(entry.label)}</span>
+                  <span>
+                    <span class="entry-title">${escape(entry.title)}</span>
+                    <span class="entry-excerpt">${escape(entry.excerpt)}</span>
+                  </span>
+                </a>
+              </li>`,
+          )
+          .join('');
+
+        const noMatches = matches.length === 0;
+        empty!.hidden = !noMatches || !query;
+        results!.hidden = noMatches;
+
+        if (!query) {
+          status!.textContent = `${matches.length} page${matches.length === 1 ? '' : 's'} indexed. Type to search.`;
+        } else {
+          status!.textContent = `${matches.length} result${matches.length === 1 ? '' : 's'} for “${input!.value.trim()}”${
+            matches.length > shown.length ? `, showing the first ${shown.length}` : ''
+          }`;
+        }
+      }
+
+      input.addEventListener('input', render);
+
+      filterBox.addEventListener('change', (event) => {
+        const target = event.target as HTMLInputElement;
+        if (target.name === 'kind') {
+          kind = target.value;
+          render();
+        }
+      });
+
+      // Support /search/?q=term URLs, used by the SearchAction schema and the
+      // header form.
+      const initial = new URLSearchParams(location.search).get('q');
+      if (initial && !input.value) input.value = initial;
+      render();
     }
   </script>
-
-  <script type="application/json" id="search-data" set:html={JSON.stringify(searchIndex)} />
 </Layout>
 
 <style>
-  #search-results {
-    list-style: none;
+  .srch-wrap {
+    margin-top: var(--space-6);
+  }
+
+  .results-wrap {
+    padding-block: var(--space-8) var(--space-16);
+  }
+
+  /* --- segmented filter ------------------------------------------------ */
+  .filters fieldset {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin: 0;
     padding: 0;
+    border: 0;
   }
-  #search-results li {
-    padding: 0.75rem 0;
-    border-bottom: 1px solid #e5e5e5;
+
+  .filters label {
+    display: inline-flex;
+    align-items: center;
+    height: 34px;
+    padding-inline: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease),
+      color 0.15s var(--ease);
   }
-  .result-category {
-    display: block;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #777;
+
+  .filters label:hover {
+    border-color: var(--border-strong);
+    color: var(--ink);
+  }
+
+  .filters input:checked + label {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .filters input:focus-visible + label {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* --- results --------------------------------------------------------- */
+  .results-status {
+    margin-block: var(--space-6) var(--space-4);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .results:empty {
+    display: none;
+  }
+
+  .results-empty {
+    margin-top: var(--space-4);
+  }
+
+  .nojs-notice {
+    margin-block: var(--space-4);
   }
 </style>

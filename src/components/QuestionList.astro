@@ -1,0 +1,109 @@
+---
+/**
+ * QuestionList: hairline-separated rows of practice questions, each showing
+ * the question text with its type and difficulty as small tags. Shared by the
+ * practice index and every practice filter page so all four render identically.
+ */
+import Icon from './Icon.astro';
+
+interface Question {
+  slug: string;
+  data: {
+    question: string;
+    type: string;
+    difficulty: string;
+    examTag?: string;
+  };
+}
+
+interface Props {
+  questions: Question[];
+  /** Shows the difficulty tag. Off on pages already filtered by difficulty. */
+  showDifficulty?: boolean;
+  showType?: boolean;
+}
+
+const { questions, showDifficulty = true, showType = true } = Astro.props;
+
+const typeLabels: Record<string, string> = {
+  mcq: 'MCQ',
+  short: 'Short',
+  long: 'Long',
+  numerical: 'Numerical',
+};
+---
+
+{questions.length > 0 ? (
+  <ul class="qlist">
+    {questions.map((q) => (
+      <li>
+        <a href={`/practice/${q.slug}/`}>
+          <span class="qlist-text">{q.data.question}</span>
+          <span class="qlist-tags">
+            {showType && <span class="tag">{typeLabels[q.data.type] ?? q.data.type}</span>}
+            {showDifficulty && <span class="tag">{q.data.difficulty}</span>}
+            <Icon name="chevron-right" size={15} />
+          </span>
+        </a>
+      </li>
+    ))}
+  </ul>
+) : (
+  <div class="empty-state">
+    <h3>No questions yet</h3>
+    <p>Nothing published for this filter. Browse <a href="/practice/">all practice questions</a>.</p>
+  </div>
+)}
+
+<style>
+  .qlist {
+    margin: 0;
+    padding: 0;
+    border-top: 1px solid var(--border);
+    list-style: none;
+  }
+
+  .qlist > li {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .qlist a {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2) var(--space-4);
+    align-items: baseline;
+    justify-content: space-between;
+    padding: var(--space-4) 0;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .qlist-text {
+    flex: 1 1 20rem;
+    color: var(--ink);
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-snug);
+    transition: color 0.15s var(--ease);
+  }
+
+  .qlist a:hover .qlist-text {
+    color: var(--primary);
+  }
+
+  .qlist-tags {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    flex-shrink: 0;
+  }
+
+  .qlist-tags svg {
+    color: var(--faint);
+    transition: color 0.15s var(--ease);
+  }
+
+  .qlist a:hover .qlist-tags svg {
+    color: var(--primary);
+  }
+</style>
