@@ -1,0 +1,74 @@
+---
+/**
+ * Link card for a study note. Shows the subject/level context so cards on
+ * hub and listing pages carry their hierarchy with them.
+ */
+interface Props {
+  note: {
+    slug: string;
+    data: {
+      title: string;
+      description: string;
+      subject: string;
+      level: string;
+      chapter: string;
+      updatedDate: Date;
+    };
+  };
+}
+
+const { note } = Astro.props;
+import { formatDate } from '../utils/collections';
+
+const subjectLabels: Record<string, string> = {
+  'web-development': 'Web Development',
+  'database-systems': 'Database Systems',
+  'programming-fundamentals': 'Programming Fundamentals',
+};
+
+const levelLabels: Record<string, string> = {
+  'bs-computer-science': 'BS Computer Science',
+  'class-12-cs': 'Class 12 CS',
+};
+
+const subject = subjectLabels[note.data.subject] ?? note.data.subject;
+const level = levelLabels[note.data.level] ?? note.data.level;
+---
+
+<article class="note-card">
+  <div class="note-card-meta">
+    <a href={`/subjects/${note.data.subject}/`}>{subject}</a>
+    <span>·</span>
+    <a href={`/levels/${note.data.level}/`}>{level}</a>
+  </div>
+  <h3><a href={`/notes/${note.slug}/`}>{note.data.title}</a></h3>
+  <p>{note.data.description}</p>
+  <time datetime={note.data.updatedDate.toISOString()}>
+    Updated {formatDate(note.data.updatedDate)}
+  </time>
+</article>
+
+<style>
+  .note-card {
+    padding: 1rem 0;
+    border-bottom: 1px solid #e5e5e5;
+  }
+  .note-card-meta {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    margin-bottom: 0.25rem;
+  }
+  .note-card h3 {
+    margin: 0 0 0.25rem;
+  }
+  .note-card p {
+    margin: 0 0 0.25rem;
+    color: #444;
+    line-height: 1.5;
+  }
+  .note-card time {
+    font-size: 0.85rem;
+    color: #666;
+  }
+</style>

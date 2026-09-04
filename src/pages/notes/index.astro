@@ -1,0 +1,48 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import NoteCard from '../components/NoteCard.astro';
+import { getNotes } from '../utils/collections';
+import { getCollection } from 'astro:content';
+
+const [notes, subjects, levels] = await Promise.all([
+  getNotes(),
+  getCollection('subjects'),
+  getCollection('levels'),
+]);
+---
+
+<Layout
+  title="Study Notes — All Subjects | devsyllabus"
+  description="Free computer science study notes for web development, databases, and programming fundamentals, organized by subject, education level, and chapter."
+  path="/notes/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Study Notes' }]} />
+
+  <h1>Study notes</h1>
+  <p>
+    Structured revision notes for computer science subjects. Every note
+    lists its learning objectives first, defines key terms, works through
+    examples, and ends with self-test scenarios and references.
+  </p>
+
+  <nav aria-label="Browse notes">
+    <h2>Browse by subject</h2>
+    <ul>
+      {subjects.map((subject) => (
+        <li><a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a></li>
+      ))}
+    </ul>
+    <h2>Browse by education level</h2>
+    <ul>
+      {levels.map((level) => (
+        <li><a href={`/levels/${level.slug}/`}>{level.data.title}</a></li>
+      ))}
+    </ul>
+  </nav>
+
+  <section>
+    <h2>All notes ({notes.length})</h2>
+    {notes.map((note) => <NoteCard note={note} />)}
+  </section>
+</Layout>

@@ -1,0 +1,59 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import Faq from '../components/Faq.astro';
+
+const faqs = [
+  {
+    question: 'Is devsyllabus free to use?',
+    answer:
+      'Yes. Every study note, article, topic hub, and practice question is free to read with no account required.',
+  },
+  {
+    question: 'Do the study notes follow a specific syllabus?',
+    answer:
+      'Notes are written against the mainstream syllabus for each subject at each education level, and each subject page lists the exams and boards its material maps to. Where courses differ, the note flags the variation instead of silently picking one convention.',
+  },
+  {
+    question: 'Can I rely on the practice question answers?',
+    answer:
+      'Every question is reviewed before publication, and errors reported through the contact page are corrected under our corrections policy. Answers include the reasoning, so you can verify the method yourself.',
+  },
+  {
+    question: 'How do I find notes for my exact course?',
+    answer:
+      'Start from the education levels page and pick your class, course, or exam. From there, follow the hierarchy: level, subject, chapter, note. Alternatively, use the site search.',
+  },
+  {
+    question: 'Do you offer downloadable PDFs?',
+    answer:
+      'Not currently. Pages are designed to be readable and printable directly from the browser.',
+  },
+  {
+    question: 'How often is content updated?',
+    answer:
+      'Pages are revised when standards change or corrections land. Every page shows its publication and last-updated dates, and the update log lists every revision.',
+  },
+  {
+    question: 'Can I use your notes in my classroom or study group?',
+    answer:
+      'Yes, for personal and classroom use, with attribution. See the terms of use for details.',
+  },
+];
+---
+
+<Layout
+  title="Frequently Asked Questions | devsyllabus"
+  description="Answers to common questions about devsyllabus: content coverage, syllabus alignment, practice questions, updates, and usage terms."
+  path="/faq/"
+>
+  <Breadcrumbs crumbs={[{ label: 'FAQ' }]} />
+
+  <h1>Frequently asked questions</h1>
+  <p>
+    Questions about the site in general. Each study note, subject hub, and
+    topic hub carries its own FAQ section covering that specific material.
+  </p>
+
+  <Faq faqs={faqs} />
+</Layout>

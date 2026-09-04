@@ -1,0 +1,41 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+---
+
+<Layout
+  title="Cookie Policy | devsyllabus"
+  description="devsyllabus cookie policy: the site sets no tracking cookies, and site search runs entirely in your browser."
+  path="/cookie-policy/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Cookie Policy' }]} />
+
+  <h1>Cookie policy</h1>
+  <p>Last updated: 2026-09-04</p>
+
+  <h2>Current state: no cookies</h2>
+  <p>
+    devsyllabus currently sets no cookies. The site has no accounts, no
+    preferences to remember, and no tracking. Site search stores nothing
+    — it runs in your browser against an index that ships with the page.
+  </p>
+
+  <h2>If cookies are added later</h2>
+  <p>
+    Should the site ever need cookies (for example, remembered filters),
+    this page will list each cookie, its purpose, and its lifetime before
+    it goes live, and we will prefer functional cookies over tracking
+    ones.
+  </p>
+
+  <h2>Browser storage</h2>
+  <p>
+    The search page may use your browser's memory only for the duration
+    of the page visit; nothing persists after you close the tab.
+  </p>
+
+  <p>
+    See also the <a href="/privacy-policy/">privacy policy</a> and
+    <a href="/terms-of-use/">terms of use</a>.
+  </p>
+</Layout>

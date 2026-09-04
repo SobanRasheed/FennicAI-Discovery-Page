@@ -1,0 +1,55 @@
+---
+/**
+ * One source of truth for <head> SEO output. Every page passes:
+ *  - title (already composed: "Page | Site" unless an seoTitle overrides)
+ *  - description (unique per URL, 140-160 chars, enforced by schema max)
+ *  - path, which becomes the canonical URL against the configured site
+ *  - optional noindex, plus Open Graph type/image and article dates.
+ */
+interface Props {
+  title: string;
+  description: string;
+  path: string;
+  noindex?: boolean;
+  ogType?: 'website' | 'article';
+  publishedTime?: Date;
+  modifiedTime?: Date;
+}
+
+const { title, description, path, noindex = false, ogType = 'website' } = Astro.props;
+
+const canonical = new URL(path, Astro.site).href;
+const robots = noindex ? 'noindex, nofollow' : 'index, follow';
+---
+
+<!-- Primary meta -->
+<title>{title}</title>
+<meta name="description" content={description} />
+<link rel="canonical" href={canonical} />
+<meta name="robots" content={robots} />
+
+<!-- Open Graph -->
+<meta property="og:site_name" content="devsyllabus" />
+<meta property="og:type" content={ogType} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:url" content={canonical} />
+<meta property="og:locale" content="en_US" />
+
+<!-- Twitter -->
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+
+{
+  ogType === 'article' && (
+    <>
+      {Astro.props.publishedTime && (
+        <meta property="article:published_time" content={Astro.props.publishedTime.toISOString()} />
+      )}
+      {Astro.props.modifiedTime && (
+        <meta property="article:modified_time" content={Astro.props.modifiedTime.toISOString()} />
+      )}
+    </>
+  )
+}

@@ -1,0 +1,188 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import TOC from '../../components/TOC.astro';
+import Faq from '../../components/Faq.astro';
+import JsonLd from '../../components/JsonLd.astro';
+import { getBlogPosts, getNotes, formatDate, isoDate } from '../../utils/collections';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const posts = await getBlogPosts();
+  return posts.map((post) => ({ params: { slug: post.slug }, props: { post } }));
+}
+
+const { post } = Astro.props;
+const { data } = post;
+const { Content: PostBody, headings } = await render(post);
+
+const [authors, allNotes, allPosts] = await Promise.all([
+  getCollection('authors'),
+  getNotes(),
+  getBlogPosts(),
+]);
+
+const author = authors.find((a) => a.slug === data.author);
+const relatedNotes = allNotes.filter((n) => data.relatedNotes.includes(n.slug));
+
+// Prev/next in published order.
+const index = allPosts.findIndex((p) => p.slug === post.slug);
+const newer = index > 0 ? allPosts[index - 1] : undefined;
+const older = index < allPosts.length - 1 ? allPosts[index + 1] : undefined;
+
+// Posts sharing a topic, excluding this one, up to 3.
+const relatedPosts = allPosts
+  .filter(
+    (p) => p.slug !== post.slug && p.data.topics.some((t) => data.topics.includes(t)),
+  )
+  .slice(0, 3);
+
+const title = data.seoTitle ?? data.title;
+const site = Astro.site!;
+
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: data.title,
+  description: data.description,
+  datePublished: isoDate(data.publishedDate),
+  dateModified: isoDate(data.updatedDate ?? data.publishedDate),
+  author: author
+    ? {
+        '@type': 'Person',
+        name: author.data.title,
+        url: new URL(`/authors/${author.slug}/`, site).href,
+      }
+    : undefined,
+  publisher: {
+    '@type': 'Organization',
+    name: 'devsyllabus',
+    url: site.href,
+  },
+  mainEntityOfPage: {
+    '@type': 'WebPage',
+    '@id': new URL(`/blog/${post.slug}/`, site).href,
+  },
+  articleSection: data.category,
+};
+---
+
+<Layout
+  title={`${title} | devsyllabus`}
+  description={data.description}
+  path={`/blog/${post.slug}/`}
+  noindex={data.noindex}
+  ogType="article"
+  publishedTime={data.publishedDate}
+  modifiedTime={data.updatedDate ?? data.publishedDate}
+>
+  <JsonLd data={articleSchema} />
+
+  <Breadcrumbs
+    crumbs={[
+      { label: 'Blog', href: '/blog/' },
+      { label: data.category, href: `/blog/category/${data.category}/` },
+      { label: data.title },
+    ]}
+  />
+
+  <article>
+    <h1>{data.title}</h1>
+
+    <p class="byline">
+      By <a href={`/authors/${data.author}/`}>{author?.data.title ?? data.author}</a>
+      · <time datetime={isoDate(data.publishedDate)}>Published {formatDate(data.publishedDate)}</time>
+      {data.updatedDate && (
+        <span> · <time datetime={isoDate(data.updatedDate)}>Updated {formatDate(data.updatedDate)}</time></span>
+      )}
+    </p>
+
+    <TOC headings={headings} />
+
+    <div class="content">
+      <PostBody />
+    </div>
+
+    {data.references.length > 0 && (
+      <section>
+        <h2 id="references">References</h2>
+        <ol>
+          {data.references.map((ref) => (
+            <li>
+              {ref.url ? (
+                <a href={ref.url} rel="noopener">{ref.title}</a>
+              ) : (
+                ref.title
+              )}
+              {ref.source && <span> — {ref.source}</span>}
+            </li>
+          ))}
+        </ol>
+      </section>
+    )}
+
+    {relatedNotes.length > 0 && (
+      <section>
+        <h2 id="related-notes">Related study notes</h2>
+        <ul>
+          {relatedNotes.map((note) => (
+            <li>
+              <a href={`/notes/${note.slug}/`}>{note.data.title}</a>
+              <span> — {note.data.description}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {relatedPosts.length > 0 && (
+      <section>
+        <h2 id="related-articles">Related articles</h2>
+        <ul>
+          {relatedPosts.map((p) => (
+            <li><a href={`/blog/${p.slug}/`}>{p.data.title}</a></li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {(older || newer) && (
+      <nav aria-label="Article navigation" class="prev-next">
+        {older && (
+          <a href={`/blog/${older.slug}/`} rel="prev">← {older.data.title}</a>
+        )}
+        {newer && (
+          <a href={`/blog/${newer.slug}/`} rel="next">{newer.data.title} →</a>
+        )}
+      </nav>
+    )}
+
+    {author && (
+      <section class="author-box">
+        <h2 id="about-the-author">About the author</h2>
+        <p><a href={`/authors/${author.slug}/`}><strong>{author.data.title}</strong></a> — {author.data.role}</p>
+        <p>{author.data.bio}</p>
+      </section>
+    )}
+
+    <Faq faqs={data.faqs} />
+  </article>
+</Layout>
+
+<style>
+  .byline {
+    color: #555;
+    font-size: 0.9rem;
+  }
+  .prev-next {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 0;
+    border-top: 1px solid #e5e5e5;
+  }
+  .author-box {
+    border-top: 1px solid #e5e5e5;
+    padding-top: 1rem;
+  }
+</style>

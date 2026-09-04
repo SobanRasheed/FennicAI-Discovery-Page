@@ -1,0 +1,150 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import Faq from '../../components/Faq.astro';
+import NoteCard from '../../components/NoteCard.astro';
+import { getNotesBySubject, getQuestionsBySubject, getNotes, getBlogPosts } from '../../utils/collections';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const subjects = await getCollection('subjects');
+  return subjects.map((subject) => ({ params: { slug: subject.slug }, props: { subject } }));
+}
+
+const { subject } = Astro.props;
+const { data } = subject;
+
+const [grouped, questions, notes, posts, topics, levels] = await Promise.all([
+  getNotesBySubject(subject.slug, data.chapters),
+  getQuestionsBySubject(subject.slug),
+  getNotes(),
+  getBlogPosts(),
+  getCollection('topics'),
+  getCollection('levels'),
+]);
+
+// Level slugs actually used by this subject's notes.
+const subjectLevels = [
+  ...new Set(notes.filter((n) => n.data.subject === subject.slug).map((n) => n.data.level)),
+].map((slug) => levels.find((l) => l.slug === slug)).filter(Boolean);
+
+// Topic hubs whose slugs appear in this subject's notes' topics arrays.
+const subjectTopicSlugs = [
+  ...new Set(
+    notes.filter((n) => n.data.subject === subject.slug).flatMap((n) => n.data.topics),
+  ),
+];
+const subjectTopics = topics.filter((t) => subjectTopicSlugs.includes(t.slug));
+
+// Blog articles whose relatedNotes belong to this subject, or share a topic.
+const subjectNoteSlugs = notes.filter((n) => n.data.subject === subject.slug).map((n) => n.slug);
+const relatedPosts = posts.filter(
+  (p) =>
+    p.data.relatedNotes.some((slug) => subjectNoteSlugs.includes(slug)) ||
+    p.data.topics.some((t) => subjectTopicSlugs.includes(t)),
+);
+---
+
+<Layout
+  title={`${data.title} Study Notes and Practice Questions | devsyllabus`}
+  description={data.description}
+  path={`/subjects/${subject.slug}/`}
+>
+  <Breadcrumbs crumbs={[{ label: 'Subjects', href: '/subjects/' }, { label: data.title }]} />
+
+  <h1>{data.title}</h1>
+  <p class="overview">{data.introduction}</p>
+
+  {subjectLevels.length > 0 && (
+    <p>
+      Also available by education level:
+      {subjectLevels.map((level, i) => (
+        <>
+          {i > 0 && <span>, </span>}
+          <a href={`/levels/${level.slug}/`}>{level.data.title}</a>
+        </>
+      ))}
+    </p>
+  )}
+
+  <section>
+    <h2>Chapters</h2>
+    {grouped.map(({ chapter, notes: chapterNotes }) => (
+      <div class="chapter">
+        <h3>{chapter.title}</h3>
+        <p>{chapter.description}</p>
+        {chapterNotes.length > 0 ? (
+          <ul>
+            {chapterNotes.map((note) => (
+              <li><a href={`/notes/${note.slug}/`}>{note.data.title}</a></li>
+            ))}
+          </ul>
+        ) : (
+          <p class="empty">Notes for this chapter are in progress.</p>
+        )}
+      </div>
+    ))}
+  </section>
+
+  {data.importantConcepts.length > 0 && (
+    <section>
+      <h2>Important concepts</h2>
+      <ul>
+        {data.importantConcepts.map((concept) => <li>{concept}</li>)}
+      </ul>
+    </section>
+  )}
+
+  {questions.length > 0 && (
+    <section>
+      <h2>Practice questions ({questions.length})</h2>
+      <p><a href={`/practice/subject/${subject.slug}/`}>Practice {data.title} questions</a></p>
+    </section>
+  )}
+
+  {subjectTopics.length > 0 && (
+    <section>
+      <h2>Topic hubs</h2>
+      <ul>
+        {subjectTopics.map((topic) => (
+          <li><a href={`/topics/${topic.slug}/`}>{topic.data.title}</a></li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {relatedPosts.length > 0 && (
+    <section>
+      <h2>Related articles</h2>
+      <ul>
+        {relatedPosts.map((post) => (
+          <li><a href={`/blog/${post.slug}/`}>{post.data.title}</a></li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {data.exams.length > 0 && (
+    <section>
+      <h2>Exams and boards</h2>
+      <ul>
+        {data.exams.map((exam) => <li>{exam}</li>)}
+      </ul>
+    </section>
+  )}
+
+  <Faq faqs={data.faqs} />
+</Layout>
+
+<style>
+  .overview {
+    font-size: 1.1rem;
+  }
+  .chapter {
+    margin-bottom: 1.5rem;
+  }
+  .empty {
+    color: #777;
+    font-style: italic;
+  }
+</style>

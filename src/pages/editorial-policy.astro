@@ -1,0 +1,88 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+---
+
+<Layout
+  title="Editorial Policy — How devsyllabus Writes, Reviews, and Updates Content"
+  description="devsyllabus editorial policy: how content is written, reviewed, fact-checked, updated, and corrected, and the standards every page must meet."
+  path="/editorial-policy/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Editorial Policy' }]} />
+
+  <h1>Editorial policy</h1>
+  <p>
+    This page describes how content on devsyllabus is created, reviewed,
+    and maintained. It applies to every study note, article, and practice
+    question on the site.
+  </p>
+
+  <h2>Who writes content</h2>
+  <p>
+    Every page carries a named author. Authors' backgrounds, areas of
+    expertise, and credentials are published on their
+    <a href="/authors/">author pages</a>. We do not publish unattributed
+    or ghost-written content.
+  </p>
+
+  <h2>How content is reviewed</h2>
+  <p>
+    Before publication, every technical page is reviewed by a second team
+    member who did not write it. The reviewer checks:
+  </p>
+  <ul>
+    <li>Technical accuracy of every claim, example, and code snippet.</li>
+    <li>Consistency with the primary sources cited in the references.</li>
+    <li>That practice question answers and explanations agree.</li>
+    <li>That the page delivers what its title and description promise.</li>
+  </ul>
+
+  <h2>Fact-checking and sources</h2>
+  <p>
+    Technical content is grounded in primary sources: RFCs for HTTP and
+    REST, standard textbooks for database theory and programming, and
+    official documentation for tooling. Each note lists its sources in a
+    references section. Where a standard is contested or commonly
+    mis-taught, the note says so explicitly rather than presenting one
+    convention as universal.
+  </p>
+
+  <h2>Updates</h2>
+  <p>
+    Pages show their original publication date and last-updated date.
+    Material is reviewed when the underlying standard changes (for
+    example, an RFC revision), when we receive a correction, or as part of
+    a periodic review cycle. Significant corrections are noted on the
+    page.
+  </p>
+
+  <h2>Corrections</h2>
+  <p>
+    Found an error? <a href="/contact/">Tell us</a>. Verified corrections
+    are applied promptly, and substantive changes to a page's technical
+    claims are reflected in its updated date.
+  </p>
+
+  <h2>What we do not do</h2>
+  <ul>
+    <li>
+      We do not publish machine-generated bulk content. Every page is
+      written by a person on our team.
+    </li>
+    <li>
+      We do not write for search engines: no keyword stuffing, no thin
+      pages that exist only to rank, no duplicated content across URLs.
+    </li>
+    <li>
+      We do not accept paid placements in content. Pages either provide
+      genuine value or they do not exist.
+    </li>
+  </ul>
+
+  <p>
+    Related policies: <a href="/corrections/">corrections policy</a>,
+    <a href="/fact-checking/">fact-checking process</a>,
+    <a href="/update-log/">update log</a>, and
+    <a href="/sources/">how we cite sources</a>.
+  </p>
+</Layout>

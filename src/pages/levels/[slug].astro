@@ -1,0 +1,78 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import Faq from '../../components/Faq.astro';
+import NoteCard from '../../components/NoteCard.astro';
+import { getNotesByLevel, getQuestionsByLevel, getNotes } from '../../utils/collections';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const levels = await getCollection('levels');
+  return levels.map((level) => ({ params: { slug: level.slug }, props: { level } }));
+}
+
+const { level } = Astro.props;
+const { data } = level;
+
+const [levelNotes, levelQuestions, allNotes, subjects] = await Promise.all([
+  getNotesByLevel(level.slug),
+  getQuestionsByLevel(level.slug),
+  getNotes(),
+  getCollection('subjects'),
+]);
+
+// Subjects actually used by this level's notes.
+const levelSubjects = [
+  ...new Set(levelNotes.map((n) => n.data.subject)),
+].map((slug) => subjects.find((s) => s.slug === slug)).filter(Boolean);
+---
+
+<Layout
+  title={`${data.title} Study Notes and Practice Questions | devsyllabus`}
+  description={data.description}
+  path={`/levels/${level.slug}/`}
+>
+  <Breadcrumbs crumbs={[{ label: 'Education Levels', href: '/levels/' }, { label: data.title }]} />
+
+  <h1>{data.title}</h1>
+  <p class="overview">{data.introduction}</p>
+
+  <section>
+    <h2>Subjects at this level</h2>
+    <ul>
+      {levelSubjects.map((subject) => (
+        <li>
+          <a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a>
+          <span> — {subject.data.description}</span>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <section>
+    <h2>All notes ({levelNotes.length})</h2>
+    {levelNotes.length > 0 ? (
+      levelNotes.map((note) => <NoteCard note={note} />)
+    ) : (
+      <p>Notes for this level are in progress.</p>
+    )}
+  </section>
+
+  {levelQuestions.length > 0 && (
+    <section>
+      <h2>Practice questions ({levelQuestions.length})</h2>
+      <p>
+        <a href="/practice/">Browse the practice question bank</a> — filterable
+        to this level's subjects.
+      </p>
+    </section>
+  )}
+
+  <Faq faqs={data.faqs} />
+</Layout>
+
+<style>
+  .overview {
+    font-size: 1.1rem;
+  }
+</style>

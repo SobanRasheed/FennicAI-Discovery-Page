@@ -1,0 +1,62 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import Faq from '../components/Faq.astro';
+
+const contactFaqs = [
+  {
+    question: 'How fast do you respond to messages?',
+    answer:
+      'We aim to respond to corrections within two business days, and to other messages within a week.',
+  },
+  {
+    question: 'Can I suggest a topic for a study note?',
+    answer:
+      'Yes, please do. Suggestions from students tell us what to write next. Include the subject and the chapter or topic you need covered.',
+  },
+];
+---
+
+<Layout
+  title="Contact devsyllabus — Corrections, Suggestions, and Questions"
+  description="Contact devsyllabus to report an error, suggest a study note, ask about the site, or discuss content contributions."
+  path="/contact/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Contact' }]} />
+
+  <h1>Contact</h1>
+
+  <h2>Report a correction</h2>
+  <p>
+    Found an error in a note, article, or practice question? Send the page
+    URL and the error to
+    <a href="mailto:corrections@devsyllabus.com">corrections@devsyllabus.com</a>.
+    See the <a href="/corrections/">corrections policy</a> for how reports
+    are handled.
+  </p>
+
+  <h2>Suggest a topic</h2>
+  <p>
+    Missing a subject, chapter, or topic you need for your course? Write to
+    <a href="mailto:suggestions@devsyllabus.com">suggestions@devsyllabus.com</a>
+    with your level (class, course, or exam) and what you need covered.
+  </p>
+
+  <h2>General questions</h2>
+  <p>
+    For anything else about the site, use
+    <a href="mailto:hello@devsyllabus.com">hello@devsyllabus.com</a>.
+  </p>
+
+  <h2>Content contributions</h2>
+  <p>
+    We occasionally publish guest-authored notes when the author can
+    demonstrate subject expertise. Send a short background note and a
+    sample of your writing to
+    <a href="mailto:hello@devsyllabus.com">hello@devsyllabus.com</a>.
+    Everything we publish follows our
+    <a href="/editorial-policy/">editorial policy</a>.
+  </p>
+
+  <Faq faqs={contactFaqs} />
+</Layout>

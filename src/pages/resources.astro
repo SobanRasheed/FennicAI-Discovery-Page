@@ -1,0 +1,84 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+---
+
+<Layout
+  title="Resources — Primary Sources and Study Tools | devsyllabus"
+  description="Curated resources for computer science study: standards (RFCs), official documentation, canonical textbooks, and how to use them."
+  path="/resources/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Resources' }]} />
+
+  <h1>Resources</h1>
+  <p>
+    The sources our notes cite, plus tools worth knowing. These are
+    recommendations only — see our
+    <a href="/sources/">source citation policy</a> and
+    <a href="/disclaimer/">disclaimer</a>.
+  </p>
+
+  <h2>Standards</h2>
+  <ul>
+    <li>
+      <a href="https://www.rfc-editor.org/rfc/rfc9110" rel="noopener">RFC 9110 — HTTP Semantics</a>
+      — the authoritative definition of methods, headers, and status codes.
+    </li>
+    <li>
+      <a href="https://www.rfc-editor.org/" rel="noopener">RFC Editor</a>
+      — the full RFC index, searchable.
+    </li>
+    <li>
+      ISO/IEC 9075 — the SQL standard. The editions published by ISO are
+      the definition of the language; most courses teach a close subset.
+    </li>
+  </ul>
+
+  <h2>Official documentation</h2>
+  <ul>
+    <li>
+      <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP" rel="noopener">MDN HTTP reference</a>
+      — practical, accurate HTTP documentation, with good coverage of
+      caching and conditional requests.
+    </li>
+    <li>
+      <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" rel="noopener">MDN JavaScript reference</a>
+      — the same standard of documentation for the language itself.
+    </li>
+  </ul>
+
+  <h2>Canonical textbooks</h2>
+  <ul>
+    <li>
+      <em>The C Programming Language</em> (Kernighan and Ritchie) — still
+      the reference for C semantics and idiom.
+    </li>
+    <li>
+      <em>Database System Concepts</em> (Silberschatz, Korth, and Sudarshan)
+      — the standard relational-model and normalization reference.
+    </li>
+    <li>
+      <em>An Introduction to Database Systems</em> (C. J. Date) — deeper
+      treatment of relational theory, useful for theory-heavy courses.
+    </li>
+  </ul>
+
+  <h2>Foundational reading</h2>
+  <ul>
+    <li>
+      <a href="https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm" rel="noopener">
+        Fielding's 2000 dissertation, chapter 5
+      </a>
+      — the original definition of REST. Reading it resolves most
+      "is this RESTful" debates.
+    </li>
+  </ul>
+
+  <h2>How to use these</h2>
+  <p>
+    Study the devsyllabus notes first, then verify against the primary
+    source when a detail matters. That habit is what our
+    <a href="/blog/active-recall-spaced-repetition/">study technique article</a>
+    recommends for exam-prep anyway: retrieval first, reference second.
+  </p>
+</Layout>

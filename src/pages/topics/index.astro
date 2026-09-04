@@ -1,0 +1,32 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import { getCollection } from 'astro:content';
+import { getContentByTopic } from '../utils/collections';
+
+const topics = await getCollection('topics');
+---
+
+<Layout
+  title="Topic Hubs — Learn One Topic Deeply | devsyllabus"
+  description="Every devsyllabus topic hub collects the study notes, articles, and practice questions for one topic, from REST APIs to SQL joins."
+  path="/topics/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Topic Hubs' }]} />
+
+  <h1>Topic hubs</h1>
+  <p>
+    Each topic hub is a single page gathering everything published on one
+    topic: the plain-language explanation, the study notes, the related
+    articles, and the practice questions.
+  </p>
+
+  <ul>
+    {topics.map((topic) => (
+      <li>
+        <a href={`/topics/${topic.slug}/`}>{topic.data.title}</a>
+        <span> — {topic.data.description}</span>
+      </li>
+    ))}
+  </ul>
+</Layout>

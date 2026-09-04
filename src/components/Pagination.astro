@@ -1,0 +1,64 @@
+---
+/**
+ * Crawlable pagination: every page number is a real <a>, and the links
+ * flow through rel="prev"/"next"-style semantics via aria. Page 1 is
+ * always /base/ (no page param), which keeps the first page canonical.
+ */
+interface Props {
+  basePath: string; // e.g. '/blog' — page 1 = basePath + '/'
+  totalItems: number;
+  itemsPerPage: number;
+  currentPage: number;
+}
+
+const { basePath, totalItems, itemsPerPage, currentPage } = Astro.props;
+
+const totalPages = Math.max(1, Math.ceil(totalItems / itemsPerPage));
+const pageHref = (page: number) =>
+  page === 1 ? `${basePath}/` : `${basePath}/page/${page}/`;
+
+const windowStart = Math.max(1, Math.min(currentPage - 2, totalPages - 4));
+const windowEnd = Math.min(totalPages, windowStart + 4);
+const pages: number[] = [];
+for (let p = windowStart; p <= windowEnd; p++) pages.push(p);
+---
+
+{
+  totalPages > 1 && (
+    <nav class="pagination" aria-label="Pagination">
+      {currentPage > 1 && (
+        <a href={pageHref(currentPage - 1)} rel="prev">Previous</a>
+      )}
+      {pages.map((page) =>
+        page === currentPage ? (
+          <span aria-current="page" class="current">{page}</span>
+        ) : (
+          <a href={pageHref(page)}>{page}</a>
+        ),
+      )}
+      {currentPage < totalPages && (
+        <a href={pageHref(currentPage + 1)} rel="next">Next</a>
+      )}
+      <span class="page-count">
+        Page {currentPage} of {totalPages}
+      </span>
+    </nav>
+  )
+}
+
+<style>
+  .pagination {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+    padding: 1.5rem 0;
+  }
+  .current {
+    font-weight: 700;
+  }
+  .page-count {
+    font-size: 0.85rem;
+    color: #666;
+  }
+</style>

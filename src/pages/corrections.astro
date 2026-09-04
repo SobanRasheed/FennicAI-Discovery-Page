@@ -1,0 +1,48 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+---
+
+<Layout
+  title="Corrections Policy | devsyllabus"
+  description="How to report an error on devsyllabus and how verified corrections are applied and acknowledged."
+  path="/corrections/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Editorial Policy', href: '/editorial-policy/' }, { label: 'Corrections' }]} />
+
+  <h1>Corrections policy</h1>
+
+  <h2>Reporting an error</h2>
+  <p>
+    If you find an error in any note, article, or practice question, send
+    the page URL and what you believe is wrong via our
+    <a href="/contact/">contact page</a>. If you can cite a source for the
+    correction, include it — it speeds up verification.
+  </p>
+
+  <h2>How corrections are handled</h2>
+  <ol>
+    <li>
+      <strong>Verification.</strong> A team member checks the report
+      against the source hierarchy in our
+      <a href="/fact-checking/">fact-checking process</a>.
+    </li>
+    <li>
+      <strong>Correction.</strong> Verified errors are fixed and the
+      page's updated date changes. Answers to practice questions are
+      corrected alongside their explanations.
+    </li>
+    <li>
+      <strong>Disclosure.</strong> Substantive corrections to a page's
+      technical claims are noted on the page itself. Typo-level fixes do
+      not warrant a notice.
+    </li>
+  </ol>
+
+  <h2>What counts as substantive</h2>
+  <p>
+    A corrected definition, a wrong answer to a practice question, a code
+    example that does not behave as described, or a misattributed source.
+    Not: spelling, phrasing, or formatting.
+  </p>
+</Layout>

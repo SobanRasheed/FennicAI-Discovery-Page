@@ -1,0 +1,33 @@
+---
+/**
+ * Shared blog-listing block used by /blog/ (page 1) and /blog/page/N/.
+ * Kept as a fragment so both routes render identical listings, differing
+ * only in which slice of posts they show.
+ */
+import PostCard from './PostCard.astro';
+import Pagination from './Pagination.astro';
+
+interface Props {
+  posts: {
+    slug: string;
+    data: {
+      title: string;
+      description: string;
+      category: string;
+      publishedDate: Date;
+      updatedDate?: Date;
+      author: string;
+    };
+  }[];
+  totalPosts: number;
+  currentPage: number;
+}
+
+const { posts, totalPosts, currentPage } = Astro.props;
+const POSTS_PER_PAGE = 6;
+---
+
+<div class="blog-listing">
+  {posts.map((post) => <PostCard post={post} />)}
+  <Pagination basePath="/blog" totalItems={totalPosts} itemsPerPage={POSTS_PER_PAGE} currentPage={currentPage} />
+</div>

@@ -1,0 +1,46 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+---
+
+<Layout
+  title="How devsyllabus Cites Sources | devsyllabus"
+  description="Our source citation policy: which authorities we cite, how references appear on each page, and how external links are handled."
+  path="/sources/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Editorial Policy', href: '/editorial-policy/' }, { label: 'Sources' }]} />
+
+  <h1>How we cite sources</h1>
+
+  <h2>References on every technical page</h2>
+  <p>
+    Study notes and technical articles end with a references section
+    listing the sources the content rests on. Where a source is publicly
+    linkable, such as an RFC or official documentation, the reference
+    links to it; books are cited by title, edition, and publisher.
+  </p>
+
+  <h2>Inline citation practice</h2>
+  <p>
+    Claims that follow directly from a cited source are covered by the
+    references section. Claims that are narrower or more specific — a
+    particular section of a standard, a specific table — are attributed
+    inline in the text.
+  </p>
+
+  <h2>External links</h2>
+  <ul>
+    <li>External links point to primary sources, not to aggregator pages.</li>
+    <li>
+      We do not sell or rent links, and external links are never a
+      condition of coverage.
+    </li>
+    <li>
+      External links open in the same tab and are marked plainly in the
+      references list. We are not responsible for the content of external
+      sites — see our <a href="/disclaimer/">disclaimer</a>.
+    </li>
+  </ul>
+
+  <p>See also the <a href="/fact-checking/">fact-checking process</a>.</p>
+</Layout>

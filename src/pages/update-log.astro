@@ -1,0 +1,47 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import { getNotes, getBlogPosts, formatDate } from '../utils/collections';
+
+const [notes, posts] = await Promise.all([getNotes(), getBlogPosts()]);
+
+// Every content item with an update history, newest first.
+const updated = [
+  ...notes.map((note) => ({
+    title: note.data.title,
+    url: `/notes/${note.slug}/`,
+    published: note.data.publishedDate,
+    updated: note.data.updatedDate,
+  })),
+  ...posts.map((post) => ({
+    title: post.data.title,
+    url: `/blog/${post.slug}/`,
+    published: post.data.publishedDate,
+    updated: post.data.updatedDate ?? post.data.publishedDate,
+  })),
+].sort((a, b) => b.updated.valueOf() - a.updated.valueOf());
+---
+
+<Layout
+  title="Update Log — Recently Updated Pages | devsyllabus"
+  description="Every recently updated study note and article on devsyllabus, with the date each page was last revised."
+  path="/update-log/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Update Log' }]} />
+
+  <h1>Update log</h1>
+  <p>
+    Pages on devsyllabus are not publish-and-forget: they are revised when
+    standards change or corrections land. This page lists every update,
+    newest first.
+  </p>
+
+  <ul>
+    {updated.map((item) => (
+      <li>
+        <a href={item.url}>{item.title}</a>
+        <span> — updated {formatDate(item.updated)} (published {formatDate(item.published)})</span>
+      </li>
+    ))}
+  </ul>
+</Layout>

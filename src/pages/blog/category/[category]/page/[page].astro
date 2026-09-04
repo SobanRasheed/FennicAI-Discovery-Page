@@ -1,0 +1,54 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import PostCard from '../../components/PostCard.astro';
+import Pagination from '../../components/Pagination.astro';
+import { getPostsByCategory } from '../../utils/collections';
+
+const POSTS_PER_PAGE = 6;
+
+export async function getStaticPaths() {
+  const categories = ['api-design', 'study-techniques', 'databases', 'web-development'];
+  const paths = [];
+  for (const category of categories) {
+    const posts = await getPostsByCategory(category);
+    const totalPages = Math.ceil(posts.length / POSTS_PER_PAGE);
+    for (let page = 2; page <= totalPages; page++) {
+      paths.push({ params: { category, page: String(page) }, props: { category, page } });
+    }
+  }
+  return paths;
+}
+
+const { category, page } = Astro.props;
+const currentPage = Number(page);
+const posts = await getPostsByCategory(category);
+const pagePosts = posts.slice(
+  (currentPage - 1) * POSTS_PER_PAGE,
+  currentPage * POSTS_PER_PAGE,
+);
+const label = category.replace(/-/g, ' ');
+---
+
+<Layout
+  title={`${label} Articles — Page ${currentPage} | devsyllabus Blog`}
+  description={`All ${label} articles on devsyllabus, page ${currentPage}.`}
+  path={`/blog/category/${category}/page/${currentPage}/`}
+>
+  <Breadcrumbs
+    crumbs={[
+      { label: 'Blog', href: '/blog/' },
+      { label: label, href: `/blog/category/${category}/` },
+      { label: `Page ${currentPage}` },
+    ]}
+  />
+
+  <h1>{label} articles</h1>
+  {pagePosts.map((post) => <PostCard post={post} />)}
+  <Pagination
+    basePath={`/blog/category/${category}`}
+    totalItems={posts.length}
+    itemsPerPage={POSTS_PER_PAGE}
+    currentPage={currentPage}
+  />
+</Layout>

@@ -1,0 +1,36 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import { getCollection } from 'astro:content';
+import { getNotes } from '../utils/collections';
+
+const [subjects, notes] = await Promise.all([getCollection('subjects'), getNotes()]);
+
+const subjectsWithCounts = subjects.map((subject) => ({
+  subject,
+  noteCount: notes.filter((n) => n.data.subject === subject.slug).length,
+}));
+---
+
+<Layout
+  title="Subjects — Computer Science | devsyllabus"
+  description="All devsyllabus subjects: web development, database systems, and programming fundamentals, each with chapter-organized study notes."
+  path="/subjects/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Subjects' }]} />
+
+  <h1>Subjects</h1>
+  <p>
+    Each subject hub organizes its notes by chapter, lists the exams the
+    material maps to, and links every topic hub related to the subject.
+  </p>
+
+  <ul>
+    {subjectsWithCounts.map(({ subject, noteCount }) => (
+      <li>
+        <a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a>
+        <span> — {subject.data.description} ({noteCount} note{noteCount === 1 ? '' : 's'})</span>
+      </li>
+    ))}
+  </ul>
+</Layout>

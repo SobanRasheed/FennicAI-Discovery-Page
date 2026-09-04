@@ -1,0 +1,39 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import BlogListing from '../../components/BlogListing.astro';
+import { getBlogPosts, getBlogCategories } from '../../utils/collections';
+
+const POSTS_PER_PAGE = 6;
+
+const [posts, categories] = await Promise.all([getBlogPosts(), getBlogCategories()]);
+const pagePosts = posts.slice(0, POSTS_PER_PAGE);
+---
+
+<Layout
+  title="Blog — Study Techniques and Computer Science Guides | devsyllabus"
+  description="Articles on study techniques, exam preparation, API design, and SQL, written for computer science students. Practical guides with worked examples."
+  path="/blog/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Blog' }]} />
+
+  <h1>devsyllabus blog</h1>
+  <p>
+    Articles on study technique, exam preparation, and the technical
+    subjects we publish notes for. Every article is written by our author
+    team and reviewed before publication.
+  </p>
+
+  <nav aria-label="Blog categories">
+    <h2>Categories</h2>
+    <ul>
+      {categories.map((category) => (
+        <li>
+          <a href={`/blog/category/${category}/`}>{category}</a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+
+  <BlogListing posts={pagePosts} totalPosts={posts.length} currentPage={1} />
+</Layout>

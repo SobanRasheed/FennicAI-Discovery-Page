@@ -1,0 +1,87 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import JsonLd from '../../components/JsonLd.astro';
+import NoteCard from '../../components/NoteCard.astro';
+import PostCard from '../../components/PostCard.astro';
+import { getNotes, getBlogPosts } from '../../utils/collections';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const authors = await getCollection('authors');
+  return authors.map((author) => ({ params: { slug: author.slug }, props: { author } }));
+}
+
+const { author } = Astro.props;
+const { data } = author;
+
+const [notes, posts] = await Promise.all([getNotes(), getBlogPosts()]);
+const authorNotes = notes.filter((n) => n.data.author === author.slug);
+const authorPosts = posts.filter((p) => p.data.author === author.slug);
+
+const site = Astro.site!;
+
+const personSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: data.title,
+  jobTitle: data.role,
+  description: data.bio,
+  url: new URL(`/authors/${author.slug}/`, site).href,
+  knowsAbout: data.expertise,
+};
+---
+
+<Layout
+  title={`${data.title} — ${data.role} | devsyllabus`}
+  description={`${data.title}, ${data.role} at devsyllabus. ${data.bio.slice(0, 120)}`}
+  path={`/authors/${author.slug}/`}
+>
+  <JsonLd data={personSchema} />
+
+  <Breadcrumbs crumbs={[{ label: 'Authors', href: '/authors/' }, { label: data.title }]} />
+
+  <h1>{data.title}</h1>
+  <p class="role">{data.role}</p>
+
+  <p>{data.bio}</p>
+
+  {data.expertise.length > 0 && (
+    <section>
+      <h2>Areas of expertise</h2>
+      <ul>
+        {data.expertise.map((item) => <li>{item}</li>)}
+      </ul>
+    </section>
+  )}
+
+  {data.credentials.length > 0 && (
+    <section>
+      <h2>Credentials</h2>
+      <ul>
+        {data.credentials.map((credential) => <li>{credential}</li>)}
+      </ul>
+    </section>
+  )}
+
+  {authorNotes.length > 0 && (
+    <section>
+      <h2>Study notes ({authorNotes.length})</h2>
+      {authorNotes.map((note) => <NoteCard note={note} />)}
+    </section>
+  )}
+
+  {authorPosts.length > 0 && (
+    <section>
+      <h2>Articles ({authorPosts.length})</h2>
+      {authorPosts.map((post) => <PostCard post={post} />)}
+    </section>
+  )}
+</Layout>
+
+<style>
+  .role {
+    font-size: 1.05rem;
+    color: #555;
+  }
+</style>

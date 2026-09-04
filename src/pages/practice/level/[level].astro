@@ -1,0 +1,47 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import { getQuestions } from '../../utils/collections';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const [questions, levels] = await Promise.all([
+    getQuestions(),
+    getCollection('levels'),
+  ]);
+  return levels
+    .filter((level) => questions.some((q) => q.data.level === level.slug))
+    .map((level) => ({ params: { level: level.slug }, props: { level } }));
+}
+
+const { level } = Astro.props;
+const questions = (await getQuestions()).filter((q) => q.data.level === level.slug);
+---
+
+<Layout
+  title={`${level.data.title} Practice Questions | devsyllabus`}
+  description={`Practice questions for ${level.data.title} with full answers and explanations, matched to the syllabus at this level.`}
+  path={`/practice/level/${level.slug}/`}
+>
+  <Breadcrumbs
+    crumbs={[
+      { label: 'Practice', href: '/practice/' },
+      { label: level.data.title },
+    ]}
+  />
+
+  <h1>{level.data.title} practice questions</h1>
+  <p>
+    {questions.length} question{questions.length === 1 ? '' : 's'} matched to
+    this level. Also see the <a href={`/levels/${level.slug}/`}>{level.data.title} study notes</a>.
+  </p>
+
+  <ul>
+    {questions.map((q) => (
+      <li>
+        <a href={`/practice/${q.slug}/`}>{q.data.question}</a>
+        <span> — {q.data.type}, {q.data.difficulty}</span>
+      </li>
+    ))}
+  </ul>
+</Layout>

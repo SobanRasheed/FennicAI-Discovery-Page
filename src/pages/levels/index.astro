@@ -1,0 +1,42 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import { getCollection } from 'astro:content';
+import { getNotesByLevel, getQuestionsByLevel } from '../utils/collections';
+
+const [levels, notes] = await Promise.all([getCollection('levels'), getNotes()]);
+
+const levelsWithCounts = levels.map((level) => ({
+  level,
+  noteCount: notes.filter((n) => n.data.level === level.slug).length,
+}));
+
+const kindLabels: Record<string, string> = {
+  class: 'School class',
+  course: 'University course',
+  exam: 'Exam track',
+};
+---
+
+<Layout
+  title="Education Levels — Classes, Courses, and Exams | devsyllabus"
+  description="Browse devsyllabus study notes and practice questions by education level, from Class 12 computer science to BS Computer Science."
+  path="/levels/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Education Levels' }]} />
+
+  <h1>Education levels</h1>
+  <p>
+    Start from your class, course, or exam and follow the hierarchy down to
+    subjects, chapters, and individual notes.
+  </p>
+
+  <ul>
+    {levelsWithCounts.map(({ level, noteCount }) => (
+      <li>
+        <a href={`/levels/${level.slug}/`}>{level.data.title}</a>
+        <span> — {kindLabels[level.data.kind]}, {noteCount} note{noteCount === 1 ? '' : 's'}</span>
+      </li>
+    ))}
+  </ul>
+</Layout>

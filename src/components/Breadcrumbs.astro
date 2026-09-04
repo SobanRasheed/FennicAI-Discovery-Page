@@ -1,0 +1,71 @@
+---
+/**
+ * Visible breadcrumb trail with matching BreadcrumbList structured data.
+ * The last crumb is the current page (no link, per Google's guidelines).
+ * Item 1 is always Home.
+ */
+interface Crumb {
+  label: string;
+  href?: string; // omit for the current page
+}
+
+interface Props {
+  crumbs: Crumb[];
+}
+
+const { crumbs } = Astro.props;
+
+const allCrumbs = [{ label: 'Home', href: '/' }, ...crumbs];
+const site = Astro.site!;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: allCrumbs.map((crumb, index) => ({
+    '@type': 'ListItem',
+    position: index + 1,
+    name: crumb.label,
+    ...(crumb.href ? { item: new URL(crumb.href, site).href } : {}),
+  })),
+};
+---
+
+<nav aria-label="Breadcrumb">
+  <ol class="breadcrumbs">
+    {
+      allCrumbs.map((crumb, index) => (
+        <li>
+          {crumb.href ? (
+            <a href={crumb.href}>{crumb.label}</a>
+          ) : (
+            <span aria-current="page">{crumb.label}</span>
+          )}
+          {index < allCrumbs.length - 1 && <span class="separator">/</span>}
+        </li>
+      ))
+    }
+  </ol>
+</nav>
+<script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+
+<style>
+  .breadcrumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    list-style: none;
+    margin: 0 0 1.5rem;
+    padding: 0;
+    font-size: 0.9rem;
+  }
+  .breadcrumbs a {
+    color: #444;
+  }
+  .breadcrumbs [aria-current] {
+    color: #111;
+  }
+  .separator {
+    margin-left: 0.25rem;
+    color: #999;
+  }
+</style>

@@ -1,0 +1,51 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+---
+
+<Layout
+  title="Fact-Checking Process | devsyllabus"
+  description="How devsyllabus fact-checks technical content: primary sources, reviewer verification, and what happens when a claim cannot be confirmed."
+  path="/fact-checking/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Editorial Policy', href: '/editorial-policy/' }, { label: 'Fact-Checking' }]} />
+
+  <h1>Fact-checking process</h1>
+
+  <h2>Source hierarchy</h2>
+  <p>Claims are verified against sources in this order of authority:</p>
+  <ol>
+    <li><strong>Standards</strong> — RFCs, ISO standards, language specifications.</li>
+    <li><strong>Canonical texts</strong> — the standard textbook for the subject.</li>
+    <li><strong>Official documentation</strong> — vendor or maintainer docs for specific tools.</li>
+  </ol>
+  <p>
+    Blog posts and third-party tutorials inform our writing but are not
+    cited as authority for technical claims.
+  </p>
+
+  <h2>What gets checked</h2>
+  <ul>
+    <li>Every definition in a note's key terms section.</li>
+    <li>Every code example, including expected outputs.</li>
+    <li>Every practice question's answer and explanation.</li>
+    <li>Dates, version numbers, and named standards.</li>
+  </ul>
+
+  <h2>When sources disagree</h2>
+  <p>
+    Different textbooks teach some topics differently, particularly
+    normal-form edge cases and language-convention questions. When
+    authoritative sources disagree, the note presents the mainstream
+    position and flags the disagreement, so exam answers can be adapted
+    to the course's convention.
+  </p>
+
+  <h2>Unverifiable claims</h2>
+  <p>
+    A claim we cannot verify against a source in the hierarchy above does
+    not get published. See also the
+    <a href="/editorial-policy/">editorial policy</a> and
+    <a href="/corrections/">corrections policy</a>.
+  </p>
+</Layout>

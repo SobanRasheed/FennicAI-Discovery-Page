@@ -1,0 +1,49 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import { getQuestions } from '../../utils/collections';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const [questions, subjects] = await Promise.all([
+    getQuestions(),
+    getCollection('subjects'),
+  ]);
+  return subjects
+    .filter((subject) => questions.some((q) => q.data.subject === subject.slug))
+    .map((subject) => ({ params: { subject: subject.slug }, props: { subject } }));
+}
+
+const { subject } = Astro.props;
+const questions = (await getQuestions()).filter(
+  (q) => q.data.subject === subject.slug,
+);
+---
+
+<Layout
+  title={`${subject.data.title} Practice Questions | devsyllabus`}
+  description={`Practice questions for ${subject.data.title} with full answers and explanations, spanning MCQs, short answers, long answers, and numerical problems.`}
+  path={`/practice/subject/${subject.slug}/`}
+>
+  <Breadcrumbs
+    crumbs={[
+      { label: 'Practice', href: '/practice/' },
+      { label: subject.data.title },
+    ]}
+  />
+
+  <h1>{subject.data.title} practice questions</h1>
+  <p>
+    {questions.length} question{questions.length === 1 ? '' : 's'} with worked
+    answers. Also see the <a href={`/subjects/${subject.slug}/`}>{subject.data.title} study notes</a>.
+  </p>
+
+  <ul>
+    {questions.map((q) => (
+      <li>
+        <a href={`/practice/${q.slug}/`}>{q.data.question}</a>
+        <span> — {q.data.type}, {q.data.difficulty}</span>
+      </li>
+    ))}
+  </ul>
+</Layout>

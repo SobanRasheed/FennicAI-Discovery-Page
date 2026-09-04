@@ -1,0 +1,115 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import JsonLd from '../../components/JsonLd.astro';
+import { getQuestions } from '../../utils/collections';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const questions = await getQuestions();
+  return questions.map((question) => ({
+    params: { slug: question.slug },
+    props: { question },
+  }));
+}
+
+const { question } = Astro.props;
+const { data } = question;
+const { Content: QuestionBody } = await render(question);
+
+const [subjects, levels] = await Promise.all([
+  getCollection('subjects'),
+  getCollection('levels'),
+]);
+
+const subject = subjects.find((s) => s.slug === data.subject);
+const level = levels.find((l) => l.slug === data.level);
+
+// Related: other questions on the same subject.
+const related = (await getQuestions()).filter(
+  (q) => q.slug !== question.slug && q.data.subject === data.subject,
+);
+
+const site = Astro.site!;
+
+const quizSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Question',
+  name: data.question,
+  acceptedAnswer: {
+    '@type': 'Answer',
+    text: `${data.answer} ${data.explanation}`,
+  },
+  ...(data.options.length > 0 && {
+    suggestedAnswer: data.options.map((option) => ({ '@type': 'Answer', text: option })),
+  }),
+  about: subject ? { '@type': 'Thing', name: subject.data.title } : undefined,
+  eduQuestionType: data.type === 'mcq' ? 'Multiple choice' : 'Open question',
+};
+---
+
+<Layout
+  title={`${data.question.slice(0, 70)} | devsyllabus Practice`}
+  description={`Practice question (${data.type}) with full answer and explanation, from ${subject?.data.title ?? data.subject}.`}
+  path={`/practice/${question.slug}/`}
+  noindex={data.noindex}
+>
+  <JsonLd data={quizSchema} />
+
+  <Breadcrumbs
+    crumbs={[
+      { label: 'Practice', href: '/practice/' },
+      { label: subject?.data.title ?? data.subject, href: `/practice/subject/${data.subject}/` },
+      { label: 'Question' },
+    ]}
+  />
+
+  <article>
+    <h1>{data.question}</h1>
+
+    <p class="question-meta">
+      {data.type.toUpperCase()} · {data.difficulty}
+      {data.examTag && <span> · {data.examTag}</span>}
+      {level && <span> · <a href={`/levels/${level.slug}/`}>{level.data.title}</a></span>}
+    </p>
+
+    {data.options.length > 0 && (
+      <section>
+        <h2 id="options">Options</h2>
+        <ol type="A">
+          {data.options.map((option) => <li>{option}</li>)}
+        </ol>
+      </section>
+    )}
+
+    <section>
+      <h2 id="answer">Answer</h2>
+      <p><strong>{data.answer}</strong></p>
+    </section>
+
+    <section>
+      <h2 id="explanation">Explanation</h2>
+      <p>{data.explanation}</p>
+    </section>
+
+    <QuestionBody />
+
+    {related.length > 0 && (
+      <section>
+        <h2 id="more-practice">More practice on this subject</h2>
+        <ul>
+          {related.slice(0, 5).map((q) => (
+            <li><a href={`/practice/${q.slug}/`}>{q.data.question}</a></li>
+          ))}
+        </ul>
+      </section>
+    )}
+  </article>
+</Layout>
+
+<style>
+  .question-meta {
+    font-size: 0.9rem;
+    color: #555;
+  }
+</style>

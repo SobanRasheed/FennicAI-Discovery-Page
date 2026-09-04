@@ -1,0 +1,230 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import TOC from '../../components/TOC.astro';
+import Faq from '../../components/Faq.astro';
+import JsonLd from '../../components/JsonLd.astro';
+import NoteCard from '../../components/NoteCard.astro';
+import { getNotes, getQuestions, formatDate, isoDate } from '../../utils/collections';
+import { getCollection, render } from 'astro:content';
+
+export async function getStaticPaths() {
+  const notes = await getNotes();
+  return notes.map((note) => ({ params: { slug: note.slug }, props: { note } }));
+}
+
+const { note } = Astro.props;
+const { data } = note;
+const { Content: NoteBody, headings } = await render(note);
+
+const [subjects, levels, authors, allNotes, allQuestions] = await Promise.all([
+  getCollection('subjects'),
+  getCollection('levels'),
+  getCollection('authors'),
+  getNotes(),
+  getQuestions(),
+]);
+
+const subject = subjects.find((s) => s.slug === data.subject);
+const level = levels.find((l) => l.slug === data.level);
+const author = authors.find((a) => a.slug === data.author);
+
+const chapterEntry = subject?.data.chapters.find((c) => c.slug === data.chapter);
+const chapterTitle = chapterEntry?.title ?? data.chapter;
+
+// Related: same subject, other chapters; then same level.
+const relatedNotes = allNotes
+  .filter((n) => n.slug !== note.slug && n.data.subject === data.subject)
+  .slice(0, 3);
+
+// Questions pointing at this note's subject and chapter.
+const relatedQuestions = allQuestions.filter(
+  (q) => q.data.subject === data.subject && q.data.chapter === data.chapter,
+);
+
+const title = data.seoTitle ?? data.title;
+const site = Astro.site!;
+
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Article',
+  headline: data.title,
+  description: data.description,
+  datePublished: isoDate(data.publishedDate),
+  dateModified: isoDate(data.updatedDate),
+  author: author
+    ? {
+        '@type': 'Person',
+        name: author.data.title,
+        url: new URL(`/authors/${author.slug}/`, site).href,
+      }
+    : undefined,
+  publisher: { '@type': 'Organization', name: 'devsyllabus', url: site.href },
+  mainEntityOfPage: {
+    '@type': 'WebPage',
+    '@id': new URL(`/notes/${note.slug}/`, site).href,
+  },
+  about: subject ? { '@type': 'Thing', name: subject.data.title } : undefined,
+};
+---
+
+<Layout
+  title={`${title} | devsyllabus`}
+  description={data.description}
+  path={`/notes/${note.slug}/`}
+  noindex={data.noindex}
+  ogType="article"
+  publishedTime={data.publishedDate}
+  modifiedTime={data.updatedDate}
+>
+  <JsonLd data={articleSchema} />
+
+  <Breadcrumbs
+    crumbs={[
+      { label: level?.data.title ?? data.level, href: `/levels/${data.level}/` },
+      { label: subject?.data.title ?? data.subject, href: `/subjects/${data.subject}/` },
+      { label: chapterTitle },
+      { label: data.title },
+    ]}
+  />
+
+  <article>
+    <h1>{data.title}</h1>
+
+    <p class="byline">
+      {subject && <a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a>}
+      {level && <span> · <a href={`/levels/${level.slug}/`}>{level.data.title}</a></span>}
+      {author && <span> · by <a href={`/authors/${author.slug}/`}>{author.data.title}</a></span>}
+    </p>
+    <p class="byline">
+      <time datetime={isoDate(data.publishedDate)}>Published {formatDate(data.publishedDate)}</time>
+      · <time datetime={isoDate(data.updatedDate)}>Updated {formatDate(data.updatedDate)}</time>
+    </p>
+
+    <p class="overview">{data.overview}</p>
+
+    <section>
+      <h2 id="learning-objectives">Learning objectives</h2>
+      <ul>
+        {data.learningObjectives.map((objective) => <li>{objective}</li>)}
+      </ul>
+    </section>
+
+    <TOC headings={headings} />
+
+    <section class="key-terms">
+      <h2 id="key-terms">Key terms</h2>
+      <dl>
+        {data.keyTerms.map((term) => (
+          <>
+            <dt>{term.term}</dt>
+            <dd>{term.definition}</dd>
+          </>
+        ))}
+      </dl>
+    </section>
+
+    <div class="content">
+      <NoteBody />
+    </div>
+
+    {data.formulas.length > 0 && (
+      <section>
+        <h2 id="formulas">Formulas and definitions</h2>
+        <dl>
+          {data.formulas.map((formula) => (
+            <>
+              <dt><code>{formula.expression}</code></dt>
+              <dd>{formula.meaning}</dd>
+            </>
+          ))}
+        </dl>
+      </section>
+    )}
+
+    {data.importantPoints.length > 0 && (
+      <section>
+        <h2 id="important-points">Important points</h2>
+        <ul>
+          {data.importantPoints.map((point) => <li>{point}</li>)}
+        </ul>
+      </section>
+    )}
+
+    <section>
+      <h2 id="summary">Summary</h2>
+      <p>{data.summary}</p>
+    </section>
+
+    {relatedQuestions.length > 0 && (
+      <section>
+        <h2 id="practice-questions">Practice questions</h2>
+        <ul>
+          {relatedQuestions.map((q) => (
+            <li>
+              <a href={`/practice/${q.slug}/`}>{q.data.question}</a>
+              <span> ({q.data.type})</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {relatedNotes.length > 0 && (
+      <section>
+        <h2 id="related-notes">Related notes</h2>
+        {relatedNotes.map((n) => <NoteCard note={n} />)}
+      </section>
+    )}
+
+    <section class="author-box">
+      <h2 id="about-the-author">About the author</h2>
+      {author && (
+        <>
+          <p><a href={`/authors/${author.slug}/`}><strong>{author.data.title}</strong></a> — {author.data.role}</p>
+          <p>{author.data.bio}</p>
+        </>
+      )}
+    </section>
+
+    {data.references.length > 0 && (
+      <section>
+        <h2 id="references">References</h2>
+        <ol>
+          {data.references.map((ref) => (
+            <li>
+              {ref.url ? <a href={ref.url} rel="noopener">{ref.title}</a> : ref.title}
+              {ref.source && <span> — {ref.source}</span>}
+            </li>
+          ))}
+        </ol>
+      </section>
+    )}
+
+    <Faq faqs={data.faqs} />
+  </article>
+</Layout>
+
+<style>
+  .byline {
+    color: #555;
+    font-size: 0.9rem;
+  }
+  .overview {
+    font-size: 1.1rem;
+    line-height: 1.6;
+  }
+  .key-terms dt,
+  section dt {
+    font-weight: 600;
+    margin-top: 0.75rem;
+  }
+  .key-terms dd,
+  section dd {
+    margin-left: 0;
+  }
+  .author-box {
+    border-top: 1px solid #e5e5e5;
+    padding-top: 1rem;
+  }
+</style>

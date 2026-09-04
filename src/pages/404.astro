@@ -1,0 +1,42 @@
+---
+import Layout from '../layouts/Layout.astro';
+
+const popularLinks = [
+  { href: '/notes/', label: 'All study notes' },
+  { href: '/blog/', label: 'Blog articles' },
+  { href: '/practice/', label: 'Practice questions' },
+  { href: '/subjects/', label: 'Subjects' },
+  { href: '/topics/', label: 'Topic hubs' },
+  { href: '/levels/', label: 'Education levels' },
+  { href: '/search/', label: 'Search the site' },
+];
+---
+
+<Layout
+  title="Page Not Found (404) | devsyllabus"
+  description="The page you requested does not exist. Search the site or browse study notes, articles, and practice questions."
+  path="/404/"
+  noindex={true}
+>
+  <h1>Page not found</h1>
+  <p>
+    The page you requested does not exist or has moved. If you followed a
+    link from another site, that link is outdated — our content may be at
+    a new location.
+  </p>
+
+  <h2>Try one of these</h2>
+  <ul>
+    {popularLinks.map((link) => (
+      <li><a href={link.href}>{link.label}</a></li>
+    ))}
+  </ul>
+
+  <h2>Popular destinations</h2>
+  <ul>
+    <li><a href="/notes/rest-api-design/">REST API design notes</a></li>
+    <li><a href="/notes/normalization/">Database normalization notes</a></li>
+    <li><a href="/notes/http-fundamentals/">HTTP fundamentals notes</a></li>
+    <li><a href="/notes/functions-in-c/">Functions in C notes</a></li>
+  </ul>
+</Layout>

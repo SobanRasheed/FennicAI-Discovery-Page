@@ -1,0 +1,59 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import { getBlogPosts, getBlogCategories, formatDate } from '../utils/collections';
+
+const [posts, categories] = await Promise.all([getBlogPosts(), getBlogCategories()]);
+
+// Complete crawlable archive: every article on one page, newest first,
+// grouped by year. Complements the paginated /blog/ listing.
+const byYear = new Map<number, typeof posts>();
+for (const post of posts) {
+  const year = post.data.publishedDate.getFullYear();
+  if (!byYear.has(year)) byYear.set(year, []);
+  byYear.get(year)!.push(post);
+}
+const years = [...byYear.keys()].sort((a, b) => b - a);
+---
+
+<Layout
+  title="Article Archive — Every Post Since the Beginning | devsyllabus"
+  description="The complete devsyllabus article archive, grouped by year, with categories. Every article ever published, on one crawlable page."
+  path="/blog/archive/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Blog', href: '/blog/' }, { label: 'Archive' }]} />
+
+  <h1>Article archive</h1>
+  <p>
+    Every article published on devsyllabus, newest first. For browsing by
+    category instead of date, see the
+    <a href="/blog/">blog categories</a>.
+  </p>
+
+  {years.map((year) => (
+    <section>
+      <h2>{year}</h2>
+      <ul>
+        {byYear.get(year)!.map((post) => (
+          <li>
+            <time datetime={post.data.publishedDate.toISOString()}>
+              {formatDate(post.data.publishedDate)}
+            </time>
+            — <a href={`/blog/${post.slug}/`}>{post.data.title}</a>
+            <span> ({post.data.category})</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
+
+  <p>
+    Categories in use:
+    {categories.map((category, i) => (
+      <>
+        {i > 0 && <span>, </span>}
+        <a href={`/blog/category/${category}/`}>{category}</a>
+      </>
+    ))}
+  </p>
+</Layout>

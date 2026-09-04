@@ -1,0 +1,60 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+---
+
+<Layout
+  title="Privacy Policy | devsyllabus"
+  description="devsyllabus privacy policy: what we collect (very little), analytics and cookies, and your choices."
+  path="/privacy-policy/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Privacy Policy' }]} />
+
+  <h1>Privacy policy</h1>
+  <p>Last updated: 2026-09-04</p>
+
+  <h2>What we collect</h2>
+  <p>
+    devsyllabus is a read-only study site. Reading pages requires no
+    account and collects no personal data. We do not ask for names,
+    emails, or payment details except when you write to us directly, in
+    which case we keep your message only to respond to it.
+  </p>
+
+  <h2>Server logs</h2>
+  <p>
+    Like nearly every website, our hosting provider records standard
+    request logs (IP address, requested URL, timestamp, user agent) for
+    security and operational purposes. These logs are retained for a
+    limited period and are not used to build profiles of visitors.
+  </p>
+
+  <h2>Cookies and analytics</h2>
+  <p>
+    The site itself sets no tracking cookies. Site search runs entirely
+    in your browser, so search terms are not sent to or stored by us. If
+    we add privacy-respecting, aggregate analytics in the future, this
+    page and the <a href="/cookie-policy/">cookie policy</a> will be
+    updated first.
+  </p>
+
+  <h2>External links</h2>
+  <p>
+    Pages link to external sources such as RFCs and documentation sites.
+    Those sites have their own privacy practices, which we do not control.
+  </p>
+
+  <h2>Your rights</h2>
+  <p>
+    Since we collect essentially no personal data, there is little to
+    request, but if you have questions or want a message you sent us
+    deleted, write to
+    <a href="mailto:hello@devsyllabus.com">hello@devsyllabus.com</a>.
+  </p>
+
+  <p>
+    See also the <a href="/terms-of-use/">terms of use</a>,
+    <a href="/cookie-policy/">cookie policy</a>, and
+    <a href="/disclaimer/">disclaimer</a>.
+  </p>
+</Layout>

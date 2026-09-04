@@ -1,11 +1,162 @@
 ---
-import Welcome from '../components/Welcome.astro';
 import Layout from '../layouts/Layout.astro';
+import PostCard from '../components/PostCard.astro';
+import NoteCard from '../components/NoteCard.astro';
+import Faq from '../components/Faq.astro';
+import JsonLd from '../components/JsonLd.astro';
+import { getNotes, getBlogPosts, getQuestions, formatDate } from '../utils/collections';
+import { getCollection } from 'astro:content';
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+const [notes, posts, questions, subjects, levels, topics] = await Promise.all([
+  getNotes(),
+  getBlogPosts(),
+  getQuestions(),
+  getCollection('subjects'),
+  getCollection('levels'),
+  getCollection('topics'),
+]);
+
+const featured = posts.filter((p) => p.data.featured).slice(0, 3);
+const latest = posts.slice(0, 5);
+const popularNotes = notes.filter((n) => n.data.popular).slice(0, 4);
+const updatedNotes = [...notes]
+  .sort((a, b) => b.data.updatedDate.valueOf() - a.data.updatedDate.valueOf())
+  .slice(0, 4);
+const popularPosts = posts.filter((p) => p.data.popular).slice(0, 3);
+
+const homeFaqs = [
+  {
+    question: 'What is devsyllabus?',
+    answer:
+      'devsyllabus publishes study notes, practice questions, and exam guides for computer science subjects, from Class 12 programming to university-level database and web development courses. Every note is structured for revision: objectives, key terms, worked examples, and self-test questions.',
+  },
+  {
+    question: 'Is the content free?',
+    answer:
+      'Yes. All study notes, blog articles, and practice questions are free to read, with no account required.',
+  },
+  {
+    question: 'Who writes the notes?',
+    answer:
+      'Notes are written and reviewed by our author team, whose credentials are listed on each note and on their author pages. Technical content is checked against primary sources like RFCs, standard textbooks, and official documentation.',
+  },
+  {
+    question: 'How current is the material?',
+    answer:
+      'Each note shows its published and last-updated dates. When a standard changes, like an RFC revision, we update the note and list the change on our updates page.',
+  },
+];
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: 'devsyllabus',
+  url: Astro.site!.href,
+  description:
+    'Study notes, practice questions, and exam guides for computer science subjects.',
+  potentialAction: {
+    '@type': 'SearchAction',
+    target: {
+      '@type': 'EntryPoint',
+      urlTemplate: `${Astro.site!.href}search/?q={search_term_string}`,
+    },
+    'query-input': 'required name=search_term_string',
+  },
+};
 ---
 
-<Layout>
-	<Welcome />
+<Layout
+  title="devsyllabus — Computer Science Study Notes, Practice Questions, and Exam Guides"
+  description="Free computer science study notes, practice questions, and exam guides, covering web development, databases, and programming fundamentals for class and university courses."
+  path="/"
+>
+  <JsonLd data={jsonLd} />
+
+  <section>
+    <h1>Study notes and exam guides for computer science</h1>
+    <p>
+      devsyllabus publishes structured study notes, practice questions with
+      worked answers, and exam technique guides for computer science subjects.
+      Every note is built for revision: learning objectives up front, key
+      terms, worked examples, and self-test questions at the end.
+    </p>
+    <p><a href="/notes/">Browse all study notes</a> or <a href="/search/">search the site</a>.</p>
+  </section>
+
+  <section>
+    <h2>Browse by subject</h2>
+    <ul>
+      {subjects.map((subject) => (
+        <li>
+          <a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <section>
+    <h2>Browse by education level</h2>
+    <ul>
+      {levels.map((level) => (
+        <li>
+          <a href={`/levels/${level.slug}/`}>{level.data.title}</a>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <section>
+    <h2>Browse by type</h2>
+    <ul>
+      <li><a href="/notes/">Study notes</a></li>
+      <li><a href="/practice/">Practice questions</a></li>
+      <li><a href="/blog/">Blog articles</a></li>
+      <li><a href="/topics/">Topic hubs</a></li>
+    </ul>
+  </section>
+
+  {featured.length > 0 && (
+    <section>
+      <h2>Featured articles</h2>
+      {featured.map((post) => <PostCard post={post} />)}
+    </section>
+  )}
+
+  <section>
+    <h2>Latest study notes</h2>
+    {updatedNotes.map((note) => <NoteCard note={note} />)}
+  </section>
+
+  <section>
+    <h2>Popular this month</h2>
+    {popularNotes.map((note) => <NoteCard note={note} />)}
+    {popularPosts.map((post) => <PostCard post={post} />)}
+  </section>
+
+  <section>
+    <h2>Latest articles</h2>
+    {latest.map((post) => <PostCard post={post} />)}
+    <p><a href="/blog/">All articles</a> · <a href="/blog/archive/">Complete archive</a></p>
+  </section>
+
+  <section>
+    <h2>Practice questions</h2>
+    <p>
+      {questions.length} questions with worked answers, spanning MCQs, short
+      and long answers, and numerical problems.
+    </p>
+    <p><a href="/practice/">Practice by subject or exam</a></p>
+  </section>
+
+  <Faq faqs={homeFaqs} heading="Frequently asked questions" />
+
+  <section>
+    <h2>Topic hubs</h2>
+    <p>Deep-dive pages collecting notes, articles, and questions per topic:</p>
+    <ul>
+      {topics.slice(0, 6).map((topic) => (
+        <li><a href={`/topics/${topic.slug}/`}>{topic.data.title}</a></li>
+      ))}
+    </ul>
+  </section>
 </Layout>

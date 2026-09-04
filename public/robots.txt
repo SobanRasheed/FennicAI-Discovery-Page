@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# Sitemap for the whole site.
+Sitemap: https://devsyllabus.com/sitemap-index.xml

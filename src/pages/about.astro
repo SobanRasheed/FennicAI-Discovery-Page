@@ -1,0 +1,87 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import JsonLd from '../components/JsonLd.astro';
+
+const site = Astro.site!;
+
+const orgSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: 'devsyllabus',
+  url: site.href,
+  description:
+    'Study notes, practice questions, and exam guides for computer science subjects.',
+};
+---
+
+<Layout
+  title="About devsyllabus — Our Mission and Method"
+  description="Who we are, why devsyllabus exists, and how our study notes are structured to make revision efficient for computer science students."
+  path="/about/"
+>
+  <JsonLd data={orgSchema} />
+  <Breadcrumbs crumbs={[{ label: 'About' }]} />
+
+  <h1>About devsyllabus</h1>
+
+  <h2>Why this site exists</h2>
+  <p>
+    Most students preparing for computer science exams face the same
+    problem: the material exists, but it is scattered across textbook
+    chapters, lecture slides, and forum threads, each written for a
+    different audience. devsyllabus puts it in one place, structured the
+    way revision actually works: objectives first, then explanation, then
+    self-test.
+  </p>
+
+  <h2>What we publish</h2>
+  <ul>
+    <li>
+      <strong><a href="/notes/">Study notes</a></strong> — complete chapter
+      coverage for each subject, with key terms, worked examples, formulas,
+      and summary sections.
+    </li>
+    <li>
+      <strong><a href="/practice/">Practice questions</a></strong> — MCQs,
+      short and long answers, and numerical problems, every one with a
+      worked explanation, not just a final answer.
+    </li>
+    <li>
+      <strong><a href="/blog/">Articles</a></strong> — exam technique, study
+      methods, and practical guides on the subjects we cover.
+    </li>
+    <li>
+      <strong><a href="/topics/">Topic hubs</a></strong> — one page per
+      topic collecting every note, article, and question on it.
+    </li>
+  </ul>
+
+  <h2>How the site is organized</h2>
+  <p>
+    Content follows two hierarchies. Study notes run from
+    <a href="/levels/">education level</a> to
+    <a href="/subjects/">subject</a> to chapter to note, so you can start
+    from your class or course. Blog articles run from
+    <a href="/blog/">category</a> to topic to article. Topic hubs connect
+    the two, linking related material across both trees.
+  </p>
+
+  <h2>Editorial standards</h2>
+  <p>
+    Every page is written by a named author whose credentials appear on
+    their <a href="/authors/">profile page</a>, and reviewed before
+    publication. Technical claims are checked against primary sources,
+    which are listed in each note's references section. When material
+    becomes outdated we update it and the page shows both its published
+    and last-updated dates. Read the full
+    <a href="/editorial-policy/">editorial policy</a> for how we write,
+    review, and correct content.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Corrections, suggestions, and questions are welcome — see the
+    <a href="/contact/">contact page</a>.
+  </p>
+</Layout>

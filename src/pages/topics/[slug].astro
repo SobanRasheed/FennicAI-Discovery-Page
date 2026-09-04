@@ -1,0 +1,113 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
+import Faq from '../../components/Faq.astro';
+import NoteCard from '../../components/NoteCard.astro';
+import PostCard from '../../components/PostCard.astro';
+import { getNotes, getBlogPosts, getQuestions } from '../../utils/collections';
+import { getCollection } from 'astro:content';
+import { getContentByTopic } from '../../utils/collections';
+
+export async function getStaticPaths() {
+  const topics = await getCollection('topics');
+  return topics.map((topic) => ({ params: { slug: topic.slug }, props: { topic } }));
+}
+
+const { topic } = Astro.props;
+const { data } = topic;
+
+const [content, allTopics, notes] = await Promise.all([
+  getContentByTopic(topic.slug),
+  getCollection('topics'),
+  getNotes(),
+]);
+
+const relatedConcepts = allTopics.filter((t) =>
+  data.relatedConcepts.includes(t.slug),
+);
+
+// Subjects whose notes carry this topic — for the hierarchy cross-links.
+const topicSubjects = [
+  ...new Set(
+    notes.filter((n) => n.data.topics.includes(topic.slug)).map((n) => n.data.subject),
+  ),
+];
+const subjects = await getCollection('subjects');
+const subjectLinks = topicSubjects
+  .map((slug) => subjects.find((s) => s.slug === slug))
+  .filter(Boolean);
+---
+
+<Layout
+  title={`${data.title}: Notes, Articles, and Practice Questions | devsyllabus`}
+  description={data.description}
+  path={`/topics/${topic.slug}/`}
+>
+  <Breadcrumbs crumbs={[{ label: 'Topic Hubs', href: '/topics/' }, { label: data.title }]} />
+
+  <h1>{data.title}</h1>
+  <p class="overview">{data.description}</p>
+
+  <section>
+    <h2>In plain language</h2>
+    <p>{data.beginnerExplanation}</p>
+  </section>
+
+  {subjectLinks.length > 0 && (
+    <section>
+      <h2>Part of these subjects</h2>
+      <ul>
+        {subjectLinks.map((subject) => (
+          <li><a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a></li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {content.notes.length > 0 && (
+    <section>
+      <h2>Study notes</h2>
+      {content.notes.map((note) => <NoteCard note={note} />)}
+    </section>
+  )}
+
+  {content.posts.length > 0 && (
+    <section>
+      <h2>Articles</h2>
+      {content.posts.map((post) => <PostCard post={post} />)}
+    </section>
+  )}
+
+  {content.questions.length > 0 && (
+    <section>
+      <h2>Practice questions</h2>
+      <ul>
+        {content.questions.map((q) => (
+          <li>
+            <a href={`/practice/${q.slug}/`}>{q.data.question}</a>
+            <span> ({q.data.type}, {q.data.difficulty})</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  {relatedConcepts.length > 0 && (
+    <section>
+      <h2>Related concepts</h2>
+      <ul>
+        {relatedConcepts.map((concept) => (
+          <li><a href={`/topics/${concept.slug}/`}>{concept.data.title}</a></li>
+        ))}
+      </ul>
+    </section>
+  )}
+
+  <Faq faqs={data.faqs} />
+</Layout>
+
+<style>
+  .overview {
+    font-size: 1.1rem;
+  }
+</style>

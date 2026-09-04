@@ -1,0 +1,160 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import { getNotes, getBlogPosts, getQuestions } from '../utils/collections';
+import { getCollection } from 'astro:content';
+
+/**
+ * Site search: a static index of every indexed page rendered inline, with a
+ * small client-side filter. The q parameter is read on load so shared
+ * search URLs work. Because the index ships with the page, search works
+ * offline and adds no server dependency.
+ */
+const [notes, posts, questions, subjects, topics, levels] = await Promise.all([
+  getNotes(),
+  getBlogPosts(),
+  getQuestions(),
+  getCollection('subjects'),
+  getCollection('topics'),
+  getCollection('levels'),
+]);
+
+const searchIndex = [
+  ...notes.map((note) => ({
+    title: note.data.title,
+    url: `/notes/${note.slug}/`,
+    excerpt: note.data.description,
+    category: 'Study note',
+    keywords: `${note.data.title} ${note.data.description} ${note.data.overview} ${note.data.summary} ${note.data.keyTerms.map((t) => t.term).join(' ')}`.toLowerCase(),
+  })),
+  ...posts.map((post) => ({
+    title: post.data.title,
+    url: `/blog/${post.slug}/`,
+    excerpt: post.data.description,
+    category: 'Article',
+    keywords: `${post.data.title} ${post.data.description}`.toLowerCase(),
+  })),
+  ...questions.map((q) => ({
+    title: q.data.question,
+    url: `/practice/${q.slug}/`,
+    excerpt: q.data.explanation.slice(0, 160),
+    category: 'Practice question',
+    keywords: `${q.data.question} ${q.data.answer} ${q.data.explanation}`.toLowerCase(),
+  })),
+  ...subjects.map((subject) => ({
+    title: `${subject.data.title} study notes`,
+    url: `/subjects/${subject.slug}/`,
+    excerpt: subject.data.description,
+    category: 'Subject hub',
+    keywords: `${subject.data.title} ${subject.data.description} ${subject.data.chapters.map((c) => c.title).join(' ')}`.toLowerCase(),
+  })),
+  ...topics.map((topic) => ({
+    title: topic.data.title,
+    url: `/topics/${topic.slug}/`,
+    excerpt: topic.data.description,
+    category: 'Topic hub',
+    keywords: `${topic.data.title} ${topic.data.description} ${topic.data.beginnerExplanation}`.toLowerCase(),
+  })),
+  ...levels.map((level) => ({
+    title: level.data.title,
+    url: `/levels/${level.slug}/`,
+    excerpt: level.data.description,
+    category: 'Education level',
+    keywords: `${level.data.title} ${level.data.description}`.toLowerCase(),
+  })),
+];
+---
+
+<Layout
+  title="Search — Find Study Notes, Articles, and Questions | devsyllabus"
+  description="Search all devsyllabus study notes, blog articles, topic hubs, and practice questions in one place."
+  path="/search/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Search' }]} />
+
+  <h1>Search</h1>
+  <p>Search across all study notes, articles, topic hubs, and practice questions.</p>
+
+  <form role="search" onsubmit="return false;">
+    <label for="search-input">Search the site</label>
+    <input
+      type="search"
+      id="search-input"
+      placeholder="e.g. normalization, PATCH, factorial"
+      autocomplete="off"
+      style="width: 100%; max-width: 30rem; padding: 0.5rem; font: inherit;"
+    />
+  </form>
+
+  <p id="search-status" aria-live="polite"></p>
+  <ul id="search-results"></ul>
+  <noscript>
+    <p>
+      JavaScript is disabled, so live search is unavailable. Browse instead:
+      <a href="/notes/">study notes</a>, <a href="/blog/">articles</a>,
+      <a href="/practice/">practice questions</a>, <a href="/topics/">topic hubs</a>.
+    </p>
+  </noscript>
+
+  <script>
+    const index = JSON.parse(document.getElementById('search-data')!.textContent!);
+    const input = document.getElementById('search-input') as HTMLInputElement;
+    const results = document.getElementById('search-results')!;
+    const status = document.getElementById('search-status')!;
+
+    function render(query: string) {
+      const q = query.trim().toLowerCase();
+      if (!q) {
+        results.innerHTML = '';
+        status.textContent = `${index.length} pages indexed. Type to search.`;
+        return;
+      }
+      const words = q.split(/\s+/);
+      const matches = index
+        .filter((entry: any) => words.every((word: string) => entry.keywords.includes(word)))
+        .slice(0, 20);
+      status.textContent = `${matches.length} result${matches.length === 1 ? '' : 's'} for “${query}”`;
+      results.innerHTML = matches
+        .map(
+          (entry: any) => `
+            <li>
+              <span class="result-category">${entry.category}</span>
+              <a href="${entry.url}">${entry.title}</a>
+              <p>${entry.excerpt}</p>
+            </li>`,
+        )
+        .join('');
+    }
+
+    input.addEventListener('input', () => render(input.value));
+
+    // Support /search/?q=term URLs (used by the site's SearchAction schema).
+    const initial = new URLSearchParams(location.search).get('q');
+    if (initial) {
+      input.value = initial;
+      render(initial);
+    } else {
+      render('');
+    }
+  </script>
+
+  <script type="application/json" id="search-data" set:html={JSON.stringify(searchIndex)} />
+</Layout>
+
+<style>
+  #search-results {
+    list-style: none;
+    padding: 0;
+  }
+  #search-results li {
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #e5e5e5;
+  }
+  .result-category {
+    display: block;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #777;
+  }
+</style>

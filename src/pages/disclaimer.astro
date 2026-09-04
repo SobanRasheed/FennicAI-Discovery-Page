@@ -1,0 +1,49 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+---
+
+<Layout
+  title="Disclaimer | devsyllabus"
+  description="devsyllabus disclaimer: study material provided as-is, verify exam-critical details against your course's prescribed materials."
+  path="/disclaimer/"
+>
+  <Breadcrumbs crumbs={[{ label: 'Disclaimer' }]} />
+
+  <h1>Disclaimer</h1>
+
+  <h2>Educational purpose</h2>
+  <p>
+    All content on devsyllabus is published for educational purposes. It
+    is a study aid, not an official syllabus document. Always check
+    requirements against your own course's prescribed materials, past
+    papers, and examiner guidance.
+  </p>
+
+  <h2>Syllabus variation</h2>
+  <p>
+    Courses differ in what they include and how they define terms. Where
+    conventions vary, our notes flag it, but your examiner's convention
+    wins in the exam room.
+  </p>
+
+  <h2>External links</h2>
+  <p>
+    Links to external sites (RFCs, documentation, textbook publishers) are
+    provided for reference. We do not control and are not responsible for
+    their content or availability.
+  </p>
+
+  <h2>Accuracy</h2>
+  <p>
+    Content is fact-checked and corrected under our
+    <a href="/editorial-policy/">editorial policy</a>, but provided as-is
+    with no guarantee. Report suspected errors via the
+    <a href="/contact/">contact page</a>.
+  </p>
+
+  <p>
+    Related: <a href="/terms-of-use/">terms of use</a>,
+    <a href="/privacy-policy/">privacy policy</a>.
+  </p>
+</Layout>

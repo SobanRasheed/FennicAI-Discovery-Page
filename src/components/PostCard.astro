@@ -1,0 +1,61 @@
+---
+/**
+ * Link card for a blog post in listings and related-content blocks.
+ */
+interface Props {
+  post: {
+    slug: string;
+    data: {
+      title: string;
+      description: string;
+      category: string;
+      publishedDate: Date;
+      updatedDate?: Date;
+      author: string;
+    };
+  };
+  showDate?: boolean;
+}
+
+import { formatDate } from '../utils/collections';
+const { post, showDate = true } = Astro.props;
+---
+
+<article class="post-card">
+  <div class="post-card-meta">
+    <a href={`/blog/category/${post.data.category}/`} class="category-link">
+      {post.data.category}
+    </a>
+    {showDate && <time datetime={post.data.publishedDate.toISOString()}>
+      {formatDate(post.data.publishedDate)}
+    </time>}
+    {post.data.updatedDate && <span>updated {formatDate(post.data.updatedDate)}</span>}
+  </div>
+  <h3><a href={`/blog/${post.slug}/`}>{post.data.title}</a></h3>
+  <p>{post.data.description}</p>
+</article>
+
+<style>
+  .post-card {
+    padding: 1rem 0;
+    border-bottom: 1px solid #e5e5e5;
+  }
+  .post-card-meta {
+    display: flex;
+    gap: 0.75rem;
+    font-size: 0.85rem;
+    color: #666;
+    margin-bottom: 0.25rem;
+  }
+  .post-card h3 {
+    margin: 0 0 0.25rem;
+  }
+  .post-card p {
+    margin: 0;
+    color: #444;
+    line-height: 1.5;
+  }
+  .category-link {
+    text-transform: capitalize;
+  }
+</style>
