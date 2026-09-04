@@ -18,6 +18,13 @@ const { question } = Astro.props;
 const { data } = question;
 const { Content: QuestionBody } = await render(question);
 
+// The meta description leads with the question text so every practice
+// page has a unique, search-relevant description.
+const questionExcerpt =
+  data.question.length > 110
+    ? `${data.question.slice(0, 107).trimEnd()}…`
+    : data.question;
+
 const [subjects, levels] = await Promise.all([
   getCollection('subjects'),
   getCollection('levels'),
@@ -51,7 +58,7 @@ const quizSchema = {
 
 <Layout
   title={`${data.question.slice(0, 70)} | devsyllabus Practice`}
-  description={`Practice question (${data.type}) with full answer and explanation, from ${subject?.data.title ?? data.subject}.`}
+  description={`${questionExcerpt} ${data.type} practice question with the full answer and explanation.`}
   path={`/practice/${question.slug}/`}
   noindex={data.noindex}
 >

@@ -1,0 +1,108 @@
+---
+/**
+ * /admin/articles/:id/preview/ — renders the article exactly like the public
+ * page will (sanitized content, medical blocks, references, MCQs) but with
+ * noindex and an admin banner. Drafts and scheduled items are previewable.
+ */
+import { getArticleById, getArticleExtras, getMcqsForArticle, getSubjectBySlug } from '../../../../utils/content';
+import { env } from '../../../../utils/backend';
+import { renderTiptapDoc } from '../../../../utils/richtext';
+
+export const prerender = false;
+
+const id = Number(Astro.params.id);
+if (!/^\d+$/.test(String(Astro.params.id)) || !id) {
+  return new Response('Not found', { status: 404 });
+}
+const article = await getArticleById(Astro.locals, id);
+if (!article || article.status === 'deleted') {
+  return new Response('Not found', { status: 404 });
+}
+
+const [extras, mcqs, subject, author] = await Promise.all([
+  getArticleExtras(Astro.locals, id),
+  getMcqsForArticle(Astro.locals, id, false),
+  article.subject_id
+    ? env(Astro.locals).DB.prepare(`SELECT slug, title FROM subjects WHERE id = ?`).bind(article.subject_id).first<{ slug: string; title: string }>()
+    : Promise.resolve(null),
+  article.author_id
+    ? env(Astro.locals).DB.prepare(`SELECT display_name FROM users WHERE id = ?`).bind(article.author_id).first<{ display_name: string }>()
+    : Promise.resolve(null),
+]);
+
+// Re-render from the JSON source so previews always show the latest edits
+// even before an autosave landed in content_html.
+const html = article.content_json ? renderTiptapDoc(JSON.parse(article.content_json)) : article.content_html;
+const fmt = (d: string | null) => (d ? new Date(d + 'Z').toISOString().slice(0, 10) : '—');
+const site = Astro.site!;
+const publicUrl = subject ? new URL(`/${subject.slug}/${article.slug}/`, site).href : null;
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>[PREVIEW] {article.title}</title>
+  <style>
+    body { font: 16px/1.65 Georgia, "Times New Roman", serif; margin: 0; color: #1a1a1a; }
+    .preview-banner {
+      background: #fef3c7; border-bottom: 1px solid #f59e0b; padding: 0.5rem 1rem;
+      font: 14px system-ui, sans-serif; position: sticky; top: 0;
+    }
+    article { max-width: 46rem; margin: 0 auto; padding: 2rem 1.25rem; }
+    .meta { color: #555; font: 14px system-ui, sans-serif; margin-bottom: 1.5rem; }
+    .article-content img { max-width: 100%; height: auto; }
+    .msn-block { border-left: 4px solid #0284c7; background: #f0f9ff; padding: 0.75rem 1rem; margin: 1.25rem 0; font-family: system-ui, sans-serif; }
+    .msn-block-label { font: bold 12px system-ui, sans-serif; text-transform: uppercase; letter-spacing: 0.05em; color: #0284c7; margin: 0 0 0.5rem; }
+    .msn-warning { border-color: #d97706; background: #fffbeb; } .msn-warning .msn-block-label { color: #d97706; }
+    .msn-important { border-color: #dc2626; background: #fef2f2; } .msn-important .msn-block-label { color: #dc2626; }
+    .msn-clinical-pearl { border-color: #7c3aed; background: #f5f3ff; } .msn-clinical-pearl .msn-block-label { color: #7c3aed; }
+    .msn-mcq ol { list-style: upper-alpha; }
+    table { border-collapse: collapse; } th, td { border: 1px solid #cbd5e1; padding: 0.4rem 0.6rem; }
+  </style>
+</head>
+<body>
+  <div class="preview-banner">
+    Admin preview — status: {article.status}{publicUrl && ` · public URL: ${publicUrl}`}
+    · <a href={`/admin/articles/${article.id}/`}>back to editor</a>
+  </div>
+  <article>
+    <h1>{article.title}</h1>
+    <p class="meta">
+      {subject && <a href={`/${subject.slug}/`}>{subject.title}</a>}
+      {author?.display_name && ` · ${author.display_name}`}
+      {article.published_at && ` · published ${fmt(article.published_at)}`}
+      {` · updated ${fmt(article.updated_at)}`}
+      {` · ${article.reading_minutes} min read`}
+    </p>
+    {article.excerpt && <p><em>{article.excerpt}</em></p>}
+    <div class="article-content" set:html={html} />
+
+    {mcqs.length > 0 && (
+      <section>
+        <h2>Practice questions</h2>
+        {mcqs.map((m) => (
+          <div class="msn-block msn-mcq">
+            <p class="msn-block-label">Practice question</p>
+            <p>{m.question}</p>
+            <ol type="A">{m.options.map((o) => <li>{o.text}</li>)}</ol>
+            <details><summary>Show answer</summary><p>{m.options.find((o) => o.is_correct)?.text}</p><p>{m.explanation}</p></details>
+          </div>
+        ))}
+      </section>
+    )}
+
+    {extras.references.length > 0 && (
+      <section>
+        <h2>References</h2>
+        <ol>
+          {extras.references.map((r) => (
+            <li>{r.url ? <a href={r.url} rel="noopener">{r.title}</a> : r.title}{r.source && ` — ${r.source}`}{r.year && ` (${r.year})`}</li>
+          ))}
+        </ol>
+      </section>
+    )}
+  </article>
+</body>
+</html>

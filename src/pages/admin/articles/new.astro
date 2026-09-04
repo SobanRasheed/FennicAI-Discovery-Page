@@ -1,0 +1,44 @@
+---
+/**
+ * /admin/articles/new/ — create a draft; on POST success redirect to the
+ * full editor. Server-side validated via the same API.
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { listSubjects, listTopicsBySubject } from '../../../utils/content';
+
+export const prerender = false;
+
+const type = Astro.url.searchParams.get('type') === 'study-note' ? 'study-note' : 'article';
+const subjects = await Promise.all(
+  (await listSubjects(Astro.locals, true)).map(async (s) => ({
+    ...s,
+    topics: await listTopicsBySubject(Astro.locals, s.id),
+  })),
+);
+const user = Astro.locals.user!;
+---
+<AdminLayout title={`New ${type === 'article' ? 'article' : 'study note'}`} user={user} active="articles">
+  <h1>New {type === 'article' ? 'article' : 'study note'}</h1>
+  <p>Fill in the essentials, then continue in the full editor (Tiptap content, SEO, references, workflow).</p>
+
+  <form method="post" action="/admin/articles/create/" style="max-width:32rem;display:flex;flex-direction:column;gap:0.25rem;">
+    <input type="hidden" name="articleType" value={type} />
+    <label for="n-title">Title</label>
+    <input id="n-title" name="title" required maxlength="300" />
+    <label for="n-slug">Slug (lowercase-with-hyphens; URL becomes /&lt;subject&gt;/&lt;slug&gt;/)</label>
+    <input id="n-slug" name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" />
+    <label for="n-subject">Subject</label>
+    <select id="n-subject" name="subjectId">
+      <option value="">— none —</option>
+      {subjects.map((s) => <option value={s.id}>{s.title}</option>)}
+    </select>
+    <label for="n-topic">Topic</label>
+    <select id="n-topic" name="topicId">
+      <option value="">— none —</option>
+      {subjects.flatMap((s) => s.topics.map((t) => <option value={t.id}>{s.title} → {t.title}</option>))}
+    </select>
+    <label for="n-excerpt">Excerpt</label>
+    <textarea id="n-excerpt" name="excerpt" rows="3" maxlength="400"></textarea>
+    <button class="btn btn-primary" type="submit" style="margin-top:1rem;">Create draft</button>
+  </form>
+</AdminLayout>

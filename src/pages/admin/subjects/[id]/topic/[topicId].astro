@@ -1,0 +1,59 @@
+---
+/**
+ * /admin/subjects/:id/topic/new/ and /admin/subjects/:id/topic/:topicId/ —
+ * topic editor (§5: topics and subtopics under a subject).
+ */
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import { listTopicsBySubject } from '../../../../utils/content';
+import { env } from '../../../../utils/backend';
+
+export const prerender = false;
+
+const subjectId = Number(Astro.params.id);
+if (!/^\d+$/.test(String(Astro.params.id))) return Astro.redirect('/admin/subjects/', 302);
+const subject = await env(Astro.locals).DB.prepare(`SELECT * FROM subjects WHERE id = ?`).bind(subjectId).first<Record<string, unknown>>();
+if (!subject) return Astro.redirect('/admin/subjects/', 302);
+
+const topicParam = String(Astro.params.topicId ?? '');
+const isNew = topicParam === 'new';
+const topicId = /^\d+$/.test(topicParam) ? Number(topicParam) : null;
+
+const topic = topicId
+  ? await env(Astro.locals).DB.prepare(`SELECT * FROM topics WHERE id = ? AND subject_id = ?`).bind(topicId, subjectId).first<Record<string, unknown>>()
+  : null;
+if (topicId && !topic) return Astro.redirect(`/admin/subjects/${subjectId}/topic/new/`, 302);
+
+const siblings = await listTopicsBySubject(Astro.locals, subjectId);
+const user = Astro.locals.user!;
+---
+<AdminLayout title={isNew ? 'New Topic' : 'Edit Topic'} user={user} active="subjects">
+  <h1>{isNew ? 'New topic' : `Edit topic: ${topic?.title}`}</h1>
+  <p style="color:#475569;">Subject: {subject?.title}</p>
+
+  <form method="post" action={`/admin/subjects/${subjectId}/topic/save/`} style="max-width:36rem;">
+    {topicId && <input type="hidden" name="topicId" value={topicId} />}
+    <label for="t-title">Title</label>
+    <input id="t-title" name="title" required maxlength="150" value={topic?.title ?? ''} />
+    <label for="t-slug">Slug (topic pages anchor under /{String(subject?.slug)}/)</label>
+    <input id="t-slug" name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" value={topic?.slug ?? ''} />
+    <label for="t-desc">Description</label>
+    <textarea id="t-desc" name="description" rows="2" maxlength="400">{topic?.description ?? ''}</textarea>
+    <label for="t-parent">Parent topic (subtopic)</label>
+    <select id="t-parent" name="parentTopicId">
+      <option value="">— top level —</option>
+      {siblings.filter((t) => t.id !== topicId).map((t) => (
+        <option value={t.id} selected={topic?.parent_topic_id === t.id}>{t.title}</option>
+      ))}
+    </select>
+    <label for="t-order">Sort order</label>
+    <input id="t-order" name="sortOrder" type="number" min="0" value={topic?.sort_order ?? siblings.length} />
+    <p style="margin-top:1rem;">
+      <button class="btn btn-primary" type="submit">Save topic</button>
+      <a class="btn" href="/admin/subjects/">Cancel</a>
+      {topicId && (
+        <button class="btn btn-danger" type="submit" name="delete" value="1"
+          formaction={`/admin/subjects/${subjectId}/topic/${topicId}/delete/`} formmethod="post">Delete topic</button>
+      )}
+    </p>
+  </form>
+</AdminLayout>

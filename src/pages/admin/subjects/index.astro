@@ -1,0 +1,51 @@
+---
+/**
+ * /admin/subjects/ (§5): subject + topic management, with reorder.
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { listSubjects, listTopicsBySubject } from '../../../utils/content';
+
+export const prerender = false;
+
+const allSubjects = await listSubjects(Astro.locals, true);
+const subjectsWithTopics = await Promise.all(
+  allSubjects.map(async (s) => ({ ...s, topics: await listTopicsBySubject(Astro.locals, s.id) })),
+);
+const user = Astro.locals.user!;
+const error = Astro.url.searchParams.get('error');
+---
+<AdminLayout title="Subjects & Topics" user={user} active="subjects">
+  <h1>Subjects &amp; Topics</h1>
+  {error && <div class="flash flash-error">{error}</div>}
+  <p><a class="btn btn-primary" href="/admin/subjects/new/">Add Subject</a></p>
+
+  {subjectsWithTopics.map((s) => (
+    <section style="margin-bottom:1.5rem;">
+      <h2 style="margin-bottom:0.35rem;">
+        {s.title}
+        {!s.is_active && <span class="badge">inactive</span>}
+        <span style="font-weight:400;color:#64748b;"> — /{s.slug}/ · order {s.sort_order}</span>
+      </h2>
+      <p style="margin:0 0 0.35rem;color:#475569;">{s.description}</p>
+      <p style="margin:0 0 0.5rem;">
+        <a class="btn" href={`/admin/subjects/${s.id}/`}>Edit</a>
+        <a class="btn" href={`/admin/subjects/${s.id}/topic/new/`}>Add topic</a>
+        {s.is_active && (
+          <form class="inline" method="post" action={`/admin/subjects/${s.id}/delete/`}>
+            <button class="btn btn-danger" type="submit">Deactivate</button>
+          </form>
+        )}
+      </p>
+      {s.topics.length > 0 && (
+        <ul style="margin:0.35rem 0 0 1.25rem;">
+          {s.topics.map((t) => (
+            <li>
+              <a href={`/admin/subjects/${s.id}/topic/${t.id}/`}>{t.title}</a>
+              <span style="color:#64748b;"> — /{s.slug}/{t.slug}/</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  ))}
+</AdminLayout>

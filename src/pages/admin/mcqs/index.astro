@@ -1,0 +1,84 @@
+---
+/**
+ * /admin/mcqs/ (§8): MCQ list with filters + pagination.
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { env } from '../../../utils/backend';
+import { listSubjects } from '../../../utils/content';
+
+export const prerender = false;
+
+const url = Astro.url;
+const q = url.searchParams.get('q') ?? '';
+const status = url.searchParams.get('status') ?? '';
+const subjectIdRaw = url.searchParams.get('subjectId');
+const subjectId = subjectIdRaw && /^\d+$/.test(subjectIdRaw) ? Number(subjectIdRaw) : null;
+const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
+const perPage = 25;
+
+const where: string[] = [`m.status != 'deleted'`];
+const params: unknown[] = [];
+if (status) { where.push('m.status = ?'); params.push(status); }
+if (subjectId) { where.push('m.subject_id = ?'); params.push(subjectId); }
+if (q) { where.push('(LOWER(m.question) LIKE ? OR LOWER(m.explanation) LIKE ?)'); params.push(`%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`); }
+const whereSql = `WHERE ${where.join(' AND ')}`;
+
+const db = env(Astro.locals).DB;
+const [total, rows, subjects] = await Promise.all([
+  db.prepare(`SELECT COUNT(*) AS n FROM mcqs m ${whereSql}`).bind(...params).first<{ n: number }>(),
+  db.prepare(
+    `SELECT m.id, m.question, m.status, m.difficulty, m.updated_at, s.title AS subject,
+            (SELECT COUNT(*) FROM mcq_options o WHERE o.mcq_id = m.id) AS option_count
+     FROM mcqs m LEFT JOIN subjects s ON s.id = m.subject_id
+     ${whereSql} ORDER BY m.updated_at DESC LIMIT ? OFFSET ?`,
+  ).bind(...params, perPage, (page - 1) * perPage).all<{ id: number; question: string; status: string; difficulty: string; updated_at: string; subject: string | null; option_count: number }>(),
+  listSubjects(Astro.locals, true).catch(() => []),
+]);
+
+const totalPages = Math.max(1, Math.ceil((total?.n ?? 0) / perPage));
+const user = Astro.locals.user!;
+const pageLink = (p: number) => {
+  const sp = new URLSearchParams(url.searchParams);
+  sp.set('page', String(p));
+  return `/admin/mcqs/?${sp.toString()}`;
+};
+---
+<AdminLayout title="MCQs" user={user} active="mcqs">
+  <h1>MCQs</h1>
+  <p><a class="btn btn-primary" href="/admin/mcqs/new/">New MCQ</a></p>
+
+  <form method="get" action="/admin/mcqs/">
+    <input type="search" name="q" value={q} placeholder="Search questions" />
+    <select name="status">
+      <option value="">All statuses</option>
+      {['draft', 'published', 'unpublished'].map((s) => <option value={s} selected={status === s}>{s}</option>)}
+    </select>
+    <select name="subjectId">
+      <option value="">All subjects</option>
+      {subjects.map((s) => <option value={s.id} selected={subjectId === s.id}>{s.title}</option>)}
+    </select>
+    <button class="btn" type="submit">Filter</button>
+  </form>
+
+  <table>
+    <tr><th>Question</th><th>Subject</th><th>Difficulty</th><th>Status</th><th>Options</th><th>Updated</th><th></th></tr>
+    {rows.results.map((m) => (
+      <tr>
+        <td><a href={`/admin/mcqs/${m.id}/`}>{m.question.slice(0, 90)}{m.question.length > 90 ? '…' : ''}</a></td>
+        <td>{m.subject ?? '—'}</td>
+        <td>{m.difficulty}</td>
+        <td><span class="badge">{m.status}</span></td>
+        <td>{m.option_count}</td>
+        <td>{m.updated_at.slice(0, 10)}</td>
+        <td><a class="btn" href={`/admin/mcqs/${m.id}/`}>Edit</a></td>
+      </tr>
+    ))}
+    {rows.results.length === 0 && <tr><td colspan="7">No MCQs match.</td></tr>}
+  </table>
+
+  <div class="pagination">
+    {page > 1 && <a class="btn" href={pageLink(page - 1)}>← Previous</a>}
+    <span>Page {page} of {totalPages} · {total?.n ?? 0} total</span>
+    {page < totalPages && <a class="btn" href={pageLink(page + 1)}>Next →</a>}
+  </div>
+</AdminLayout>

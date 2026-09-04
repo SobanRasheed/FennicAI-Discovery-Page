@@ -1,0 +1,157 @@
+---
+/**
+ * Admin shell: sidebar navigation, top bar with user + logout, and the
+ * productivity-focused container. Plain, no decorative styling (§18).
+ */
+import type { SessionUser } from '../../utils/auth';
+
+interface Props {
+  title: string;
+  user: SessionUser | null;
+  active?: string;
+}
+const { title, user, active = '' } = Astro.props;
+
+const nav: { href: string; label: string; key: string }[] = [
+  { href: '/admin/dashboard/', label: 'Dashboard', key: 'dashboard' },
+  { href: '/admin/articles/', label: 'Articles & Notes', key: 'articles' },
+  { href: '/admin/mcqs/', label: 'MCQs', key: 'mcqs' },
+  { href: '/admin/subjects/', label: 'Subjects & Topics', key: 'subjects' },
+  { href: '/admin/media/', label: 'Media', key: 'media' },
+  { href: '/admin/references/', label: 'References', key: 'references' },
+  { href: '/admin/search/', label: 'Search', key: 'search' },
+];
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>{title} — Medical Study Notes Admin</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+      color: #1a1a1a;
+      background: #f6f6f6;
+    }
+    .admin-shell { display: flex; min-height: 100vh; }
+    .admin-nav {
+      width: 220px;
+      flex-shrink: 0;
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 1rem 0;
+    }
+    .admin-nav a {
+      display: block;
+      padding: 0.5rem 1.25rem;
+      color: #cbd5e1;
+      text-decoration: none;
+    }
+    .admin-nav a:hover { background: #334155; color: #fff; }
+    .admin-nav a.active { background: #0f172a; color: #fff; border-left: 3px solid #38bdf8; }
+    .admin-nav .brand {
+      font-weight: 700;
+      color: #fff;
+      padding: 0.75rem 1.25rem 1.25rem;
+      border-bottom: 1px solid #334155;
+      margin-bottom: 0.5rem;
+      display: block;
+    }
+    .admin-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .admin-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.5rem 1.5rem;
+      background: #fff;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .admin-topbar .who { color: #64748b; }
+    .admin-content { padding: 1.5rem; flex: 1; }
+    h1 { font-size: 1.5rem; margin: 0 0 1rem; }
+    h2 { font-size: 1.1rem; margin: 1.5rem 0 0.5rem; }
+    table { border-collapse: collapse; width: 100%; background: #fff; }
+    th, td { text-align: left; padding: 0.5rem 0.75rem; border-bottom: 1px solid #e2e8f0; }
+    th { background: #f1f5f9; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    .btn {
+      display: inline-block;
+      padding: 0.4rem 0.9rem;
+      border: 1px solid #cbd5e1;
+      background: #fff;
+      color: #1e293b;
+      text-decoration: none;
+      border-radius: 4px;
+      font: inherit;
+      cursor: pointer;
+    }
+    .btn-primary { background: #0284c7; border-color: #0284c7; color: #fff; }
+    .btn-danger { background: #fff; border-color: #dc2626; color: #dc2626; }
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      padding: 0.1rem 0.5rem;
+      border-radius: 999px;
+      border: 1px solid #cbd5e1;
+    }
+    .badge-published { border-color: #16a34a; color: #16a34a; }
+    .badge-draft { border-color: #94a3b8; color: #475569; }
+    .badge-review { border-color: #d97706; color: #d97706; }
+    .badge-scheduled { border-color: #7c3aed; color: #7c3aed; }
+    .badge-unpublished { border-color: #64748b; color: #64748b; }
+    form.inline { display: inline; }
+    input, select, textarea {
+      font: inherit;
+      padding: 0.4rem 0.5rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      background: #fff;
+    }
+    .flash { padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .flash-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .flash-ok { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .stat {
+      background: #fff;
+      padding: 1rem;
+      border: 1px solid #e2e8f0;
+      border-radius: 4px;
+    }
+    .stat .num { font-size: 1.8rem; font-weight: 700; }
+    .stat .lbl { color: #64748b; font-size: 0.85rem; }
+    .pagination { display: flex; gap: 0.5rem; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="admin-shell">
+    <nav class="admin-nav">
+      <a class="brand" href="/admin/dashboard/">MSN Admin</a>
+      {nav.map((item) => (
+        <a href={item.href} class={active === item.key ? 'active' : ''}>{item.label}</a>
+      ))}
+    </nav>
+    <div class="admin-main">
+      <header class="admin-topbar">
+        <span>{title}</span>
+        <span class="who">
+          {user?.displayName} ({user?.roleSlug})
+          <form class="inline" method="post" action="/admin/logout/">
+            <button class="btn" type="submit">Log out</button>
+          </form>
+        </span>
+      </header>
+      <main class="admin-content">
+        <slot />
+      </main>
+    </div>
+  </div>
+</body>
+</html>

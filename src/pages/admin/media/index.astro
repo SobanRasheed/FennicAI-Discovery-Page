@@ -1,0 +1,75 @@
+---
+/**
+ * /admin/media/ (§9): media library — upload form, search, list with
+ * URLs to copy, alt-text editing, delete.
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { env } from '../../../utils/backend';
+
+export const prerender = false;
+
+const url = Astro.url;
+const q = url.searchParams.get('q') ?? '';
+const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
+const perPage = 30;
+
+const db = env(Astro.locals).DB;
+const where = q ? `WHERE (filename LIKE ? OR alt_text LIKE ?)` : '';
+const params = q ? [`%${q}%`, `%${q}%`] : [];
+const [total, rows] = await Promise.all([
+  db.prepare(`SELECT COUNT(*) AS n FROM media ${where}`).bind(...params).first<{ n: number }>(),
+  db.prepare(`SELECT * FROM media ${where} ORDER BY created_at DESC, id DESC LIMIT ? OFFSET ?`)
+    .bind(...params, perPage, (page - 1) * perPage)
+    .all<Record<string, unknown>>(),
+]);
+
+const totalPages = Math.max(1, Math.ceil((total?.n ?? 0) / perPage));
+const user = Astro.locals.user!;
+const error = url.searchParams.get('error');
+const kb = (n: number) => (n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`);
+const pageLink = (p: number) => {
+  const sp = new URLSearchParams(url.searchParams);
+  sp.set('page', String(p));
+  return `/admin/media/?${sp.toString()}`;
+};
+---
+<AdminLayout title="Media Library" user={user} active="media">
+  <h1>Media library</h1>
+  {error && <div class="flash flash-error">{error}</div>}
+  <p style="color:#64748b;">Files are stored in Cloudflare R2; the database holds metadata only.</p>
+
+  <form method="post" action="/admin/media/upload/" enctype="multipart/form-data" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+    <input type="file" name="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml,application/pdf" required />
+    <input type="text" name="altText" placeholder="Alt text (required for images)" style="flex:1;min-width:16rem;" />
+    <input type="text" name="title" placeholder="Title (optional)" />
+    <button class="btn btn-primary" type="submit">Upload</button>
+  </form>
+
+  <form method="get" action="/admin/media/" style="margin-top:1rem;">
+    <input type="search" name="q" value={q} placeholder="Search files" />
+    <button class="btn" type="submit">Search</button>
+  </form>
+
+  <table>
+    <tr><th>File</th><th>Type</th><th>Size</th><th>Alt text</th><th>URL</th><th>Alt text / delete</th></tr>
+    {rows.results.map((m) => (
+      <tr>
+        <td>{m.filename as string}</td>
+        <td>{m.mime_type as string}</td>
+        <td>{kb(m.size_bytes as number)}</td>
+        <td>{(m.alt_text as string) || <em style="color:#b91c1c;">missing</em>}</td>
+        <td><code>/media/{m.r2_key as string}</code></td>
+        <td>
+          <a class="btn" href={`/admin/media/${m.id}/`}>Edit alt text</a>
+        </td>
+      </tr>
+    ))}
+    {rows.results.length === 0 && <tr><td colspan="6">No media uploaded yet.</td></tr>}
+  </table>
+
+  <div class="pagination">
+    {page > 1 && <a class="btn" href={pageLink(page - 1)}>← Previous</a>}
+    <span>Page {page} of {totalPages} · {total?.n ?? 0} files</span>
+    {page < totalPages && <a class="btn" href={pageLink(page + 1)}>Next →</a>}
+  </div>
+</AdminLayout>

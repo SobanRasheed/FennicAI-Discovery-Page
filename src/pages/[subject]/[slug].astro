@@ -1,0 +1,199 @@
+---
+/**
+ * /[subject]/[slug]/ (§15, §16) — the public article / study-note page.
+ * Server-rendered from D1: breadcrumbs, byline, sanitized content, medical
+ * blocks, MCQs (collapsible, no JS needed), references, related notes,
+ * Article + BreadcrumbList structured data. Core content never depends on
+ * client-side JS, and responses are cached at the edge.
+ */
+import Layout from '../../layouts/Layout.astro';
+import {
+  getPublishedArticle,
+  getArticleExtras,
+  getMcqsForArticle,
+  listTopicsBySubject,
+} from '../../utils/content';
+
+export const prerender = false;
+
+const subjectSlug = String(Astro.params.subject ?? '');
+const slug = String(Astro.params.slug ?? '');
+
+const article = await getPublishedArticle(Astro.locals, subjectSlug, slug);
+if (!article) {
+  return new Response('Not found', { status: 404 });
+}
+
+const [extras, mcqs, topics] = await Promise.all([
+  getArticleExtras(Astro.locals, article.id),
+  getMcqsForArticle(Astro.locals, article.id, true),
+  listTopicsBySubject(Astro.locals, article.subject_id),
+]);
+
+const topic = article.topic_id ? topics.find((t) => t.id === article.topic_id) : null;
+const site = Astro.site!;
+const publicPath = `/${article.subject_slug}/${article.slug}/`;
+const canonical = article.canonical_url || new URL(publicPath, site).href;
+
+// The stored HTML is sanitized on save; re-sanitize on output as defense in
+// depth (§17: output sanitization).
+const { sanitizeRichText } = await import('../../utils/richtext');
+const contentHtml = sanitizeRichText(article.content_html ?? '');
+
+const title = article.seo_title || article.title;
+const description = article.meta_description || article.excerpt || '';
+const noindex = !article.robots.startsWith('index');
+
+const fmtDate = (d: string | null) => (d ? new Date(d + 'Z').toISOString().slice(0, 10) : '');
+
+const breadcrumbs = [
+  { name: 'Home', url: new URL('/', site).href },
+  { name: article.subject_title, url: new URL(`/${article.subject_slug}/`, site).href },
+  ...(topic ? [{ name: topic.title, url: new URL(`/${article.subject_slug}/#${topic.slug}`, site).href }] : []),
+  { name: article.title, url: canonical },
+];
+
+// Edge caching (§16): browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'Article', // or MedicalArticle? Keep Article for broad support.
+  headline: article.title,
+  description,
+  mainEntityOfPage: canonical,
+  datePublished: article.published_at ? new Date(article.published_at + 'Z').toISOString() : undefined,
+  dateModified: article.updated_at ? new Date(article.updated_at + 'Z').toISOString() : undefined,
+  author: article.author_name ? { '@type': 'Person', name: article.author_name } : undefined,
+  articleSection: article.subject_title,
+  ...(extras.references.length > 0 && {
+    citation: extras.references.map((r) => ({
+      '@type': 'CreativeWork',
+      name: r.title,
+      author: r.authors || undefined,
+      datePublished: r.year || undefined,
+      url: r.url || undefined,
+    })),
+  }),
+};
+
+const breadcrumbLd = {
+  '@context': 'https://schema.org',
+  '@type': 'BreadcrumbList',
+  itemListElement: breadcrumbs.map((b, i) => ({
+    '@type': 'ListItem',
+    position: i + 1,
+    name: b.name,
+    item: b.url,
+  })),
+};
+---
+<Layout title={`${title} | devsyllabus`} description={description} path={publicPath} noindex={noindex} ogType="article"
+  publishedTime={article.published_at ? new Date(article.published_at + 'Z') : undefined}
+  modifiedTime={article.updated_at ? new Date(article.updated_at + 'Z') : undefined}>
+  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbLd)} />
+
+  <nav aria-label="Breadcrumb" class="breadcrumbs">
+    <a href="/">Home</a> › <a href={`/${article.subject_slug}/`}>{article.subject_title}</a>
+    {topic && <> › <a href={`/${article.subject_slug}/#${topic.slug}`}>{topic.title}</a></>}
+  </nav>
+
+  <article>
+    <h1>{article.title}</h1>
+    <p class="byline">
+      {article.author_name && <>By {article.author_name} · </>}
+      {article.published_at && <>Published {fmtDate(article.published_at)} · </>}
+      <>Updated {fmtDate(article.updated_at)} · </>
+      <>{article.reading_minutes} min read</>
+      {article.article_type === 'study-note' && <span class="type-tag">Study note</span>}
+    </p>
+    {article.excerpt && <p class="excerpt">{article.excerpt}</p>}
+
+    <div class="article-content" set:html={contentHtml} />
+
+    {mcqs.length > 0 && (
+      <section aria-labelledby="mcq-heading" class="mcq-section">
+        <h2 id="mcq-heading">Practice questions</h2>
+        {mcqs.map((m, i) => (
+          <div class="mcq">
+            <p><strong>Q{i + 1}.</strong> {m.question}</p>
+            <ol type="A">
+              {m.options.map((o) => (
+                <li>{o.text}{o.is_correct === 1 && <span class="answer-mark"> ✓</span>}</li>
+              ))}
+            </ol>
+            <details>
+              <summary>Show answer &amp; explanation</summary>
+              <p><strong>Answer:</strong> {m.options.filter((o) => o.is_correct === 1).map((o) => o.label).join(', ')}</p>
+              <p>{m.explanation}</p>
+            </details>
+          </div>
+        ))}
+      </section>
+    )}
+
+    {extras.references.length > 0 && (
+      <section aria-labelledby="ref-heading" class="references">
+        <h2 id="ref-heading">References</h2>
+        <ol>
+          {extras.references.map((r) => (
+            <li>
+              {r.url ? <a href={r.url} rel="noopener nofollow">{r.title}</a> : r.title}
+              {r.authors && <span> — {r.authors}</span>}
+              {r.source && <span>. {r.source}</span>}
+              {r.edition && <span>, {r.edition} ed.</span>}
+              {r.year && <span>, {r.year}</span>}
+              {r.doi && <span>. doi:{r.doi}</span>}
+            </li>
+          ))}
+        </ol>
+      </section>
+    )}
+
+    {extras.related.length > 0 && (
+      <section aria-labelledby="related-heading">
+        <h2 id="related-heading">Related notes</h2>
+        <ul>
+          {extras.related.map((r) => (
+            <li>
+              <a href={`/${r.subject_slug}/${r.slug}/`}>{r.title}</a>
+              {r.article_type === 'study-note' && <span class="type-tag">Study note</span>}
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
+    {extras.tags.length > 0 && (
+      <p class="tags">
+        {extras.tags.map((t) => <span class="tag">{t}</span>)}
+      </p>
+    )}
+  </article>
+</Layout>
+
+<style>
+  .breadcrumbs { font-size: 0.85rem; color: #666; margin-bottom: 1rem; }
+  .byline { color: #555; font-size: 0.9rem; }
+  .excerpt { color: #444; font-style: italic; }
+  .type-tag {
+    display: inline-block; margin-left: 0.4rem; padding: 0.05rem 0.4rem;
+    font-size: 0.75rem; background: #eef; border-radius: 3px;
+  }
+  .article-content img { max-width: 100%; height: auto; }
+  .msn-block { border-left: 4px solid #0284c7; background: #f0f9ff; padding: 0.75rem 1rem; margin: 1.25rem 0; }
+  .msn-block-label { font-weight: 700; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; color: #0284c7; margin: 0 0 0.5rem; }
+  .msn-warning { border-color: #d97706; background: #fffbeb; } .msn-warning .msn-block-label { color: #d97706; }
+  .msn-important { border-color: #dc2626; background: #fef2f2; } .msn-important .msn-block-label { color: #dc2626; }
+  .msn-clinical-pearl { border-color: #7c3aed; background: #f5f3ff; } .msn-clinical-pearl .msn-block-label { color: #7c3aed; }
+  .msn-mcq ol { list-style: upper-alpha; }
+  .msn-block table, table { border-collapse: collapse; }
+  th, td { border: 1px solid #cbd5e1; padding: 0.4rem 0.6rem; }
+  .mcq { border-top: 1px solid #e5e5e5; padding-top: 1rem; }
+  .mcq .answer-mark { color: #16a34a; }
+  .references ol { padding-left: 1.5rem; }
+  .references li { margin-bottom: 0.5rem; font-size: 0.95rem; }
+  .tags { margin-top: 2rem; }
+  .tag { display: inline-block; margin-right: 0.4rem; padding: 0.1rem 0.5rem; background: #f1f5f9; border-radius: 3px; font-size: 0.8rem; }
+</style>

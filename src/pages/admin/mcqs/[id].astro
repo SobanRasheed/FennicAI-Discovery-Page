@@ -1,0 +1,88 @@
+---
+/**
+ * /admin/mcqs/new/ and /admin/mcqs/:id/ — MCQ editor form. No-JS friendly:
+ * plain form POST to /admin/mcqs/save/.
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { listSubjects, listTopicsBySubject } from '../../../utils/content';
+import { env } from '../../../utils/backend';
+
+export const prerender = false;
+
+const idParam = String(Astro.params.id ?? '');
+const isNew = idParam === 'new';
+const id = /^\d+$/.test(idParam) ? Number(idParam) : null;
+if (!isNew && !id) {
+  return Astro.redirect('/admin/mcqs/', 302);
+}
+
+const db = env(Astro.locals).DB;
+const mcq = id
+  ? await db.prepare(`SELECT * FROM mcqs WHERE id = ?`).bind(id).first<Record<string, unknown>>()
+  : null;
+if (id && (!mcq || mcq.status === 'deleted')) {
+  return Astro.redirect('/admin/mcqs/', 302);
+}
+const options = id
+  ? (await db.prepare(`SELECT label, text, is_correct FROM mcq_options WHERE mcq_id = ? ORDER BY sort_order, id`).bind(id)
+      .all<{ label: string; text: string; is_correct: number }>()).results
+  : [
+      { label: 'A', text: '', is_correct: 1 },
+      { label: 'B', text: '', is_correct: 0 },
+      { label: 'C', text: '', is_correct: 0 },
+      { label: 'D', text: '', is_correct: 0 },
+    ];
+
+const subjects = await listSubjects(Astro.locals, true);
+const topics = mcq?.subject_id
+  ? await listTopicsBySubject(Astro.locals, mcq.subject_id as number)
+  : [];
+const tags = mcq ? JSON.parse((mcq.tags_json as string) ?? '[]') : [];
+const user = Astro.locals.user!;
+---
+<AdminLayout title={isNew ? 'New MCQ' : 'Edit MCQ'} user={user} active="mcqs">
+  <h1>{isNew ? 'New MCQ' : 'Edit MCQ'}</h1>
+
+  <form method="post" action="/admin/mcqs/save/" style="max-width:44rem;">
+    {id && <input type="hidden" name="id" value={id} />}
+    <label for="q">Question</label>
+    <textarea id="q" name="question" rows="3" required maxlength="1000">{mcq?.question ?? ''}</textarea>
+
+    <h2>Options (mark exactly one correct)</h2>
+    {options.map((o, i) => (
+      <div style="display:flex;gap:0.5rem;align-items:center;margin:0.35rem 0;">
+        <input type="radio" name="correct" value={i} checked={!!o.is_correct} id={`correct-${i}`} />
+        <label for={`correct-${i}`} style="margin:0;">{'ABCDEFGH'[i]}.</label>
+        <input type="text" name={`option-${i}`} value={o.text} placeholder="Option text" required maxlength="1000" style="flex:1;" />
+      </div>
+    ))}
+
+    <label for="expl">Explanation</label>
+    <textarea id="expl" name="explanation" rows="4" maxlength="6000">{mcq?.explanation ?? ''}</textarea>
+
+    <h2>Classification</h2>
+    <label for="subject">Subject</label>
+    <select id="subject" name="subjectId">
+      <option value="">— none —</option>
+      {subjects.map((s) => <option value={s.id} selected={mcq?.subject_id === s.id}>{s.title}</option>)}
+    </select>
+    <label for="topic">Topic</label>
+    <select id="topic" name="topicId">
+      <option value="">— none —</option>
+      {topics.map((t) => <option value={t.id} selected={mcq?.topic_id === t.id}>{t.title}</option>)}
+    </select>
+    <label for="difficulty">Difficulty</label>
+    <select id="difficulty" name="difficulty">
+      {['easy', 'medium', 'hard'].map((d) => <option value={d} selected={(mcq?.difficulty ?? 'medium') === d}>{d}</option>)}
+    </select>
+    <label for="tags">Tags (comma-separated)</label>
+    <input id="tags" name="tagNames" value={tags.join(', ')} />
+
+    <p style="margin-top:1.25rem;">
+      <button class="btn btn-primary" type="submit" name="save" value="1">Save</button>
+      {id && <button class="btn" type="submit" name="publish" value="1">Save &amp; publish</button>}
+      {id && <button class="btn" type="submit" name="unpublish" value="1">Save &amp; unpublish</button>}
+      <a class="btn" href="/admin/mcqs/">Cancel</a>
+    </p>
+  </form>
+</AdminLayout>

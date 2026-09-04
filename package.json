@@ -7,14 +7,35 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build && node scripts/generate-sitemap.mjs",
+    "build": "astro build && node scripts/generate-sitemap.mjs && node scripts/check-site.mjs",
+    "check:site": "node scripts/check-site.mjs",
     "preview": "astro preview",
-    "astro": "astro"
+    "astro": "astro",
+    "db:migrate:local": "wrangler d1 migrations apply medical-study-notes --local",
+    "db:migrate": "wrangler d1 migrations apply medical-study-notes --remote",
+    "db:seed-admin": "node scripts/seed-admin.mjs"
   },
   "dependencies": {
-    "astro": "^7.3.1"
+    "astro": "^7.3.1",
+    "@astrojs/cloudflare": "^14.3.0",
+    "sanitize-html": "^2.14.0",
+    "@tiptap/core": "^3.0.0",
+    "@tiptap/starter-kit": "^3.0.0",
+    "@tiptap/pm": "^3.0.0",
+    "@tiptap/extension-image": "^3.0.0",
+    "@tiptap/extension-table": "^3.0.0",
+    "@tiptap/extension-text-align": "^3.0.0",
+    "@tiptap/extension-subscript": "^3.0.0",
+    "@tiptap/extension-superscript": "^3.0.0",
+    "@tiptap/extension-placeholder": "^3.0.0",
+    "@tiptap/extension-underline": "^3.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0",
+    "@types/sanitize-html": "^2.13.0"
   },
   "allowScripts": {
-    "esbuild": true
+    "esbuild": true,
+    "wrangler": true
   }
 }

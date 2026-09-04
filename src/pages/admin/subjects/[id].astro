@@ -1,0 +1,57 @@
+---
+/**
+ * /admin/subjects/new/ and /admin/subjects/:id/ — subject edit form
+ * (§5: description, slug, image, SEO, order).
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { listSubjects } from '../../../utils/content';
+import { env } from '../../../utils/backend';
+
+export const prerender = false;
+
+const idParam = String(Astro.params.id ?? '');
+const isNew = idParam === 'new';
+const id = /^\d+$/.test(idParam) ? Number(idParam) : null;
+if (!isNew && !id) return Astro.redirect('/admin/subjects/', 302);
+
+const subject = id
+  ? await env(Astro.locals).DB.prepare(`SELECT * FROM subjects WHERE id = ?`).bind(id).first<Record<string, unknown>>()
+  : null;
+if (id && !subject) return Astro.redirect('/admin/subjects/', 302);
+
+const maxOrder = isNew
+  ? (await listSubjects(Astro.locals, true)).length
+  : null;
+const user = Astro.locals.user!;
+---
+<AdminLayout title={isNew ? 'New Subject' : 'Edit Subject'} user={user} active="subjects">
+  <h1>{isNew ? 'New subject' : `Edit: ${subject?.title}`}</h1>
+
+  <form method="post" action="/admin/subjects/save/" style="max-width:36rem;">
+    {id && <input type="hidden" name="id" value={id} />}
+    <label for="s-title">Title</label>
+    <input id="s-title" name="title" required maxlength="150" value={subject?.title ?? ''} />
+    <label for="s-slug">Slug (URL: /&lt;slug&gt;/)</label>
+    <input id="s-slug" name="slug" required pattern="[a-z0-9]+(-[a-z0-9]+)*" value={subject?.slug ?? ''} />
+    <label for="s-desc">Description (meta description on the subject hub)</label>
+    <textarea id="s-desc" name="description" rows="2" maxlength="400">{subject?.description ?? ''}</textarea>
+    <label for="s-intro">Introduction (shown on the subject page)</label>
+    <textarea id="s-intro" name="introduction" rows="4" maxlength="4000">{subject?.introduction ?? ''}</textarea>
+    <label for="s-image">Subject image media ID (optional)</label>
+    <input id="s-image" name="imageMediaId" value={subject?.image_media_id ?? ''} />
+    <label for="s-seotitle">SEO title</label>
+    <input id="s-seotitle" name="seoTitle" value={subject?.seo_title ?? ''} />
+    <label for="s-seodesc">SEO description</label>
+    <textarea id="s-seodesc" name="seoDescription" rows="2" maxlength="300">{subject?.seo_description ?? ''}</textarea>
+    <label for="s-order">Sort order</label>
+    <input id="s-order" name="sortOrder" type="number" min="0" max="9999" value={subject?.sort_order ?? maxOrder ?? 0} />
+    <label style="display:flex;gap:0.5rem;align-items:center;font-weight:400;">
+      <input type="checkbox" name="isActive" value="1" checked={subject ? !!subject.is_active : true} style="width:auto;" />
+      Active (visible in taxonomy)
+    </label>
+    <p style="margin-top:1rem;">
+      <button class="btn btn-primary" type="submit">Save subject</button>
+      <a class="btn" href="/admin/subjects/">Cancel</a>
+    </p>
+  </form>
+</AdminLayout>

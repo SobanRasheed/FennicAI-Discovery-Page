@@ -1,0 +1,68 @@
+---
+/**
+ * /admin/dashboard/ (§2): counts, recent edits/publications, awaiting
+ * review, quick actions.
+ */
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { dashboardStats } from '../../utils/content';
+
+export const prerender = false;
+
+const stats = await dashboardStats(Astro.locals);
+const user = Astro.locals.user!;
+const fmt = (d: string | null) => (d ? new Date(d + 'Z').toISOString().slice(0, 16).replace('T', ' ') : '—');
+
+const statusBadge: Record<string, string> = {
+  published: 'badge-published',
+  draft: 'badge-draft',
+  review: 'badge-review',
+  scheduled: 'badge-scheduled',
+  unpublished: 'badge-unpublished',
+};
+---
+<AdminLayout title="Dashboard" user={user} active="dashboard">
+  <h1>Dashboard</h1>
+
+  <div class="stats-grid">
+    <div class="stat"><div class="num">{stats.published}</div><div class="lbl">Published articles</div></div>
+    <div class="stat"><div class="num">{stats.drafts}</div><div class="lbl">Drafts &amp; in review</div></div>
+    <div class="stat"><div class="num">{stats.subjects}</div><div class="lbl">Subjects</div></div>
+    <div class="stat"><div class="num">{stats.mcqs}</div><div class="lbl">Published MCQs</div></div>
+    <div class="stat"><div class="num">{stats.awaitingReview}</div><div class="lbl">Awaiting review</div></div>
+  </div>
+
+  <h2>Quick actions</h2>
+  <p>
+    <a class="btn btn-primary" href="/admin/articles/new/?type=article">New Article</a>
+    <a class="btn btn-primary" href="/admin/articles/new/?type=study-note">New Study Note</a>
+    <a class="btn" href="/admin/mcqs/new/">New MCQ</a>
+    <a class="btn" href="/admin/subjects/new/">Add Subject</a>
+    <a class="btn" href="/admin/media/">Manage Media</a>
+  </p>
+
+  <h2>Recently edited</h2>
+  <table>
+    <tr><th>Title</th><th>Subject</th><th>Status</th><th>Author</th><th>Updated</th></tr>
+    {stats.recentEdits.map((a) => (
+      <tr>
+        <td><a href={`/admin/articles/${a.id}/`}>{a.title}</a></td>
+        <td>{a.subject ?? '—'}</td>
+        <td><span class={`badge ${statusBadge[a.status] ?? ''}`}>{a.status}</span></td>
+        <td>{a.author ?? '—'}</td>
+        <td>{fmt(a.updated_at)}</td>
+      </tr>
+    ))}
+  </table>
+
+  <h2>Recently published</h2>
+  <table>
+    <tr><th>Title</th><th>Subject</th><th>Published</th></tr>
+    {stats.recentPubs.map((a) => (
+      <tr>
+        <td><a href={`/admin/articles/${a.id}/`}>{a.title}</a></td>
+        <td>{a.subject ?? '—'}</td>
+        <td>{fmt(a.published_at)}</td>
+      </tr>
+    ))}
+  </table>
+</AdminLayout>

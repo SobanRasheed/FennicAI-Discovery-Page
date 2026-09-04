@@ -1,0 +1,121 @@
+---
+/**
+ * /admin/articles/ (§3): searchable, filterable article list. Server-rendered
+ * from D1 — works without client JS. Forms submit as GET.
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { listArticles, listSubjects } from '../../../utils/content';
+import { env } from '../../../utils/backend';
+
+export const prerender = false;
+
+const url = Astro.url;
+const q = url.searchParams.get('q') ?? '';
+const status = url.searchParams.get('status') ?? '';
+const type = url.searchParams.get('type') ?? '';
+const sort = (url.searchParams.get('sort') as 'updated' | 'published' | 'title') ?? 'updated';
+const subjectIdRaw = url.searchParams.get('subjectId');
+const subjectId = subjectIdRaw && /^\d+$/.test(subjectIdRaw) ? Number(subjectIdRaw) : undefined;
+const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
+
+const [result, subjects, authors] = await Promise.all([
+  listArticles(Astro.locals, {
+    q: q || undefined,
+    status: status || undefined,
+    subjectId,
+    articleType: type || undefined,
+    sort,
+    page,
+    perPage: 25,
+    includeDeleted: status === 'deleted',
+  }),
+  listSubjects(Astro.locals, true).catch(() => []),
+  env(Astro.locals)
+    .DB.prepare(`SELECT id, display_name FROM users ORDER BY display_name`)
+    .all<{ id: number; display_name: string }>()
+    .catch(() => ({ results: [] as { id: number; display_name: string }[] })),
+]);
+
+const totalPages = Math.max(1, Math.ceil(result.total / 25));
+const user = Astro.locals.user!;
+const fmt = (d: string | null) => (d ? new Date(d + 'Z').toISOString().slice(0, 10) : '—');
+
+const statusBadge: Record<string, string> = {
+  published: 'badge-published',
+  draft: 'badge-draft',
+  review: 'badge-review',
+  scheduled: 'badge-scheduled',
+  unpublished: 'badge-unpublished',
+  deleted: 'badge-unpublished',
+};
+
+const pageLink = (p: number) => {
+  const sp = new URLSearchParams(url.searchParams);
+  sp.set('page', String(p));
+  return `/admin/articles/?${sp.toString()}`;
+};
+---
+<AdminLayout title="Articles & Study Notes" user={user} active="articles">
+  <h1>Articles &amp; Study Notes</h1>
+
+  <p>
+    <a class="btn btn-primary" href="/admin/articles/new/?type=article">New Article</a>
+    <a class="btn btn-primary" href="/admin/articles/new/?type=study-note">New Study Note</a>
+  </p>
+
+  <form method="get" action="/admin/articles/">
+    <input type="search" name="q" value={q} placeholder="Search title or excerpt" />
+    <select name="status">
+      <option value="">All statuses</option>
+      {['draft', 'review', 'scheduled', 'published', 'unpublished', 'deleted'].map((s) => (
+        <option value={s} selected={status === s}>{s}</option>
+      ))}
+    </select>
+    <select name="subjectId">
+      <option value="">All subjects</option>
+      {subjects.map((s) => (
+        <option value={s.id} selected={subjectId === s.id}>{s.title}</option>
+      ))}
+    </select>
+    <select name="type">
+      <option value="">All types</option>
+      <option value="article" selected={type === 'article'}>Articles</option>
+      <option value="study-note" selected={type === 'study-note'}>Study notes</option>
+    </select>
+    <select name="sort">
+      <option value="updated" selected={sort === 'updated'}>Last updated</option>
+      <option value="published" selected={sort === 'published'}>Published date</option>
+      <option value="title" selected={sort === 'title'}>Title A–Z</option>
+    </select>
+    <button class="btn" type="submit">Filter</button>
+  </form>
+
+  <table>
+    <tr><th>Title</th><th>Type</th><th>Subject</th><th>Status</th><th>Updated</th><th>Published</th><th>Actions</th></tr>
+    {result.rows.map((a) => (
+      <tr>
+        <td><a href={`/admin/articles/${a.id}/`}>{a.title}</a></td>
+        <td>{a.article_type}</td>
+        <td>{subjects.find((s) => s.id === a.subject_id)?.title ?? '—'}</td>
+        <td><span class={`badge ${statusBadge[a.status] ?? ''}`}>{a.status}</span></td>
+        <td>{fmt(a.updated_at)}</td>
+        <td>{fmt(a.published_at)}</td>
+        <td>
+          <a class="btn" href={`/admin/articles/${a.id}/`}>Edit</a>
+          {a.status === 'published' && (
+            <a class="btn" href={`/${subjects.find((s) => s.id === a.subject_id)?.slug ?? ''}/${a.slug}/`}>View</a>
+          )}
+        </td>
+      </tr>
+    ))}
+    {result.rows.length === 0 && (
+      <tr><td colspan="7">No articles match these filters.</td></tr>
+    )}
+  </table>
+
+  <div class="pagination">
+    {page > 1 && <a class="btn" href={pageLink(page - 1)}>← Previous</a>}
+    <span>Page {page} of {totalPages} · {result.total} total</span>
+    {page < totalPages && <a class="btn" href={pageLink(page + 1)}>Next →</a>}
+  </div>
+</AdminLayout>

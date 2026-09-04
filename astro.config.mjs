@@ -1,18 +1,24 @@
 // @ts-check
 import { defineConfig } from 'astro/config';
+import cloudflare from '@astrojs/cloudflare';
 
-// @astrojs/sitemap is replaced by scripts/generate-sitemap.mjs (run after
-// build) until it can be installed; the sitemap URLs are derived directly
-// from dist/ so they always match what was emitted.
-// Heading ids for TOC anchors are provided natively by Astro 7's default
-// markdown processor (Sätteri's heading-ids plugin), so no rehype plugin
-// is needed.
+// Medical Study Notes: the public site is prerendered (static) by default
+// for speed and crawlability — no page changes needed. Routes that need D1
+// or auth (/admin, /api, /[subject]/[slug]/, /media/*, sitemap) opt out
+// individually with `export const prerender = false` and render on-demand
+// on Cloudflare Workers with D1 (content) and R2 (media) bindings.
 export default defineConfig({
   site: 'https://devsyllabus.com',
+  output: 'static',
+  adapter: cloudflare({
+    imageService: 'compile',
+    platformProxy: {
+      enabled: true,
+    },
+  }),
   trailingSlash: 'always',
   markdown: {},
-  // 301-style redirect map (static builds emit meta-refresh pages; a
-  // deployment platform adapter converts these to server-level 301s).
+  // Build-time redirects (HTML refresh pages for prerendered routes).
   redirects: {
     '/blog/tags/api': '/blog/category/api-design',
     '/notes/index.php': '/notes/',

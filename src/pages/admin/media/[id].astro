@@ -1,0 +1,57 @@
+---
+/**
+ * /admin/media/:id/ (§9) — edit alt text / title / caption, view the file,
+ * copy its public URL, delete when unreferenced.
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { env } from '../../../utils/backend';
+
+export const prerender = false;
+
+const idParam = String(Astro.params.id ?? '');
+if (!/^\d+$/.test(idParam)) return Astro.redirect('/admin/media/', 302);
+const media = await env(Astro.locals)
+  .DB.prepare(`SELECT * FROM media WHERE id = ?`)
+  .bind(Number(idParam))
+  .first<Record<string, unknown>>();
+if (!media) return Astro.redirect('/admin/media/', 302);
+
+const isImage = String(media.mime_type).startsWith('image/');
+const altRequired = isImage && media.mime_type !== 'image/svg+xml';
+const user = Astro.locals.user!;
+const error = Astro.url.searchParams.get('error');
+const publicUrl = `/media/${media.r2_key}`;
+---
+<AdminLayout title={`Media: ${media.filename}`} user={user} active="media">
+  <p><a href="/admin/media/">← Back to media library</a></p>
+  <h1>{media.filename as string}</h1>
+  {error && <div class="flash flash-error">{error}</div>}
+
+  <table>
+    <tr><th>Type</th><td>{media.mime_type as string}</td></tr>
+    <tr><th>Size</th><td>{Math.round((media.size_bytes as number) / 1024)} KB</td></tr>
+    <tr><th>Public URL</th><td><code>{publicUrl}</code></td></tr>
+    <tr><th>Uploaded</th><td>{String(media.created_at)}</td></tr>
+  </table>
+
+  {isImage && (
+    <p>
+      <img src={publicUrl} alt={(media.alt_text as string) || media.filename as string}
+        style="max-width:100%;max-height:24rem;display:block;border:1px solid #cbd5e1;" />
+    </p>
+  )}
+
+  <form method="post" action={`/admin/media/${media.id}/save/`} style="max-width:36rem;">
+    <label for="m-alt">Alt text{altRequired ? ' (required)' : ''}</label>
+    <input id="m-alt" name="altText" maxlength="500" value={(media.alt_text as string) ?? ''} />
+    <label for="m-title">Title</label>
+    <input id="m-title" name="title" maxlength="200" value={(media.title as string) ?? ''} />
+    <label for="m-caption">Caption</label>
+    <textarea id="m-caption" name="caption" rows="2" maxlength="600">{(media.caption as string) ?? ''}</textarea>
+    <p style="margin-top:1rem;">
+      <button class="btn btn-primary" type="submit">Save</button>
+      <button class="btn btn-danger" type="submit"
+        formaction={`/admin/media/${media.id}/delete/`} formmethod="post">Delete file</button>
+    </p>
+  </form>
+</AdminLayout>

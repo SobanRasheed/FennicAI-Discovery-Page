@@ -1,0 +1,217 @@
+---
+/**
+ * /admin/articles/:id/ — the article editor (§3, §4, §11): Tiptap editing
+ * area, metadata sidebar (subject/topic/SEO/references), autosave, and
+ * workflow status buttons. Server-rendered shell; the editor script in
+ * src/components/admin-editor.ts does the interactive part.
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { getArticleById, getArticleExtras, listSubjects, listTopicsBySubject } from '../../../utils/content';
+import { env } from '../../../utils/backend';
+
+export const prerender = false;
+
+const id = Number(Astro.params.id);
+if (!/^\d+$/.test(String(Astro.params.id)) || !id) {
+  return Astro.redirect('/admin/articles/', 302);
+}
+const article = await getArticleById(Astro.locals, id);
+if (!article || article.status === 'deleted') {
+  return Astro.redirect('/admin/articles/', 302);
+}
+
+const [subjects, extras, referencesList, authors] = await Promise.all([
+  listSubjects(Astro.locals, true).then(async (all) => {
+    // Topics are loaded with each subject for the picker.
+    return Promise.all(
+      all.map(async (s) => ({ ...s, topics: await listTopicsBySubject(Astro.locals, s.id) })),
+    );
+  }),
+  getArticleExtras(Astro.locals, id),
+  env(Astro.locals)
+    .DB.prepare(`SELECT id, title, source, year FROM "references" ORDER BY title LIMIT 200`)
+    .all<{ id: number; title: string; source: string; year: string | null }>()
+    .catch(() => ({ results: [] as { id: number; title: string; source: string; year: string | null }[] })),
+  env(Astro.locals)
+    .DB.prepare(`SELECT id, display_name FROM users ORDER BY display_name`)
+    .all<{ id: number; display_name: string }>()
+    .catch(() => ({ results: [] as { id: number; display_name: string }[] })),
+]);
+
+const user = Astro.locals.user!;
+const csrfToken = Astro.locals.csrfToken!;
+const topics = subjects.find((s) => s.id === article.subject_id)?.topics ?? [];
+
+const statusBadge: Record<string, string> = {
+  published: 'badge-published',
+  draft: 'badge-draft',
+  review: 'badge-review',
+  scheduled: 'badge-scheduled',
+  unpublished: 'badge-unpublished',
+};
+
+const editorData = {
+  id: article.id,
+  title: article.title,
+  slug: article.slug,
+  content_json: article.content_json ? JSON.parse(article.content_json) : null,
+  status: article.status,
+  subjects: subjects.map((s) => ({ id: s.id, title: s.title, topics: s.topics.map((t) => ({ id: t.id, title: t.title })) })),
+};
+---
+<AdminLayout title={`Edit: ${article.title}`} user={user} active="articles">
+  <style>
+    .editor-layout { display: flex; gap: 1.5rem; align-items: flex-start; }
+    .editor-main { flex: 1; min-width: 0; }
+    .editor-meta { width: 320px; flex-shrink: 0; background: #fff; border: 1px solid #e2e8f0; padding: 1rem; }
+    .editor-meta label { display: block; font-size: 0.8rem; font-weight: 600; margin: 0.75rem 0 0.2rem; }
+    .editor-meta input, .editor-meta select, .editor-meta textarea { width: 100%; }
+    .editor-toolbar { border: 1px solid #e2e8f0; background: #f8fafc; padding: 0.4rem; display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0; }
+    .editor-toolbar button { border: 1px solid #cbd5e1; background: #fff; padding: 0.2rem 0.5rem; cursor: pointer; font: inherit; font-size: 0.85rem; }
+    .editor-toolbar .med-btn { border-color: #0284c7; color: #0284c7; }
+    .toolbar-sep { width: 1px; background: #cbd5e1; margin: 0 0.3rem; }
+    .editor-area { border: 1px solid #e2e8f0; border-top: none; background: #fff; min-height: 60vh; padding: 1rem 1.5rem; }
+    .editor-area .ProseMirror { outline: none; min-height: 55vh; }
+    .editor-area .ProseMirror p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: #94a3b8; float: left; height: 0; pointer-events: none; }
+    .save-status { margin-left: 1rem; color: #64748b; font-size: 0.85rem; }
+    .editor-head { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+    .link-suggest { margin: 0.75rem 0; }
+    .link-suggest input { width: 100%; }
+    .link-suggest ul { list-style: none; padding: 0; margin: 0.25rem 0; }
+    .link-suggest button, .related-suggest button { text-align: left; background: none; border: none; color: #0284c7; cursor: pointer; padding: 0.15rem 0; font: inherit; }
+    .related-suggest ul { list-style: none; padding: 0; }
+    .msn-dialog {
+      position: fixed; top: 10vh; left: 50%; transform: translateX(-50%);
+      background: #fff; border: 1px solid #cbd5e1; border-radius: 6px;
+      padding: 1.25rem; width: min(560px, 92vw); max-height: 75vh; overflow: auto; z-index: 100;
+      display: flex; flex-direction: column; gap: 0.5rem;
+    }
+    .msn-dialog label { display: block; font-weight: 600; font-size: 0.85rem; margin-top: 0.4rem; }
+    .msn-dialog input[type="text"], .msn-dialog textarea { width: 100%; }
+    .msn-dialog-error { color: #b91c1c; min-height: 1.2em; }
+    .mcq-opt-row, .ref-row { display: flex; gap: 0.5rem; margin: 0.25rem 0; }
+    .media-list { max-height: 30vh; overflow: auto; margin: 0.5rem 0; }
+    .media-item { display: block; text-align: left; width: 100%; background: none; border: none; border-bottom: 1px solid #e2e8f0; padding: 0.35rem 0; cursor: pointer; font: inherit; color: #1e293b; }
+  </style>
+
+  <div class="editor-head">
+    <h1 style="margin:0;">Edit article</h1>
+    <span class={`badge ${statusBadge[article.status] ?? ''}`}>{article.status}</span>
+    <span class="save-status" aria-live="polite">Loaded</span>
+    <button class="btn save-now" type="button">Save now</button>
+    <a class="btn" href={`/admin/articles/${article.id}/preview/`} target="_blank">Preview</a>
+    <a class="btn" href="/admin/articles/">Back to list</a>
+  </div>
+  <div class="status-flash" style="min-height: 1.5rem;"></div>
+
+  <div class="editor-layout">
+    <div class="editor-main">
+      <div class="editor-toolbar" role="toolbar" aria-label="Formatting"></div>
+      <div class="editor-area"></div>
+
+      <div class="link-suggest">
+        <input type="search" placeholder="Search articles to insert an internal link…" aria-label="Search articles for internal linking" />
+        <ul></ul>
+      </div>
+
+      <div class="related-suggest">
+        <h2>Related content suggestions</h2>
+        <ul></ul>
+        <p style="color:#64748b;font-size:0.85rem;">Click to add/remove related articles.</p>
+      </div>
+    </div>
+
+    <form class="editor-meta" onsubmit="return false;">
+      <label for="f-title">Title</label>
+      <input id="f-title" name="title" value={article.title} />
+
+      <label for="f-slug">Slug</label>
+      <input id="f-slug" name="slug" value={article.slug} />
+
+      <label for="f-excerpt">Excerpt / short description</label>
+      <textarea id="f-excerpt" name="excerpt" rows="3">{article.excerpt}</textarea>
+
+      <label for="f-type">Type</label>
+      <select id="f-type" name="articleType">
+        <option value="article" selected={article.article_type === 'article'}>Article</option>
+        <option value="study-note" selected={article.article_type === 'study-note'}>Study note</option>
+      </select>
+
+      <label for="f-subject">Subject</label>
+      <select id="f-subject" name="subjectId">
+        <option value="">— none —</option>
+        {subjects.map((s) => (
+          <option value={s.id} selected={article.subject_id === s.id}>{s.title}</option>
+        ))}
+      </select>
+
+      <label for="f-topic">Topic</label>
+      <select id="f-topic" name="topicId">
+        <option value="">— none —</option>
+        {topics.map((t) => (
+          <option value={t.id} selected={article.topic_id === t.id}>{t.title}</option>
+        ))}
+      </select>
+
+      <label for="f-tags">Tags (comma-separated)</label>
+      <input id="f-tags" name="tagNames" value={extras.tags.join(', ')} />
+
+      <label for="f-related">Related article IDs</label>
+      <input id="f-related" name="relatedIds" value={extras.related.map((r) => r.id).join(', ')} />
+
+      <label for="f-refs">Reference IDs (comma-separated)</label>
+      <input id="f-refs" name="referenceIds" value={extras.references.map((r) => r.id).join(', ')} />
+      <details style="margin-top:0.5rem;">
+        <summary style="font-size:0.85rem;cursor:pointer;">Reference library</summary>
+        <ul style="font-size:0.8rem;padding-left:1rem;">
+          {referencesList.results.map((r) => (
+            <li>[{r.id}] {r.title}{r.source ? ` — ${r.source}` : ''}{r.year ? ` (${r.year})` : ''}</li>
+          ))}
+        </ul>
+        <a href="/admin/references/" style="font-size:0.85rem;">Manage references →</a>
+      </details>
+
+      <label for="f-featured">Featured image media ID</label>
+      <input id="f-featured" name="featuredMediaId" value={article.featured_media_id ?? ''} />
+      <button class="btn btn-pick-featured" type="button" style="margin-top:0.25rem;">Pick from media library</button>
+
+      <h2>SEO</h2>
+      <label for="f-seotitle">SEO title</label>
+      <input id="f-seotitle" name="seoTitle" value={article.seo_title ?? ''} />
+      <label for="f-metadesc">Meta description</label>
+      <textarea id="f-metadesc" name="metaDescription" rows="3">{article.meta_description ?? ''}</textarea>
+      <label for="f-canonical">Canonical URL (leave blank for default)</label>
+      <input id="f-canonical" name="canonicalUrl" value={article.canonical_url ?? ''} />
+      <label for="f-ogtitle">Open Graph title</label>
+      <input id="f-ogtitle" name="ogTitle" value={article.og_title ?? ''} />
+      <label for="f-ogdesc">Open Graph description</label>
+      <textarea id="f-ogdesc" name="ogDescription" rows="2">{article.og_description ?? ''}</textarea>
+      <label for="f-ogimage">OG image media ID</label>
+      <input id="f-ogimage" name="ogImageMediaId" value={article.og_image_media_id ?? ''} />
+      <label for="f-robots">Robots</label>
+      <select id="f-robots" name="robots">
+        {['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'].map((r) => (
+          <option value={r} selected={article.robots === r}>{r}</option>
+        ))}
+      </select>
+
+      <label for="f-scheduled">Scheduled publication</label>
+      <input id="f-scheduled" name="scheduledAt" type="datetime-local"
+        value={article.scheduled_at ? article.scheduled_at.slice(0, 16) : ''} />
+
+      <h2>Workflow</h2>
+      <button class="btn btn-submit-review" type="button">Submit for review</button>
+      <button class="btn btn-primary btn-publish" type="button">Publish</button>
+      <button class="btn btn-schedule" type="button">Schedule</button>
+      <button class="btn btn-unpublish" type="button">Unpublish</button>
+    </form>
+  </div>
+
+  <script type="application/json" id="article-data" set:html={JSON.stringify(editorData)} />
+  <script type="application/json" id="csrf-token" set:html={JSON.stringify(csrfToken)} />
+  <script>
+    import { initEditor } from '../../components/admin-editor';
+    const data = JSON.parse(document.getElementById('article-data')!.textContent!);
+    initEditor(data.id);
+  </script>
+</AdminLayout>

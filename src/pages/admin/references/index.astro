@@ -1,0 +1,103 @@
+---
+/**
+ * /admin/references/ (§10) — reusable structured reference library.
+ * Create references here, then attach them to articles by ID in the
+ * editor sidebar (or via the reference search in the editor).
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { env } from '../../../utils/backend';
+
+export const prerender = false;
+
+const url = Astro.url;
+const q = url.searchParams.get('q') ?? '';
+const error = url.searchParams.get('error');
+const created = url.searchParams.get('created');
+
+const db = env(Astro.locals).DB;
+const rows = q
+  ? await db
+      .prepare(
+        `SELECT r.*, (SELECT COUNT(*) FROM article_references ar WHERE ar.reference_id = r.id) AS usage_count
+         FROM "references" r
+         WHERE LOWER(r.title) LIKE ? OR LOWER(r.authors) LIKE ? OR LOWER(r.source) LIKE ?
+         ORDER BY r.id DESC LIMIT 100`,
+      )
+      .bind(`%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`)
+      .all<Record<string, unknown>>()
+  : await db
+      .prepare(
+        `SELECT r.*, (SELECT COUNT(*) FROM article_references ar WHERE ar.reference_id = r.id) AS usage_count
+         FROM "references" r ORDER BY r.id DESC LIMIT 100`,
+      )
+      .all<Record<string, unknown>>();
+
+const user = Astro.locals.user!;
+const TYPES: [string, string][] = [
+  ['textbook', 'Textbook'],
+  ['journal', 'Journal article'],
+  ['guideline', 'Clinical guideline'],
+  ['organization', 'Health organization'],
+  ['educational', 'Educational resource'],
+];
+---
+<AdminLayout title="References" user={user} active="references">
+  <h1>References</h1>
+  {error && <div class="flash flash-error">{error}</div>}
+  {created && <div class="flash flash-ok">Reference #{created} created. Note its ID for the article editor.</div>}
+  <p style="color:#64748b;">Structured sources attached to articles and shown on public pages. Reference IDs are used in the article editor sidebar.</p>
+
+  <form method="post" action="/admin/references/save/" class="card" style="display:grid;gap:0.4rem;max-width:44rem;">
+    <label for="r-type">Type</label>
+    <select id="r-type" name="refType">
+      {TYPES.map(([v, label]) => <option value={v}>{label}</option>)}
+    </select>
+    <label for="r-title">Title *</label>
+    <input id="r-title" name="title" required maxlength="400" />
+    <label for="r-authors">Authors</label>
+    <input id="r-authors" name="authors" maxlength="400" placeholder="Standring S, Borley NR" />
+    <label for="r-source">Source (publisher / journal / org)</label>
+    <input id="r-source" name="source" maxlength="200" placeholder="Gray's Anatomy, 42nd ed. / NEJM / WHO" />
+    <div style="display:flex;gap:0.5rem;">
+      <div style="flex:1;">
+        <label for="r-year">Year</label>
+        <input id="r-year" name="year" pattern="\d{4}" maxlength="4" placeholder="2024" />
+      </div>
+      <div style="flex:1;">
+        <label for="r-edition">Edition</label>
+        <input id="r-edition" name="edition" maxlength="50" placeholder="42nd" />
+      </div>
+    </div>
+    <label for="r-url">URL</label>
+    <input id="r-url" name="url" type="url" placeholder="https://…" />
+    <label for="r-doi">DOI</label>
+    <input id="r-doi" name="doi" maxlength="100" placeholder="10.1000/xyz123" />
+    <label for="r-accessed">Accessed date</label>
+    <input id="r-accessed" name="accessedAt" maxlength="30" placeholder="2026-09-04" />
+    <label for="r-notes">Notes</label>
+    <input id="r-notes" name="notes" maxlength="1000" />
+    <p style="margin-top:0.5rem;"><button class="btn btn-primary" type="submit">Add reference</button></p>
+  </form>
+
+  <form method="get" action="/admin/references/" style="margin-top:1rem;">
+    <input type="search" name="q" value={q} placeholder="Search title, authors, source" />
+    <button class="btn" type="submit">Search</button>
+  </form>
+
+  <table>
+    <tr><th>ID</th><th>Type</th><th>Reference</th><th>Used by</th></tr>
+    {rows.results.map((r) => (
+      <tr>
+        <td><strong>#{r.id}</strong></td>
+        <td>{r.ref_type as string}</td>
+        <td>
+          {r.title as string}{r.authors ? <span style="color:#64748b;"> — {r.authors as string}</span> : ''}
+          {r.source ? <span style="color:#64748b;"> ({r.source as string}{r.year ? `, ${r.year as string}` : ''})</span> : ''}
+          {r.url ? <div><a href={r.url as string} rel="noopener" target="_blank">{r.url as string}</a></div> : ''}
+        </td>
+        <td>{r.usage_count as number} article(s)</td>
+      </tr>
+    ))}
+    {rows.results.length === 0 && <tr><td colspan="4">No references yet.</td></tr>}
+  </table>
+</AdminLayout>

@@ -1,0 +1,133 @@
+---
+/**
+ * /admin/search/ (§12) — global CMS search across articles, study notes,
+ * MCQs, subjects, and topics with the §12 filters (content type, status,
+ * subject, author, since date) + pagination. Pure server-rendered form,
+ * works without JavaScript.
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { env } from '../../../utils/backend';
+import { cmsSearch } from '../../../utils/search';
+import { listSubjects } from '../../../utils/content';
+
+export const prerender = false;
+
+const url = Astro.url;
+const q = url.searchParams.get('q') ?? '';
+const status = url.searchParams.get('status') ?? '';
+const subjectId = url.searchParams.get('subjectId') ?? '';
+const authorId = url.searchParams.get('authorId') ?? '';
+const type = url.searchParams.get('type') ?? '';
+const since = url.searchParams.get('since') ?? '';
+const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
+
+const [subjects, users] = await Promise.all([
+  listSubjects(Astro.locals),
+  env(Astro.locals).DB.prepare(`SELECT id, display_name, username FROM users ORDER BY display_name`).all(),
+]);
+
+const results = q || status || subjectId || authorId || type || since
+  ? await cmsSearch(Astro.locals, {
+      q: q || undefined,
+      status: status || undefined,
+      subjectId: /^\d+$/.test(subjectId) ? Number(subjectId) : undefined,
+      authorId: /^\d+$/.test(authorId) ? Number(authorId) : undefined,
+      contentType: (['article', 'study-note', 'mcq', 'subject', 'topic'] as const).includes(
+        type as 'article',
+      )
+        ? (type as 'article' | 'study-note' | 'mcq' | 'subject' | 'topic')
+        : undefined,
+      since: since || undefined,
+      page,
+    })
+  : null;
+
+const totalPages = results ? Math.max(1, Math.ceil(results.total / results.perPage)) : 1;
+const keepParams = (p: number) => {
+  const sp = new URLSearchParams(url.searchParams);
+  sp.set('page', String(p));
+  return `/admin/search/?${sp.toString()}`;
+};
+const user = Astro.locals.user!;
+const badgeClass = (s: string) =>
+  s === 'published' ? 'badge-ok' : s === 'draft' || s === 'active' ? 'badge-draft' : 'badge-review';
+---
+<AdminLayout title="Search" user={user} active="search">
+  <h1>Search everything</h1>
+  <p style="color:#64748b;">Articles, study notes, MCQs, subjects, and topics.</p>
+
+  <form method="get" action="/admin/search/" style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:end;">
+    <div>
+      <label for="s-q">Query</label>
+      <input id="s-q" type="search" name="q" value={q} style="min-width:18rem;" />
+    </div>
+    <div>
+      <label for="s-type">Type</label>
+      <select id="s-type" name="type">
+        <option value="">All types</option>
+        <option value="article" selected={type === 'article'}>Articles</option>
+        <option value="study-note" selected={type === 'study-note'}>Study notes</option>
+        <option value="mcq" selected={type === 'mcq'}>MCQs</option>
+        <option value="subject" selected={type === 'subject'}>Subjects</option>
+        <option value="topic" selected={type === 'topic'}>Topics</option>
+      </select>
+    </div>
+    <div>
+      <label for="s-status">Status</label>
+      <select id="s-status" name="status">
+        <option value="">Any</option>
+        {['draft', 'review', 'scheduled', 'published', 'unpublished', 'active'].map((s) => (
+          <option value={s} selected={status === s}>{s}</option>
+        ))}
+      </select>
+    </div>
+    <div>
+      <label for="s-subject">Subject</label>
+      <select id="s-subject" name="subjectId">
+        <option value="">Any</option>
+        {subjects.map((s) => (
+          <option value={s.id} selected={subjectId === String(s.id)}>{s.title}</option>
+        ))}
+      </select>
+    </div>
+    <div>
+      <label for="s-author">Author</label>
+      <select id="s-author" name="authorId">
+        <option value="">Any</option>
+        {users.results.map((u) => (
+          <option value={u.id as number} selected={authorId === String(u.id)}>{u.display_name as string}</option>
+        ))}
+      </select>
+    </div>
+    <div>
+      <label for="s-since">Updated since</label>
+      <input id="s-since" name="since" type="date" value={since} />
+    </div>
+    <button class="btn btn-primary" type="submit">Search</button>
+  </form>
+
+  {results && (
+    <>
+      <p>{results.total} result(s), page {results.page} of {totalPages}</p>
+      <table>
+        <tr><th>Type</th><th>Title</th><th>Status</th><th>Subject</th><th>Author</th><th>Updated</th><th></th></tr>
+        {results.hits.map((h) => (
+          <tr>
+            <td><span class={`badge ${badgeClass(h.status)}`}>{h.type}</span></td>
+            <td>{h.title}</td>
+            <td>{h.status}</td>
+            <td>{h.subject ?? '—'}</td>
+            <td>{h.author ?? '—'}</td>
+            <td>{h.updated_at}</td>
+            <td><a class="btn" href={h.url}>Open</a></td>
+          </tr>
+        ))}
+        {results.hits.length === 0 && <tr><td colspan="7">No matches. Try fewer filters.</td></tr>}
+      </table>
+      <div class="pagination">
+        {results.page > 1 && <a class="btn" href={keepParams(results.page - 1)}>← Previous</a>}
+        {results.page < totalPages && <a class="btn" href={keepParams(results.page + 1)}>Next →</a>}
+      </div>
+    </>
+  )}
+</AdminLayout>
