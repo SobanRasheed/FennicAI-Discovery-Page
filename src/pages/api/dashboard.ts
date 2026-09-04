@@ -3,8 +3,8 @@
  * GET /api/dashboard/
  */
 import type { APIRoute } from 'astro';
-import { json } from '../../../utils/backend';
-import { dashboardStats, listSubjects } from '../../../utils/content';
+import { json } from '../../utils/backend';
+import { dashboardStats, listSubjects } from '../../utils/content';
 
 export const prerender = false;
 

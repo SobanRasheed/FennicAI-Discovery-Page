@@ -1,8 +1,8 @@
 /**
  * POST /admin/subjects/:id/topic/save/ — no-JS topic save, server-validated.
  */
-import { env } from '../../../../utils/backend';
-import { audit } from '../../../../utils/audit';
+import { env } from '../../../../../utils/backend';
+import { audit } from '../../../../../utils/audit';
 
 export const prerender = false;
 

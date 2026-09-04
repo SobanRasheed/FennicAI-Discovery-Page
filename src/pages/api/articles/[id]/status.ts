@@ -7,9 +7,9 @@
  * publication when required SEO fields are missing).
  */
 import type { APIRoute } from 'astro';
-import { json, jsonError, env, HttpError } from '../../../utils/backend';
-import { assertCsrf, requirePermission, can } from '../../../utils/auth';
-import { articleStatusSchema } from '../../../utils/validate';
+import { json, jsonError, env, HttpError } from '../../../../utils/backend';
+import { assertCsrf, requirePermission, can } from '../../../../utils/auth';
+import { articleStatusSchema } from '../../../../utils/validate';
 import {
   getArticleById,
   getArticleExtras,
@@ -17,8 +17,8 @@ import {
   countReferences,
   publishingChecklist,
   recordSlugRedirect,
-} from '../../../utils/content';
-import { audit } from '../../../utils/audit';
+} from '../../../../utils/content';
+import { audit } from '../../../../utils/audit';
 
 export const prerender = false;
 

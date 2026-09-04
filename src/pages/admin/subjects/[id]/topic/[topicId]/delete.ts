@@ -2,8 +2,8 @@
  * POST /admin/subjects/:id/topic/:topicId/delete/ — delete a topic
  * (blocked while articles reference it, matching the API rule).
  */
-import { env } from '../../../../../utils/backend';
-import { audit } from '../../../../../utils/audit';
+import { env } from '../../../../../../utils/backend';
+import { audit } from '../../../../../../utils/audit';
 
 export const prerender = false;
 
