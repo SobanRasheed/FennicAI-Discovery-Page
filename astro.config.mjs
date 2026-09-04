@@ -7,7 +7,7 @@ import cloudflare from '@astrojs/cloudflare';
 // or auth (/admin, /api, /[subject]/[slug]/, /media/*, sitemap) opt out
 // individually with `export const prerender = false` and render on-demand
 // on Cloudflare Workers with D1 (content) and R2 (media) bindings.
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   site: 'https://devsyllabus.com',
   output: 'static',
   adapter: cloudflare({
@@ -15,25 +15,21 @@ export default defineConfig({
     platformProxy: {
       enabled: true,
     },
+    // Dev-only: prerendered routes in `astro dev` are served through Astro's
+    // Node dev environment instead of the workerd runner. The workerd runner's
+    // app falls back to the production render environment, whose pageMap only
+    // holds `prerender: false` routes — every prerendered page would 500 with
+    // "unable to find a component instance". The Node prerender middleware
+    // handles prerendered paths before the request ever reaches the runner;
+    // SSR routes (admin/API/D1/R2) still run in workerd with real bindings.
+    // Production builds keep the workerd prerenderer, which works correctly.
+    ...(command === 'dev' ? { prerenderEnvironment: 'node' } : {}),
   }),
   trailingSlash: 'always',
   markdown: {},
-  // Dev-only fix: the Cloudflare adapter pre-bundles `astro/app/entrypoint/dev`
-  // for the workerd dev runner. That pre-bundled copy inlines a second module
-  // instance of Astro's environment registry, so the dev app's
-  // `setEnvironment()` call writes to a different WeakMap than the one the
-  // render pipeline reads — it then falls back to the production environment,
-  // whose pageMap only holds `prerender: false` routes, and every prerendered
-  // page 500s with "unable to find a component instance". Excluding the entry
-  // point from pre-bundling keeps all Astro core modules as one instance.
-  vite: {
-    optimizeDeps: {
-      exclude: ['astro/app/entrypoint/dev'],
-    },
-  },
   // Build-time redirects (HTML refresh pages for prerendered routes).
   redirects: {
     '/blog/tags/api': '/blog/category/api-design',
     '/notes/index.php': '/notes/',
   },
-});
+}));
