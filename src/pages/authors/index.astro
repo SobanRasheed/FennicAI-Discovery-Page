@@ -2,7 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import { getNotes, getBlogPosts } from '../../utils/collections';
-import { getCollection } from 'astro:content';
+import { getCollection } from '../../utils/collections';
 
 const [authors, notes, posts] = await Promise.all([
   getCollection('authors'),

@@ -4,7 +4,7 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import Faq from '../../components/Faq.astro';
 import NoteCard from '../../components/NoteCard.astro';
 import { getNotesBySubject, getQuestionsBySubject, getNotes, getBlogPosts } from '../../utils/collections';
-import { getCollection } from 'astro:content';
+import { getCollection } from '../../utils/collections';
 
 export async function getStaticPaths() {
   const subjects = await getCollection('subjects');

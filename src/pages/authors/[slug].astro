@@ -5,7 +5,7 @@ import JsonLd from '../../components/JsonLd.astro';
 import NoteCard from '../../components/NoteCard.astro';
 import PostCard from '../../components/PostCard.astro';
 import { getNotes, getBlogPosts } from '../../utils/collections';
-import { getCollection } from 'astro:content';
+import { getCollection } from '../../utils/collections';
 
 export async function getStaticPaths() {
   const authors = await getCollection('authors');

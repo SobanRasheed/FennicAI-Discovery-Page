@@ -2,7 +2,7 @@
 import Layout from '../../../layouts/Layout.astro';
 import Breadcrumbs from '../../../components/Breadcrumbs.astro';
 import { getQuestions } from '../../../utils/collections';
-import { getCollection } from 'astro:content';
+import { getCollection } from '../../../utils/collections';
 
 export async function getStaticPaths() {
   const [questions, subjects] = await Promise.all([

@@ -6,7 +6,8 @@ import Faq from '../../components/Faq.astro';
 import JsonLd from '../../components/JsonLd.astro';
 import NoteCard from '../../components/NoteCard.astro';
 import { getNotes, getQuestions, formatDate, isoDate } from '../../utils/collections';
-import { getCollection, render } from 'astro:content';
+import { render } from 'astro:content';
+import { getCollection } from '../../utils/collections';
 
 export async function getStaticPaths() {
   const notes = await getNotes();

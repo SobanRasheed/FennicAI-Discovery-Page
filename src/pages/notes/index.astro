@@ -3,7 +3,7 @@ import Layout from '../../layouts/Layout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import NoteCard from '../../components/NoteCard.astro';
 import { getNotes } from '../../utils/collections';
-import { getCollection } from 'astro:content';
+import { getCollection } from '../../utils/collections';
 
 const [notes, subjects, levels] = await Promise.all([
   getNotes(),

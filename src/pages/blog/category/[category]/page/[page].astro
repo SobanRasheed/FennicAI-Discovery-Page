@@ -8,6 +8,9 @@ import { getPostsByCategory } from '../../../../../utils/collections';
 const POSTS_PER_PAGE = 6;
 
 export async function getStaticPaths() {
+  // getStaticPaths is hoisted into its own module and cannot see the
+  // component-scope constant above, so it gets its own copy.
+  const POSTS_PER_PAGE = 6;
   const categories = ['api-design', 'study-techniques', 'databases', 'web-development'];
   const paths = [];
   for (const category of categories) {

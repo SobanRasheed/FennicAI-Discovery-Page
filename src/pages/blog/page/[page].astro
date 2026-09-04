@@ -7,6 +7,9 @@ import { getBlogPosts } from '../../../utils/collections';
 const POSTS_PER_PAGE = 6;
 
 export async function getStaticPaths() {
+  // getStaticPaths is hoisted into its own module and cannot see the
+  // component-scope constant above, so it gets its own copy.
+  const POSTS_PER_PAGE = 6;
   const posts = await getBlogPosts();
   const totalPages = Math.ceil(posts.length / POSTS_PER_PAGE);
   return Array.from({ length: totalPages }, (_, i) => ({

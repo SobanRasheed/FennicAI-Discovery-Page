@@ -3,22 +3,22 @@ import Layout from '../../../layouts/Layout.astro';
 import Breadcrumbs from '../../../components/Breadcrumbs.astro';
 import { getQuestions } from '../../../utils/collections';
 
-const typeLabels: Record<string, { label: string; description: string }> = {
-  mcq: { label: 'Multiple Choice Questions', description: 'MCQs with four options and the reasoning behind each distractor.' },
-  short: { label: 'Short Answer Questions', description: 'One- to three-line answers for definition and distinction questions.' },
-  long: { label: 'Long Answer Questions', description: 'Full worked answers with the structure markers expect.' },
-  numerical: { label: 'Numerical Problems', description: 'Problems with a number as the answer and the method behind it.' },
-};
-
 export async function getStaticPaths() {
+  // Defined here, not in the frontmatter: getStaticPaths is hoisted into its
+  // own module and cannot see component-scope constants.
+  const typeLabels: Record<string, { label: string; description: string }> = {
+    mcq: { label: 'Multiple Choice Questions', description: 'MCQs with four options and the reasoning behind each distractor.' },
+    short: { label: 'Short Answer Questions', description: 'One- to three-line answers for definition and distinction questions.' },
+    long: { label: 'Long Answer Questions', description: 'Full worked answers with the structure markers expect.' },
+    numerical: { label: 'Numerical Problems', description: 'Problems with a number as the answer and the method behind it.' },
+  };
   return Object.keys(typeLabels).map((type) => ({
     params: { type },
-    props: { type },
+    props: { type, meta: typeLabels[type] },
   }));
 }
 
-const { type } = Astro.props;
-const meta = typeLabels[type];
+const { type, meta } = Astro.props;
 const questions = (await getQuestions()).filter((q) => q.data.type === type);
 ---
 
