@@ -25,7 +25,7 @@ export const onRequest = defineMiddleware(
       locals.user = null;
     }
 
-    const path = url.pathname;
+    const path = url.pathname.replace(/\/+$/, '') || '/';
 
     // --- D1 redirect map (slug changes on published articles) -----------
     // Skip admin/API/assets paths so the CMS itself never gets redirected.

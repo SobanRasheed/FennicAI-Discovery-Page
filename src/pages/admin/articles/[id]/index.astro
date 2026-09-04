@@ -5,7 +5,7 @@
  * workflow status buttons. Server-rendered shell; the editor script in
  * src/components/admin-editor.ts does the interactive part.
  */
-import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
 import { getArticleById, getArticleExtras, listSubjects, listTopicsBySubject } from '../../../../utils/content';
 import { env } from '../../../../utils/backend';
 
@@ -210,7 +210,7 @@ const editorData = {
   <script type="application/json" id="article-data" set:html={JSON.stringify(editorData)} />
   <script type="application/json" id="csrf-token" set:html={JSON.stringify(csrfToken)} />
   <script>
-    import { initEditor } from '../../components/admin-editor';
+    import { initEditor } from '../../../../components/admin-editor';
     const data = JSON.parse(document.getElementById('article-data')!.textContent!);
     initEditor(data.id);
   </script>
