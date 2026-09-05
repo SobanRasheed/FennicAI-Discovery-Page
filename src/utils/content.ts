@@ -399,6 +399,79 @@ export async function getMediaById(locals: App.Locals, id: number): Promise<Medi
 }
 
 // ---------------------------------------------------------------------------
+// Homepage feed (cross-subject, unlike listPublishedBySubject)
+// ---------------------------------------------------------------------------
+
+/** A card row plus the featured-media and tag needed to render it. */
+export interface PublicFeedCard extends PublicArticleCard {
+  media_key: string | null;
+  media_alt: string | null;
+  tag_name: string | null;
+}
+
+/** Most recent published items across all subjects, newest first. */
+export async function listPublishedFeed(
+  locals: App.Locals,
+  opts: { articleType?: 'article' | 'study-note'; limit?: number } = {},
+): Promise<PublicFeedCard[]> {
+  const where = [`a.status = 'published'`];
+  const params: unknown[] = [];
+  if (opts.articleType) {
+    where.push('a.article_type = ?');
+    params.push(opts.articleType);
+  }
+  const limit = Math.min(24, Math.max(1, opts.limit ?? 6));
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT ${CARD_COLS}, m.r2_key AS media_key, m.alt_text AS media_alt,
+              (SELECT t.name FROM article_tags at JOIN tags t ON t.id = at.tag_id
+               WHERE at.article_id = a.id ORDER BY at.id LIMIT 1) AS tag_name
+       FROM articles a
+       LEFT JOIN subjects s ON s.id = a.subject_id
+       LEFT JOIN media m ON m.id = a.featured_media_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY COALESCE(a.published_at, a.created_at) DESC
+       LIMIT ?`,
+    )
+    .bind(...params, limit)
+    .all<PublicFeedCard>();
+  return rows.results;
+}
+
+/** Subjects with published note/MCQ counts, for the subject grid. */
+export async function listSubjectsWithCounts(
+  locals: App.Locals,
+): Promise<(SubjectRow & { note_count: number; mcq_count: number })[]> {
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT s.*,
+        (SELECT COUNT(*) FROM articles a WHERE a.subject_id = s.id
+          AND a.status = 'published' AND a.article_type = 'study-note') AS note_count,
+        (SELECT COUNT(*) FROM mcqs m WHERE m.subject_id = s.id
+          AND m.status = 'published') AS mcq_count
+       FROM subjects s WHERE s.is_active = 1 ORDER BY s.sort_order, s.title`,
+    )
+    .all<SubjectRow & { note_count: number; mcq_count: number }>();
+  return rows.results;
+}
+
+/** Total published MCQs, for the practice band. */
+export async function countPublishedMcqs(locals: App.Locals): Promise<number> {
+  const row = await env(locals)
+    .DB.prepare(`SELECT COUNT(*) AS n FROM mcqs WHERE status = 'published'`)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+/** All topics (homepage browse column). */
+export async function listTopics(locals: App.Locals): Promise<TopicRow[]> {
+  const rows = await env(locals)
+    .DB.prepare(`SELECT * FROM topics ORDER BY sort_order, title`)
+    .all<TopicRow>();
+  return rows.results;
+}
+
+// ---------------------------------------------------------------------------
 // Dashboard stats
 // ---------------------------------------------------------------------------
 

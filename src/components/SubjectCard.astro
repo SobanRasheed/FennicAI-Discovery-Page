@@ -20,16 +20,22 @@ interface Props {
   subject?: string;
   /** Or name a drawing directly when there is no slug. */
   illustration?: import('./Illustration.astro').IllustrationName;
+  /** PNG icon URL (e.g. /assets/landing/subject-anatomy.png). Overrides the SVG drawing. */
+  icon?: string;
 }
 
-const { href, title, sub = 'Study Notes · MCQs', count, subject, illustration } = Astro.props;
+const { href, title, sub = 'Study Notes · MCQs', count, subject, illustration, icon } = Astro.props;
 
 const drawing = illustration ?? (subject ? illustrationForSubject(subject) : 'stethoscope');
 ---
 
 <a class="subject" href={href}>
   <span class="subject-art" aria-hidden="true">
-    <Illustration name={drawing} size={34} />
+    {icon ? (
+      <img class="subject-icon" src={icon} alt="" loading="lazy" decoding="async" />
+    ) : (
+      <Illustration name={drawing} size={34} />
+    )}
   </span>
   <span class="subject-text">
     <span class="subject-title">{title}</span>
@@ -78,6 +84,13 @@ const drawing = illustration ?? (subject ? illustrationForSubject(subject) : 'st
   .subject:hover .subject-art {
     border-color: var(--primary-border);
     background: var(--surface);
+  }
+
+  /* PNG icon (extracted from the reference design): fills the art well. */
+  .subject-icon {
+    width: 2.125rem;
+    height: 2.125rem;
+    object-fit: contain;
   }
 
   .subject-text {

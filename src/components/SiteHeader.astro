@@ -32,22 +32,13 @@ const isCurrent = (href: string) =>
 <header class="hdr">
   <div class="container hdr-inner">
     <a class="hdr-brand" href="/">
-      <span class="hdr-mark" aria-hidden="true">
-        <svg viewBox="0 0 24 24" width="26" height="26" fill="none" aria-hidden="true">
-          <path
-            d="M3.2 5.4A1.8 1.8 0 0 1 5 3.6h5.2c.5 0 .9.4.9.9v14.9a.6.6 0 0 1-.9.5A5.4 5.4 0 0 0 7.6 19H5a1.8 1.8 0 0 1-1.8-1.8z"
-            fill="currentColor" opacity="0.9"
-          />
-          <path
-            d="M20.8 5.4A1.8 1.8 0 0 0 19 3.6h-5.2a.9.9 0 0 0-.9.9v14.9c0 .45.48.72.87.51A5.4 5.4 0 0 1 16.4 19H19a1.8 1.8 0 0 0 1.8-1.8z"
-            fill="currentColor" opacity="0.55"
-          />
-        </svg>
-      </span>
-      <span class="hdr-brand-text">
-        <span class="hdr-name">Medical Study Notes</span>
-        <span class="hdr-tagline">Learn · Study · Succeed</span>
-      </span>
+      <img
+        class="hdr-logo"
+        src="/assets/landing/logo.png"
+        alt="Medical Study Notes"
+        width="279"
+        height="51"
+      />
     </a>
 
     <nav class="hdr-nav" aria-label="Primary">
@@ -76,6 +67,10 @@ const isCurrent = (href: string) =>
 
     <a class="hdr-about" href="/about/" aria-current={isCurrent('/about/') ? 'page' : undefined}>
       About
+    </a>
+
+    <a class="hdr-login" href="/admin/login/" aria-label="Log in" title="Log in">
+      <img src="/assets/landing/icon-login.png" alt="" width="33" height="34" />
     </a>
 
     {/* --- mobile controls: CSS-only disclosures --------------------------- */}
@@ -145,36 +140,15 @@ const isCurrent = (href: string) =>
   .hdr-brand {
     display: inline-flex;
     align-items: center;
-    gap: var(--space-3);
     flex-shrink: 0;
     color: var(--ink);
     text-decoration: none;
   }
 
-  .hdr-mark {
-    display: inline-flex;
-    color: var(--primary);
-  }
-
-  .hdr-brand-text {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .hdr-name {
-    font-family: var(--font-display);
-    font-size: 1.0625rem;
-    font-weight: var(--weight-display);
-    line-height: 1.15;
-    white-space: nowrap;
-  }
-
-  .hdr-tagline {
-    color: var(--mute);
-    font-size: var(--text-micro);
-    letter-spacing: 0.05em;
-    white-space: nowrap;
+  .hdr-logo {
+    display: block;
+    height: 32px;
+    width: auto;
   }
 
   /* --- desktop nav ---------------------------------------------------- */
@@ -263,6 +237,30 @@ const isCurrent = (href: string) =>
     color: var(--primary);
   }
 
+  /* Login icon: pushes the mobile controls right; sits at the end on desktop. */
+  .hdr-login {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    margin-left: auto;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    color: var(--body);
+    transition: background-color 0.15s var(--ease);
+  }
+
+  .hdr-login img {
+    width: 20px;
+    height: auto;
+  }
+
+  .hdr-login:hover {
+    background: var(--surface-sunken);
+  }
+
   /* --- mobile controls ------------------------------------------------ */
   .hdr-toggle {
     display: none;
@@ -287,7 +285,7 @@ const isCurrent = (href: string) =>
   }
 
   .hdr-search-btn {
-    margin-left: auto;
+    margin-left: 0;
   }
 
   .hdr-menu-close,
@@ -380,6 +378,10 @@ const isCurrent = (href: string) =>
       display: none !important;
     }
 
+    .hdr-login {
+      margin-left: 0;
+    }
+
     .hdr-inner {
       gap: var(--space-4);
     }
@@ -389,14 +391,10 @@ const isCurrent = (href: string) =>
     }
   }
 
-  /* Between 640 and 1024 the wordmark keeps its tagline but the nav is in the
-     menu; below 640 the tagline is dropped so the row stays one line. */
+  /* Below 480 the logo scales down so the row stays one line. */
   @media (max-width: 480px) {
-    .hdr-tagline {
-      display: none;
-    }
-    .hdr-name {
-      font-size: 1rem;
+    .hdr-logo {
+      height: 26px;
     }
     .hdr-inner {
       gap: var(--space-2);
