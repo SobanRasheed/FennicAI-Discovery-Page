@@ -100,6 +100,7 @@
   --canvas: #fafaf8;         /* page background (warm paper) */
   --surface: #ffffff;        /* content surfaces */
   --surface-sunken: #f4f5f2; /* table headers, inset areas */
+  --band: #f8f9f6;           /* hero bands — one step warmer than canvas */
 
   --primary: #145c52;        /* deep medical green */
   --primary-hover: #0e463e;
