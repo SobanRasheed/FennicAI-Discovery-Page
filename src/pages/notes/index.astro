@@ -4,9 +4,14 @@
  *
  * The full note list is rendered as real links (so every note is crawlable
  * from here), with the design's filter rail layered on top as client-side
- * filtering: subject, topic, level, sort, and the hero search field all
- * narrow the list in place. Without JavaScript the hero search still
- * submits to /search/.
+ * filtering: subject, topic, sort, and the hero search field all narrow the
+ * list in place. Without JavaScript the hero search still submits to
+ * /search/.
+ *
+ * Server-rendered from D1: published article_type='study-note', newest
+ * first. Notes carry no level of their own (levels belong to MCQs), so the
+ * design's level filter is dropped here. Rows show the note's featured image
+ * when one exists, with the subject icon as the fallback.
  *
  * Subject pages link here as /notes/#subject-{slug}; a matching hash
  * pre-selects that subject in the filter. The rail's per-subject rows carry
@@ -18,27 +23,24 @@ import Search from '../../components/Search.astro';
 import Icon from '../../components/Icon.astro';
 import Illustration, { illustrationForSubject } from '../../components/Illustration.astro';
 import JsonLd from '../../components/JsonLd.astro';
-import { getNotes, getCollection, isoDate } from '../../utils/collections';
+import { listPublishedArticles, listTopics, listSubjects } from '../../utils/content';
 
-const [notes, subjects, levels] = await Promise.all([
-  getNotes(),
-  getCollection('subjects'),
-  getCollection('levels'),
+export const prerender = false;
+
+const [{ rows: notes }, topics, subjects] = await Promise.all([
+  listPublishedArticles(Astro.locals, { articleType: 'study-note', perPage: 100 }),
+  listTopics(Astro.locals),
+  listSubjects(Astro.locals),
 ]);
 
-const subjectLabel = (slug: string) =>
-  subjects.find((s) => s.slug === slug)?.data.title ?? slug;
+// Edge caching: browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
 
-/** The chapter title for a note, from its subject's chapter list. */
-const chapterLabel = (subjectSlug: string, chapterSlug: string) =>
-  subjects
-    .find((s) => s.slug === subjectSlug)
-    ?.data.chapters?.find((c) => c.slug === chapterSlug)?.title ?? chapterSlug;
+/** D1 timestamps are UTC without a zone suffix. */
+const asDate = (s: string | null) => (s ? new Date(s + 'Z') : undefined);
 
-/** Most recent first — the server-rendered order and the JS default sort. */
-const recent = [...notes].sort(
-  (a, b) => b.data.updatedDate.valueOf() - a.data.updatedDate.valueOf(),
-);
+/** The note's last-touched timestamp: what "most recent" sorts by. */
+const sortDate = (s: string | null, fallback: string | null) => s ?? fallback ?? '';
 
 // The design abbreviates September as "Sep", but en-GB short gives "Sept".
 const fmt = (d: Date) =>
@@ -46,25 +48,27 @@ const fmt = (d: Date) =>
     .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
     .replace('Sept ', 'Sep ');
 
+const topicById = new Map(topics.map((t) => [t.id, t]));
+
 /** Filter rail: every topic that has notes, A–Z. */
-const chapterMap = new Map<string, string>();
+const topicMap = new Map<number, string>();
 for (const note of notes) {
-  const slug = note.data.chapter ?? '';
-  if (slug && !chapterMap.has(slug)) {
-    chapterMap.set(slug, chapterLabel(note.data.subject, slug));
+  if (note.topic_id && !topicMap.has(note.topic_id)) {
+    const title = topicById.get(note.topic_id)?.title;
+    if (title) topicMap.set(note.topic_id, title);
   }
 }
-const chapterRows = [...chapterMap.entries()].sort((a, b) =>
-  a[1].localeCompare(b[1], 'en'),
-);
+const topicRows = [...topicMap.entries()].sort((a, b) => a[1].localeCompare(b[1], 'en'));
 
 /** Rail: every subject that has notes, busiest first, with real counts. */
-const subjectRows = subjects
-  .map((subject) => ({
-    subject,
-    count: notes.filter((n) => n.data.subject === subject.slug).length,
-  }))
-  .filter((row) => row.count > 0)
+const subjectMap = new Map<string, { title: string; count: number }>();
+for (const note of notes) {
+  const entry = subjectMap.get(note.subject_slug) ?? { title: note.subject_title ?? note.subject_slug, count: 0 };
+  entry.count += 1;
+  subjectMap.set(note.subject_slug, entry);
+}
+const subjectRows = [...subjectMap.entries()]
+  .map(([slug, { title, count }]) => ({ slug, title, count }))
   .sort((a, b) => b.count - a.count);
 
 /** Subjects with a PNG icon in /assets/landing/; the rest fall back to a drawing. */
@@ -84,7 +88,7 @@ const subjectIcon = (slug: string) =>
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 
 const jsonLd = {
@@ -97,10 +101,10 @@ const jsonLd = {
   isPartOf: { '@type': 'WebSite', name: 'Medical Study Notes', url: Astro.site!.href },
   mainEntity: {
     '@type': 'ItemList',
-    itemListElement: recent.map((note, i) => ({
+    itemListElement: notes.map((note, i) => ({
       '@type': 'ListItem',
       position: i + 1,
-      name: note.data.title,
+      name: note.title,
       url: new URL(`/notes/${note.slug}/`, Astro.site).href,
     })),
   },
@@ -169,8 +173,8 @@ const jsonLd = {
             <label for="notes-subject">Subject</label>
             <select id="notes-subject">
               <option value="">All Subjects</option>
-              {subjectRows.map(({ subject }) => (
-                <option value={subject.slug}>{subject.data.title}</option>
+              {subjectRows.map(({ slug, title }) => (
+                <option value={slug}>{title}</option>
               ))}
             </select>
           </div>
@@ -178,17 +182,8 @@ const jsonLd = {
             <label for="notes-topic">Topic</label>
             <select id="notes-topic">
               <option value="">All Topics</option>
-              {chapterRows.map(([slug, label]) => (
-                <option value={slug}>{label}</option>
-              ))}
-            </select>
-          </div>
-          <div class="field">
-            <label for="notes-level">Level</label>
-            <select id="notes-level">
-              <option value="">All Levels</option>
-              {levels.map((level) => (
-                <option value={level.slug}>{level.data.title}</option>
+              {topicRows.map(([id, label]) => (
+                <option value={id}>{label}</option>
               ))}
             </select>
           </div>
@@ -212,7 +207,7 @@ const jsonLd = {
         <div class="notes-results" id="notes-results">
           <div class="notes-toolbar">
             <p class="notes-count" id="notes-count" aria-live="polite">
-              {recent.length} study note{recent.length === 1 ? '' : 's'}
+              {notes.length} study note{notes.length === 1 ? '' : 's'}
             </p>
             <div class="view-toggle" role="group" aria-label="Choose a view">
               <button class="view-btn" type="button" data-view="list" aria-pressed="true">
@@ -227,44 +222,55 @@ const jsonLd = {
           </div>
 
           <ol class="note-list" id="note-list">
-            {recent.map((note) => (
-              <li
-                class="note-row"
-                data-subject={note.data.subject}
-                data-chapter={note.data.chapter ?? ''}
-                data-level={note.data.level}
-                data-date={isoDate(note.data.updatedDate)}
-                data-title={note.data.title.toLowerCase()}
-                data-search={`${note.data.title} ${note.data.description} ${subjectLabel(note.data.subject)}`
-                  .toLowerCase()}
-              >
-                <a href={`/notes/${note.slug}/`}>
-                  <span class="row-thumb" aria-hidden="true">
-                    {subjectIcon(note.data.subject) ? (
-                      <img
-                        src={subjectIcon(note.data.subject)}
-                        alt=""
-                        loading="lazy"
-                        decoding="async"
-                      />
-                    ) : (
-                      <Illustration name={illustrationForSubject(note.data.subject)} size={28} />
+            {notes.map((note) => {
+              const date = asDate(note.updated_at ?? note.published_at);
+              return (
+                <li
+                  class="note-row"
+                  data-subject={note.subject_slug}
+                  data-topic={note.topic_id ? String(note.topic_id) : ''}
+                  data-date={sortDate(note.updated_at, note.published_at)}
+                  data-title={note.title.toLowerCase()}
+                  data-search={`${note.title} ${note.excerpt} ${note.subject_title ?? ''}`
+                    .toLowerCase()}
+                >
+                  <a href={`/notes/${note.slug}/`}>
+                    <span class="row-thumb" aria-hidden="true">
+                      {note.media_key ? (
+                        <img
+                          src={`/media/${note.media_key}/`}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : subjectIcon(note.subject_slug) ? (
+                        <img
+                          src={subjectIcon(note.subject_slug)}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      ) : (
+                        <Illustration name={illustrationForSubject(note.subject_slug)} size={28} />
+                      )}
+                    </span>
+                    <span class="row-main">
+                      <span class="row-kicker">{note.subject_title}</span>
+                      <span class="row-title">{note.title}</span>
+                      <span class="row-desc">{note.excerpt}</span>
+                    </span>
+                    {date && (
+                      <time class="row-date" datetime={date.toISOString()}>
+                        {fmt(date)}
+                      </time>
                     )}
-                  </span>
-                  <span class="row-main">
-                    <span class="row-kicker">{subjectLabel(note.data.subject)}</span>
-                    <span class="row-title">{note.data.title}</span>
-                    <span class="row-desc">{note.data.description}</span>
-                  </span>
-                  <time class="row-date" datetime={isoDate(note.data.updatedDate)}>
-                    {fmt(note.data.updatedDate)}
-                  </time>
-                  <span class="row-chev" aria-hidden="true">
-                    <Icon name="chevron-right" size={16} />
-                  </span>
-                </a>
-              </li>
-            ))}
+                    <span class="row-chev" aria-hidden="true">
+                      <Icon name="chevron-right" size={16} />
+                    </span>
+                  </a>
+                </li>
+              );
+            })}
           </ol>
 
           <div class="empty-state" id="notes-empty" hidden>

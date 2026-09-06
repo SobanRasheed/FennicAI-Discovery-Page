@@ -655,6 +655,18 @@ export async function countPublishedMcqs(locals: App.Locals): Promise<number> {
   return row?.n ?? 0;
 }
 
+/** Published MCQs for one subject — gates practice links on note pages. */
+export async function countPublishedMcqsBySubject(
+  locals: App.Locals,
+  subjectId: number,
+): Promise<number> {
+  const row = await env(locals)
+    .DB.prepare(`SELECT COUNT(*) AS n FROM mcqs WHERE status = 'published' AND subject_id = ?`)
+    .bind(subjectId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
 /** All topics (homepage browse column). */
 export async function listTopics(locals: App.Locals): Promise<TopicRow[]> {
   const rows = await env(locals)

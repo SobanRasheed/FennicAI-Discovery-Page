@@ -1,12 +1,14 @@
 ---
 /**
- * A study note: the site's flagship reading page.
+ * /notes/[slug]/ (§15, §16) — the study note: the site's flagship reading page.
  *
- * Layout is the three-region article shell — TOC rail, reading column, sidebar
- * of quick facts and related material. The note's own structured fields
- * (objectives, key terms, formulas, important points, summary) are rendered as
- * real sections inside the reading column so they sit in the table of contents
- * alongside the markdown headings.
+ * Server-rendered from D1 (article_type='study-note'). Layout is the
+ * three-region article shell — TOC rail, reading column at the prose measure,
+ * sidebar of quick facts and related material. The note body is flat rich
+ * text: its sections (objectives, key terms, formulas, summary …) live in the
+ * stored HTML, so the TOC is built from the body's h2/h3 at render time.
+ * Attached MCQs render as collapsible blocks that work without JavaScript;
+ * responses are cached at the edge.
  */
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import ArticleHeader from '../../components/ArticleHeader.astro';
@@ -15,142 +17,175 @@ import SidebarPanel from '../../components/SidebarPanel.astro';
 import FactList from '../../components/FactList.astro';
 import RelatedContent from '../../components/RelatedContent.astro';
 import ReferenceList from '../../components/ReferenceList.astro';
-import MedicalCallout from '../../components/MedicalCallout.astro';
-import Faq from '../../components/Faq.astro';
 import JsonLd from '../../components/JsonLd.astro';
 import Icon from '../../components/Icon.astro';
-import { getNotes, getQuestions, getCollection, isoDate } from '../../utils/collections';
-import { render } from 'astro:content';
+import { jsonForScript } from '../../utils/json-script';
+import {
+  getPublishedArticleBySlug,
+  getArticleExtras,
+  getMcqsForArticle,
+  listTopicsBySubject,
+  listPublishedBySubject,
+  listSubjects,
+  countPublishedMcqsBySubject,
+} from '../../utils/content';
 
-export async function getStaticPaths() {
-  const notes = await getNotes();
-  return notes.map((note) => ({ params: { slug: note.slug }, props: { note } }));
+export const prerender = false;
+
+const slug = String(Astro.params.slug ?? '');
+
+const article = await getPublishedArticleBySlug(Astro.locals, slug, 'study-note');
+if (!article || !article.subject_id) {
+  return new Response('Not found', { status: 404 });
 }
 
-const { note } = Astro.props;
-const { data } = note;
-const { Content: NoteBody, headings } = await render(note);
-
-const [subjects, levels, authors, allNotes, allQuestions] = await Promise.all([
-  getCollection('subjects'),
-  getCollection('levels'),
-  getCollection('authors'),
-  getNotes(),
-  getQuestions(),
+const [extras, mcqs, topics, subjectNotes, subjects, subjectMcqCount] = await Promise.all([
+  getArticleExtras(Astro.locals, article.id),
+  getMcqsForArticle(Astro.locals, article.id, true),
+  listTopicsBySubject(Astro.locals, article.subject_id),
+  listPublishedBySubject(Astro.locals, article.subject_id, { articleType: 'study-note', perPage: 50 }),
+  listSubjects(Astro.locals),
+  countPublishedMcqsBySubject(Astro.locals, article.subject_id),
 ]);
 
-const subject = subjects.find((s) => s.slug === data.subject);
-const level = levels.find((l) => l.slug === data.level);
-const author = authors.find((a) => a.slug === data.author);
+const topic = article.topic_id ? topics.find((t) => t.id === article.topic_id) : null;
+const subjectTitle = article.subject_title ?? '';
+const subjectSlug = article.subject_slug ?? '';
 
-const chapterEntry = subject?.data.chapters.find((c) => c.slug === data.chapter);
-const chapterTitle = chapterEntry?.title ?? data.chapter;
-
-const relatedNotes = allNotes
-  .filter((n) => n.slug !== note.slug && n.data.subject === data.subject)
-  .slice(0, 6);
-
-const relatedQuestions = allQuestions.filter(
-  (q) => q.data.subject === data.subject && q.data.chapter === data.chapter,
-);
-
-const subjectQuestions = allQuestions.filter((q) => q.data.subject === data.subject);
-
-// The next note in this subject (most recent first), wrapping around, for the
-// "Continue studying" rail.
-const subjectNotesByDate = [...allNotes]
-  .filter((n) => n.data.subject === data.subject)
-  .sort((a, b) => b.data.updatedDate.valueOf() - a.data.updatedDate.valueOf());
-const currentIndex = subjectNotesByDate.findIndex((n) => n.slug === note.slug);
+// Other notes in this subject, newest first, plus the next one after this for
+// the "Continue studying" rail.
+const otherNotes = subjectNotes.rows.filter((n) => n.id !== article.id);
+const currentIndex = subjectNotes.rows.findIndex((n) => n.id === article.id);
 const nextNote =
-  subjectNotesByDate.length > 1
-    ? subjectNotesByDate[(currentIndex + 1) % subjectNotesByDate.length]
+  subjectNotes.rows.length > 1
+    ? subjectNotes.rows[(currentIndex + 1) % subjectNotes.rows.length]
     : undefined;
 
-/** Reading time from the raw markdown, at 200 words per minute. */
-const wordCount = (note.body ?? '').split(/\s+/).filter(Boolean).length;
-const readingMinutes = Math.max(1, Math.round(wordCount / 200));
+// Curated related articles (admin picks), mapped to their public URL by type.
+const curated = extras.related.slice(0, 6).map((r) => ({
+  href: r.article_type === 'study-note' ? `/notes/${r.slug}/` : `/blog/${r.slug}/`,
+  title: r.title,
+  context: r.subject_slug,
+}));
+// Same-subject study notes fill the rail when the admin hasn't curated any.
+const relatedNotes = curated.length > 0
+  ? curated
+  : otherNotes.slice(0, 6).map((n) => ({
+      href: `/notes/${n.slug}/`,
+      title: n.title,
+      context: n.subject_title,
+    }));
 
-const subjectTopics = (await getCollection('topics')).filter((t) =>
-  data.topics.includes(t.slug),
-);
+const subjectHasMcqs = subjectMcqCount > 0;
+
+// The stored HTML is sanitized on save; re-sanitize on output as defense in
+// depth (§17: output sanitization).
+const { sanitizeRichText } = await import('../../utils/richtext');
+let contentHtml = sanitizeRichText(article.content_html ?? '');
 
 /**
- * The rail's table of contents lists the note's fixed sections first, then the
- * markdown headings, then the closing sections — matching document order so a
- * reader following the list never jumps backwards.
+ * Stored headings carry no ids, so inject slug ids at render time and collect
+ * them for the table of contents. The input here is our own sanitized HTML
+ * with a known, small tag set, so a scan over the h2/h3 tags is safe.
  */
-const tocHeadings = [
-  { depth: 2, text: 'Learning objectives', slug: 'learning-objectives' },
-  ...(data.keyTerms.length > 0
-    ? [{ depth: 2, text: 'Key terms', slug: 'key-terms' }]
-    : []),
-  ...headings.filter((h) => h.depth === 2 || h.depth === 3),
-  ...(data.formulas.length > 0
-    ? [{ depth: 2, text: 'Formulas', slug: 'formulas' }]
-    : []),
-  ...(data.importantPoints.length > 0
-    ? [{ depth: 2, text: 'Important points', slug: 'important-points' }]
-    : []),
-  { depth: 2, text: 'Summary', slug: 'summary' },
-  ...(relatedQuestions.length > 0
-    ? [{ depth: 2, text: 'Practice questions', slug: 'practice-questions' }]
-    : []),
-  ...(data.references.length > 0
-    ? [{ depth: 2, text: 'References', slug: 'references' }]
-    : []),
-];
+const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/<[^>]+>/g, '')
+    .replace(/&[a-z#0-9]+;/g, ' ')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-') || 'section';
 
-const title = data.seoTitle ?? data.title;
+const tocHeadings: { depth: 2 | 3; text: string; slug: string }[] = [];
+const usedSlugs = new Set<string>();
+contentHtml = contentHtml.replace(
+  /<h([23])([^>]*)>([\s\S]*?)<\/h\1>/g,
+  (_m, level: string, attrs: string, inner: string) => {
+    const text = inner.replace(/<[^>]+>/g, '').trim();
+    let id = slugify(inner);
+    while (usedSlugs.has(id)) id = `${id}-x`;
+    usedSlugs.add(id);
+    tocHeadings.push({ depth: Number(level) as 2 | 3, text, slug: id });
+    return `<h${level}${attrs} id="${id}">${inner}</h${level}>`;
+  },
+);
+tocHeadings.push(
+  ...(mcqs.length > 0 ? [{ depth: 2 as const, text: 'Practice questions', slug: 'practice-questions' }] : []),
+  ...(extras.references.length > 0 ? [{ depth: 2 as const, text: 'References', slug: 'references' }] : []),
+);
+
+const title = article.seo_title || article.title;
+const description = article.meta_description || article.excerpt || '';
+const noindex = !article.robots.startsWith('index');
 const site = Astro.site!;
+const publicPath = `/notes/${article.slug}/`;
+const canonical = article.canonical_url || new URL(publicPath, site).href;
+
+const asDate = (d: string | null) => (d ? new Date(d + 'Z') : undefined);
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
+
+// Edge caching (§16): browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
 
 const articleSchema = {
   '@context': 'https://schema.org',
   '@type': 'Article',
-  headline: data.title,
-  description: data.description,
-  datePublished: isoDate(data.publishedDate),
-  dateModified: isoDate(data.updatedDate),
-  author: author
-    ? {
-        '@type': 'Person',
-        name: author.data.title,
-        url: new URL(`/authors/${author.slug}/`, site).href,
-      }
-    : undefined,
-  publisher: {
-    '@type': 'Organization',
-    name: 'Medical Study Notes',
-    url: site.href,
-  },
-  mainEntityOfPage: {
-    '@type': 'WebPage',
-    '@id': new URL(`/notes/${note.slug}/`, site).href,
-  },
-  about: subject ? { '@type': 'Thing', name: subject.data.title } : undefined,
+  headline: article.title,
+  description,
+  datePublished: article.published_at ? new Date(article.published_at + 'Z').toISOString() : undefined,
+  dateModified: article.updated_at ? new Date(article.updated_at + 'Z').toISOString() : undefined,
+  author: article.author_name ? { '@type': 'Person', name: article.author_name } : undefined,
+  publisher: { '@type': 'Organization', name: 'Medical Study Notes', url: site.href },
+  mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
+  articleSection: subjectTitle || undefined,
+  ...(extras.references.length > 0 && {
+    citation: extras.references.map((r) => ({
+      '@type': 'CreativeWork',
+      name: r.title,
+      author: r.authors || undefined,
+      datePublished: r.year || undefined,
+      url: r.url || undefined,
+    })),
+  }),
 };
 ---
 
 <ArticleLayout
   title={`${title} | Medical Study Notes`}
-  description={data.description}
-  path={`/notes/${note.slug}/`}
-  noindex={data.noindex}
-  publishedTime={data.publishedDate}
-  modifiedTime={data.updatedDate}
+  description={description}
+  path={publicPath}
+  noindex={noindex}
+  publishedTime={asDate(article.published_at)}
+  modifiedTime={asDate(article.updated_at)}
   footerSubjects={footerSubjects}
   crumbs={[
-    { label: subject?.data.title ?? data.subject, href: `/subjects/${data.subject}/` },
-    { label: chapterTitle },
-    { label: data.title },
+    ...(subjectSlug ? [{ label: subjectTitle, href: `/subjects/${subjectSlug}/` }] : []),
+    ...(topic ? [{ label: topic.title }] : []),
+    { label: article.title },
   ]}
+  crumbSchema={false}
 >
-  <JsonLd data={articleSchema} />
+  <script type="application/ld+json" set:html={jsonForScript(articleSchema)} />
+  <script
+    type="application/ld+json"
+    set:html={jsonForScript({
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { name: 'Home', url: new URL('/', site).href },
+        ...(subjectSlug
+          ? [{ name: subjectTitle, url: new URL(`/subjects/${subjectSlug}/`, site).href }]
+          : []),
+        { name: article.title, url: canonical },
+      ].map((b, i) => ({ '@type': 'ListItem', position: i + 1, name: b.name, item: b.url })),
+    })}
+  />
 
   {/* --- left rail: table of contents plus page actions ----------------- */}
   <Fragment slot="rail">
@@ -173,168 +208,115 @@ const articleSchema = {
         class="rail-action"
         type="button"
         data-note-action="save"
-        data-save-slug={note.slug}
+        data-save-slug={article.slug}
         aria-pressed="false"
       >
         <Icon name="bookmark" size={15} />
         <span class="rail-action-label" data-save-label>Save note</span>
       </button>
-      <a class="rail-action" href="#references">
-        <Icon name="file" size={15} />
-        Jump to references
-      </a>
-      <a class="rail-action" href={`/subjects/${data.subject}/`}>
-        <Icon name="book" size={15} />
-        All {subject?.data.title ?? data.subject} notes
-      </a>
+      {extras.references.length > 0 && (
+        <a class="rail-action" href="#references">
+          <Icon name="file" size={15} />
+          Jump to references
+        </a>
+      )}
+      {subjectSlug && (
+        <a class="rail-action" href={`/subjects/${subjectSlug}/`}>
+          <Icon name="book" size={15} />
+          All {subjectTitle} notes
+        </a>
+      )}
     </div>
   </Fragment>
 
   {/* --- reading column ------------------------------------------------- */}
   <ArticleHeader
-    title={data.title}
-    kicker={subject?.data.title ?? data.subject}
-    kickerHref={`/subjects/${data.subject}/`}
-    standfirst={data.overview}
-    updated={data.updatedDate}
-    readingMinutes={readingMinutes}
-    author={author?.data.title}
-    authorHref={author ? `/authors/${author.slug}/` : undefined}
+    title={article.title}
+    kicker={subjectTitle || 'Study note'}
+    kickerHref={subjectSlug ? `/subjects/${subjectSlug}/` : undefined}
+    standfirst={article.excerpt}
+    updated={asDate(article.updated_at)}
+    published={asDate(article.published_at)}
+    readingMinutes={article.reading_minutes}
+    author={article.author_name ?? undefined}
   />
 
-  <section class="note-section" aria-labelledby="learning-objectives">
-    <h2 id="learning-objectives">Learning objectives</h2>
-    <p class="note-section-intro">After working through this note you should be able to:</p>
-    <ul class="objectives">
-      {data.learningObjectives.map((objective) => (
-        <li>{objective}</li>
-      ))}
-    </ul>
-  </section>
+  <div class="prose note-body" set:html={contentHtml} />
 
-  {data.keyTerms.length > 0 && (
-    <section class="note-section" aria-labelledby="key-terms">
-      <h2 id="key-terms">Key terms</h2>
-      <dl class="terms">
-        {data.keyTerms.map((term) => (
-          <div class="term">
-            <dt>{term.term}</dt>
-            <dd>{term.definition}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  )}
-
-  <div class="prose note-body">
-    <NoteBody />
-  </div>
-
-  {data.formulas.length > 0 && (
-    <section class="note-section" aria-labelledby="formulas">
-      <h2 id="formulas">Formulas and definitions</h2>
-      <dl class="terms terms-mono">
-        {data.formulas.map((formula) => (
-          <div class="term">
-            <dt><code>{formula.expression}</code></dt>
-            <dd>{formula.meaning}</dd>
-          </div>
-        ))}
-      </dl>
-    </section>
-  )}
-
-  {data.importantPoints.length > 0 && (
-    <section class="note-section" aria-labelledby="important-points">
-      <h2 id="important-points">Important points</h2>
-      <MedicalCallout kind="key-point" label="Remember">
-        <ul>
-          {data.importantPoints.map((point) => <li>{point}</li>)}
-        </ul>
-      </MedicalCallout>
-    </section>
-  )}
-
-  <section class="note-section" aria-labelledby="summary">
-    <h2 id="summary">Summary</h2>
-    <p class="summary-text">{data.summary}</p>
-  </section>
-
-  {relatedQuestions.length > 0 && (
+  {mcqs.length > 0 && (
     <section class="note-section" aria-labelledby="practice-questions">
       <h2 id="practice-questions">Practice questions</h2>
       <p class="note-section-intro">
-        {relatedQuestions.length} question{relatedQuestions.length === 1 ? '' : 's'} on
-        this chapter, each with a worked answer.
+        {mcqs.length} question{mcqs.length === 1 ? '' : 's'} on this note, each with the full
+        answer and an explanation.
       </p>
-      <ul class="chevron-list question-list">
-        {relatedQuestions.map((q) => (
-          <li>
-            <a href={`/practice/${q.slug}/`}>
-              <span class="question-text">{q.data.question}</span>
-              <span class="tag">{q.data.type}</span>
-            </a>
-          </li>
-        ))}
-      </ul>
+      {mcqs.map((m, i) => (
+        <div class="mcq">
+          <p class="mcq-question"><strong>Q{i + 1}.</strong> {m.question}</p>
+          <ol class="mcq-options" type="A">
+            {m.options.map((o) => (
+              <li>{o.text}{o.is_correct === 1 && <span class="answer-mark" aria-label="(correct answer)">✓</span>}</li>
+            ))}
+          </ol>
+          <details class="mcq-answer">
+            <summary>Show answer &amp; explanation</summary>
+            <p><strong>Answer:</strong> {m.options.filter((o) => o.is_correct === 1).map((o) => o.label).join(', ')}</p>
+            <p>{m.explanation}</p>
+          </details>
+        </div>
+      ))}
     </section>
   )}
 
-  <ReferenceList references={data.references} />
+  <ReferenceList references={extras.references} />
 
-  {author && (
+  {article.author_name && (
     <section class="note-section author-box" aria-labelledby="about-the-author">
       <h2 id="about-the-author" class="author-heading">About the author</h2>
       <p class="author-name">
-        <a href={`/authors/${author.slug}/`}>{author.data.title}</a>
-        <span class="author-role">{author.data.role}</span>
+        {article.author_name}
       </p>
-      <p class="author-bio">{author.data.bio}</p>
+      {article.author_bio && <p class="author-bio">{article.author_bio}</p>}
     </section>
   )}
 
-  <Faq faqs={data.faqs} level={2} id="note-faq" />
+  <RelatedContent
+    items={relatedNotes}
+    heading="Continue studying"
+    moreHref={subjectSlug ? `/subjects/${subjectSlug}/` : '/notes/'}
+    moreLabel={subjectSlug ? `All ${subjectTitle} notes` : 'All study notes'}
+  />
+
+  {extras.tags.length > 0 && (
+    <p class="tags">
+      {extras.tags.map((t) => <span class="tag">{t}</span>)}
+    </p>
+  )}
 
   {/* --- sidebar -------------------------------------------------------- */}
   <Fragment slot="sidebar">
     <SidebarPanel heading="Quick facts" icon="file" variant="tint">
       <FactList
         items={[
-          `Subject: ${subject?.data.title ?? data.subject}`,
-          `Chapter: ${chapterTitle}`,
-          ...(level ? [`Level: ${level.data.title}`] : []),
-          `${data.keyTerms.length} key term${data.keyTerms.length === 1 ? '' : 's'}`,
-          `${data.learningObjectives.length} learning objectives`,
+          ...(subjectTitle ? [`Subject: ${subjectTitle}`] : []),
+          ...(topic ? [`Topic: ${topic.title}`] : []),
+          `${article.reading_minutes} min read`,
+          'Type: Study note',
+          ...(article.author_name ? [`Author: ${article.author_name}`] : []),
         ]}
       />
     </SidebarPanel>
 
-    {/* The red at-a-glance card: the first of the note's important points,
-        the one thing to walk away remembering. */}
-    {data.importantPoints.length > 0 && (
-      <aside class="alert-panel" aria-label="Important">
-        <p class="alert-label">
-          <Icon name="alert" size={14} />
-          Important
-        </p>
-        <p class="alert-text">{data.importantPoints[0]}</p>
-      </aside>
-    )}
-
     {relatedNotes.length > 0 && (
       <SidebarPanel heading="Related study notes" icon="book">
         <RelatedContent
-          items={relatedNotes.map((n) => ({
-            href: `/notes/${n.slug}/`,
-            title: n.data.title,
-            context: subjects.find((s) => s.slug === n.data.subject)?.data.title,
-          }))}
+          items={relatedNotes}
           variant="list"
           heading=""
           level={3}
           id="side-related"
-          moreHref={`/subjects/${data.subject}/`}
-          moreLabel={`View all ${subject?.data.title ?? ''} notes`}
+          moreHref={subjectSlug ? `/subjects/${subjectSlug}/` : '/notes/'}
+          moreLabel={`View all ${subjectTitle} notes`}
         />
       </SidebarPanel>
     )}
@@ -342,16 +324,20 @@ const articleSchema = {
     <SidebarPanel heading="Continue studying" icon="target">
       <RelatedContent
         items={[
-          {
-            href: `/subjects/${data.subject}/`,
-            title: `${subject?.data.title ?? data.subject} study notes`,
-            context: 'Complete subject notes',
-          },
-          ...(subjectQuestions.length > 0
+          ...(subjectSlug
             ? [
                 {
-                  href: `/practice/subject/${data.subject}/`,
-                  title: `${subject?.data.title ?? data.subject} MCQs`,
+                  href: `/subjects/${subjectSlug}/`,
+                  title: `${subjectTitle} study notes`,
+                  context: 'Complete subject notes',
+                },
+              ]
+            : []),
+          ...(subjectHasMcqs && subjectSlug
+            ? [
+                {
+                  href: `/practice/subject/${subjectSlug}/`,
+                  title: `${subjectTitle} MCQs`,
                   context: 'Practice questions',
                 },
               ]
@@ -360,7 +346,7 @@ const articleSchema = {
             ? [
                 {
                   href: `/notes/${nextNote.slug}/`,
-                  title: nextNote.data.title,
+                  title: nextNote.title,
                   context: 'Next in this subject',
                 },
               ]
@@ -380,11 +366,11 @@ const articleSchema = {
       />
     </SidebarPanel>
 
-    {subjectTopics.length > 0 && (
-      <SidebarPanel heading="Topic hubs" icon="layers">
+    {topics.filter((t) => !t.parent_topic_id).length > 0 && (
+      <SidebarPanel heading="Topics in this subject" icon="layers">
         <ul class="chevron-list">
-          {subjectTopics.map((topic) => (
-            <li><a href={`/topics/${topic.slug}/`}>{topic.data.title}</a></li>
+          {topics.filter((t) => !t.parent_topic_id).map((t) => (
+            <li><a href={`/subjects/${subjectSlug}/#${t.slug}`}>{t.title}</a></li>
           ))}
         </ul>
       </SidebarPanel>
@@ -396,7 +382,7 @@ const articleSchema = {
   /* --- section numbers --------------------------------------------------
      The reading column numbers its h2s in document order ("1. Definition",
      "2. Structure"), matching the numbering the TOC rail shows. The trailing
-     apparatus (author box, FAQ) is not in the TOC, so it stays unnumbered. */
+     apparatus (author box) is not in the TOC, so it stays unnumbered. */
   :global(.art-main) {
     counter-reset: note-section;
   }
@@ -409,43 +395,9 @@ const articleSchema = {
     content: counter(note-section) '. ';
   }
 
-  :global(.art-main h2.author-heading),
-  :global(.art-main h2.faq-heading) {
+  :global(.art-main h2.author-heading)::before {
     counter-increment: none;
-  }
-
-  :global(.art-main h2.author-heading)::before,
-  :global(.art-main h2.faq-heading)::before {
     content: none;
-  }
-
-  /* --- sidebar important alert ----------------------------------------- */
-  .alert-panel {
-    margin-top: var(--space-3);
-    padding: var(--space-4);
-    border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--danger) 7%, var(--surface));
-  }
-
-  .alert-label {
-    display: flex;
-    gap: 6px;
-    align-items: center;
-    margin: 0;
-    color: var(--danger);
-    font-family: var(--font-sans);
-    font-size: 0.75rem;
-    font-weight: var(--weight-bold);
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .alert-text {
-    margin: var(--space-2) 0 0;
-    color: var(--ink);
-    font-size: 0.8125rem;
-    line-height: var(--leading-normal);
   }
 
   /* --- rail ----------------------------------------------------------- */
@@ -506,96 +458,57 @@ const articleSchema = {
     margin-top: var(--space-12);
   }
 
-  /* Objectives read as a checklist, so they get a green rule marker rather
-     than a bullet. */
-  .objectives {
-    margin: var(--space-4) 0 0;
-    padding: 0;
-    list-style: none;
+  /* --- practice questions --------------------------------------------- */
+  .mcq + .mcq {
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--border);
   }
 
-  .objectives li {
-    position: relative;
-    padding: var(--space-2) 0 var(--space-2) var(--space-6);
+  .mcq-question {
+    margin: 0;
     color: var(--ink);
     font-size: var(--text-prose);
+    line-height: var(--leading-prose);
+  }
+
+  .mcq-options {
+    margin: var(--space-3) 0 0;
+    padding-left: 1.5rem;
+    color: var(--body);
+    font-size: var(--text-body-sm);
     line-height: var(--leading-normal);
   }
 
-  .objectives li + li {
-    border-top: 1px solid var(--border);
+  .mcq-options li + li {
+    margin-top: var(--space-1);
   }
 
-  .objectives li::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 1.05em;
-    width: 0.625rem;
-    height: 2px;
-    background: var(--primary);
+  .answer-mark {
+    margin-left: var(--space-2);
+    color: var(--success);
+    font-weight: var(--weight-bold);
   }
 
-  /* --- definition lists ----------------------------------------------- */
-  .terms {
-    margin: var(--space-4) 0 0;
-  }
-
-  .term {
-    padding: var(--space-4) 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .term:first-child {
-    border-top: 1px solid var(--border);
-  }
-
-  .terms dt {
-    color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    font-weight: var(--weight-semibold);
-  }
-
-  .terms-mono dt code {
+  .mcq-answer {
+    margin-top: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
     font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
   }
 
-  .terms dd {
+  .mcq-answer summary {
+    color: var(--primary);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+  }
+
+  .mcq-answer p {
     margin: var(--space-2) 0 0;
     color: var(--body);
-    font-size: var(--text-body-lg);
-    line-height: var(--leading-prose);
-  }
-
-  /* --- summary -------------------------------------------------------- */
-  .summary-text {
-    margin-top: var(--space-4);
-    padding: var(--space-4) var(--space-6);
-    border: 1px solid var(--border);
-    border-left: 3px solid var(--primary);
-    border-radius: 0 var(--radius-md) var(--radius-md) 0;
-    background: var(--surface);
-    color: var(--ink);
-    font-size: var(--text-prose);
-    line-height: var(--leading-prose);
-  }
-
-  /* --- practice questions --------------------------------------------- */
-  .question-list {
-    margin-top: var(--space-4);
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .question-list a {
-    justify-content: space-between;
-    gap: var(--space-4);
-    padding-block: var(--space-3);
-  }
-
-  .question-text {
-    flex: 1;
   }
 
   /* --- author --------------------------------------------------------- */
@@ -619,19 +532,20 @@ const articleSchema = {
     font-weight: var(--weight-semibold);
   }
 
-  .author-role {
-    color: var(--mute);
-    font-family: var(--font-sans);
-    font-size: var(--text-body-sm);
-    font-weight: var(--weight-body);
-  }
-
   .author-bio {
     max-width: 68ch;
     margin-top: var(--space-2);
     color: var(--body);
     font-size: var(--text-body-sm);
     line-height: var(--leading-prose);
+  }
+
+  /* --- tags ------------------------------------------------------------ */
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-10);
   }
 </style>
 
