@@ -3,7 +3,7 @@ title: How to Study Anatomy in First Year MBBS
 description: >
   A realistic first-year anatomy plan: regions versus systems, atlas and
   dissection time, spotter practice from month one, and a weekly rhythm
-  that survives the whole year.
+  that survives the year.
 author: mahnoor-tariq
 publishedDate: 2026-08-12
 updatedDate: 2026-09-02

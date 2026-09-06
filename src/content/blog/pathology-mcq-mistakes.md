@@ -1,9 +1,9 @@
 ---
 title: The MCQ Mistakes That Cost Marks in Pathology Exams
 description: >
-  Seven named MCQ mistakes that cost marks in pathology exams, from
-  buzzword pattern-matching to most-common versus most-deadly stems, each
-  with the wrong instinct, why it fails, and the fix.
+  Seven MCQ mistakes that cost marks in pathology exams, from buzzword
+  pattern-matching to most-common versus most-deadly stems, each with the
+  wrong instinct and the fix.
 author: bilal-ahmed
 publishedDate: 2026-08-28
 updatedDate: 2026-09-05

@@ -3,7 +3,7 @@ title: Active Recall and Spaced Repetition for Medical Exams
 description: >
   How MBBS students can combine active recall and spaced repetition for
   anatomy tables, drug lists, and the professional exam calendar, with a
-  daily cadence you can keep for the whole year.
+  daily cadence you can keep.
 author: soban-rasheed
 publishedDate: 2026-07-02
 updatedDate: 2026-09-04
