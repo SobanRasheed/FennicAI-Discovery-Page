@@ -1,69 +1,101 @@
 ---
 /**
- * A subject hub: the central page for one subject.
+ * /subjects/[slug]/ — a subject hub: the central page for one subject.
  *
  * Figma Screen 02: a quiet hero band with real counts and a quote card, a
- * tab strip of real section/page links, chapter cards with hairline note
- * lists, and a sidebar of quick links, a featured note, and related
- * subjects. The tabs are anchor links (or page links where the section
- * lives elsewhere), so every section is crawlable and linkable.
+ * tab strip of section/page links, chapter cards (D1 topics) with hairline
+ * note lists, and a sidebar of quick links, a featured note, and related
+ * subjects. Server-rendered from D1 with edge caching; the type filter and
+ * pagination are real links, so everything works without JavaScript.
  */
 import Layout from '../../layouts/Layout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import Faq from '../../components/Faq.astro';
 import Icon from '../../components/Icon.astro';
 import Illustration, { illustrationForSubject } from '../../components/Illustration.astro';
+import { jsonForScript } from '../../utils/json-script';
+import { sanitizeRichText } from '../../utils/richtext';
 import {
-  getNotesBySubject,
-  getQuestionsBySubject,
-  getNotes,
-  getBlogPosts,
-  getCollection,
-} from '../../utils/collections';
+  getSubjectBySlug,
+  listSubjects,
+  listTopicsBySubject,
+  listPublishedBySubject,
+  countPublishedBySubjectType,
+  countPublishedMcqsBySubject,
+  listMcqCardsBySubject,
+  getMediaById,
+  type PublicArticleCard,
+} from '../../utils/content';
 
-export async function getStaticPaths() {
-  const subjects = await getCollection('subjects');
-  return subjects.map((subject) => ({ params: { slug: subject.slug }, props: { subject } }));
+export const prerender = false;
+
+const subjectSlug = String(Astro.params.slug ?? '');
+const subject = await getSubjectBySlug(Astro.locals, subjectSlug);
+if (!subject || !subject.is_active !== true && !subject) {
+  return new Response('Not found', { status: 404 });
 }
 
-const { subject } = Astro.props;
-const { data } = subject;
+const url = Astro.url;
+const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
+const typeParam = url.searchParams.get('type');
+const articleType = typeParam === 'study-note' || typeParam === 'article' ? typeParam : undefined;
 
-const [grouped, questions, notes, posts, topics, subjects] = await Promise.all([
-  getNotesBySubject(subject.slug, data.chapters),
-  getQuestionsBySubject(subject.slug),
-  getNotes(),
-  getBlogPosts(),
-  getCollection('topics'),
-  getCollection('subjects'),
+const [
+  topics,
+  { rows: articles, total },
+  typeCounts,
+  mcqCount,
+  mcqCards,
+  subjects,
+  subjectImage,
+] = await Promise.all([
+  listTopicsBySubject(Astro.locals, subject.id),
+  listPublishedBySubject(Astro.locals, subject.id, { articleType, page, perPage: 50 }),
+  countPublishedBySubjectType(Astro.locals, subject.id),
+  countPublishedMcqsBySubject(Astro.locals, subject.id),
+  listMcqCardsBySubject(Astro.locals, subject.id, { limit: 6 }),
+  listSubjects(Astro.locals),
+  subject.image_media_id ? getMediaById(Astro.locals, subject.image_media_id) : Promise.resolve(null),
 ]);
 
-const subjectNotes = notes.filter((n) => n.data.subject === subject.slug);
+const totalPages = Math.max(1, Math.ceil(total / 50));
+const noteCount = typeCounts['study-note'];
+const articleCount = typeCounts.article;
+const hasImage = !!subjectImage && subjectImage.mime_type.startsWith('image/');
 
-// Topic hubs whose slugs appear in this subject's notes.
-const subjectTopicSlugs = [...new Set(subjectNotes.flatMap((n) => n.data.topics))];
-const subjectTopics = topics.filter((t) => subjectTopicSlugs.includes(t.slug));
+const title = subject.seo_title || `${subject.title} Study Notes and Practice Questions | Medical Study Notes`;
+const description =
+  subject.seo_description ||
+  subject.description ||
+  `${subject.title} study notes, guides, and practice questions.`;
+const path = `/subjects/${subject.slug}/`;
 
-// Articles connected to this subject through related notes or shared topics.
-const subjectNoteSlugs = subjectNotes.map((n) => n.slug);
-const relatedPosts = posts.filter(
-  (p) =>
-    p.data.relatedNotes.some((slug) => subjectNoteSlugs.includes(slug)) ||
-    p.data.topics.some((t) => subjectTopicSlugs.includes(t)),
-);
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
 
-// Other subjects, for the sidebar.
-const otherSubjects = subjects
-  .filter((s) => s.slug !== subject.slug)
-  .map((s) => ({
-    href: `/subjects/${s.slug}/`,
-    title: s.data.title,
-    context: s.data.description.split('.')[0],
-  }))
-  .slice(0, 3);
+const fmtDate = (d: string) => (d ? new Date(d + 'Z').toISOString().slice(0, 10) : '');
+const hrefFor = (a: PublicArticleCard) =>
+  a.article_type === 'study-note' ? `/notes/${a.slug}/` : `/blog/${a.slug}/`;
+const pageLink = (p: number) => {
+  const sp = new URLSearchParams(url.searchParams);
+  sp.set('page', String(p));
+  return `${path}?${sp.toString()}`;
+};
 
-const groupsWithNotes = grouped.filter((g) => g.notes.length > 0);
-const featuredNote = subjectNotes.find((n) => n.data.popular) ?? subjectNotes[0];
+// Group this page's articles by topic for the chapter cards.
+const byTopic = new Map<number, PublicArticleCard[]>();
+const unfiled: PublicArticleCard[] = [];
+for (const a of articles) {
+  if (a.topic_id == null) unfiled.push(a);
+  else {
+    const list = byTopic.get(a.topic_id) ?? [];
+    list.push(a);
+    byTopic.set(a.topic_id, list);
+  }
+}
+const topicCards = topics.filter((t) => (byTopic.get(t.id)?.length ?? 0) > 0);
+const plannedTopics = topics.filter((t) => !(byTopic.get(t.id)?.length ?? 0));
+
+const featuredNote =
+  articles.find((a) => a.article_type === 'study-note') ?? articles[0] ?? null;
 
 /** The serif line in the hero quote card — one per core subject, Osler otherwise. */
 const subjectQuotes: Record<string, string> = {
@@ -76,62 +108,106 @@ const subjectQuotes: Record<string, string> = {
   'forensic-medicine': 'Where medicine meets justice, evidence speaks.',
   'community-medicine': 'Prevention is better than cure.',
 };
-
-const heroQuote =
-  subjectQuotes[subject.slug] ??
-  'Medicine is a science of uncertainty and an art of probability.';
+const heroQuote = subjectQuotes[subject.slug] ?? 'Medicine is a science of uncertainty and an art of probability.';
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
+
+const otherSubjects = subjects
+  .filter((s) => s.id !== subject.id)
+  .map((s) => ({
+    href: `/subjects/${s.slug}/`,
+    title: s.title,
+    context: s.description.split('.')[0],
+  }))
+  .slice(0, 3);
 
 /** Section tabs: anchors for on-page sections, page links elsewhere. */
 const tabs = [
   { href: '#study-notes', label: 'Study Notes' },
-  ...(questions.length > 0 ? [{ href: '#mcqs', label: 'MCQs' }] : []),
-  ...(data.importantConcepts.length > 0
-    ? [{ href: '#important-topics', label: 'Important Topics' }]
-    : []),
+  ...(mcqCount > 0 ? [{ href: '#mcqs', label: 'MCQs' }] : []),
   { href: '/past-papers/', label: 'Past Papers' },
   { href: '/resources/', label: 'Recommended Resources' },
 ];
----
 
+const introductionHtml = subject.introduction ? sanitizeRichText(subject.introduction) : '';
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: `${Astro.site?.href ?? '/'}subjects/` },
+      { '@type': 'ListItem', position: 2, name: subject.title, item: `${Astro.site?.href ?? '/'}${path}` },
+    ],
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'CollectionPage',
+    name: title,
+    description,
+    url: `${Astro.site?.href ?? '/'}${path}`,
+    mainEntity: {
+      '@type': 'ItemList',
+      itemListElement: articles.map((a, i) => ({
+        '@type': 'ListItem',
+        position: i + 1,
+        url: `${Astro.site?.href ?? '/'}${hrefFor(a).replace(/^\//, '')}`,
+        name: a.title,
+      })),
+    },
+  },
+];
+---
 <Layout
-  title={`${data.title} Study Notes and Practice Questions | Medical Study Notes`}
-  description={data.description}
-  path={`/subjects/${subject.slug}/`}
+  title={title}
+  description={description}
+  path={path}
   footerSubjects={footerSubjects}
   wide
 >
+  <script type="application/ld+json" set:html={jsonForScript(jsonLd)} />
+
   {/* --- hero band --------------------------------------------------------- */}
   <section class="hero">
     <div class="container">
-      <Breadcrumbs crumbs={[{ label: 'Subjects', href: '/subjects/' }, { label: data.title }]} />
+      <Breadcrumbs crumbs={[{ label: 'Subjects', href: '/subjects/' }, { label: subject.title }]} />
     </div>
 
     <div class="container hero-inner">
       <div class="hero-copy">
         <p class="kicker hero-kicker">Subject</p>
-        <h1 class="hero-title">{data.title}</h1>
-        <p class="hero-lead">{data.introduction}</p>
+        <h1 class="hero-title">{subject.title}</h1>
+        {subject.description && <p class="hero-lead">{subject.description}</p>}
 
         <dl class="hero-stats">
           <div class="stat">
             <span class="stat-icon" aria-hidden="true"><Icon name="book" size={14} /></span>
             <div>
-              <dt>{subjectNotes.length}</dt>
+              <dt>{noteCount}</dt>
               <dd>Study notes</dd>
             </div>
           </div>
-          <div class="stat">
-            <span class="stat-icon" aria-hidden="true"><Icon name="question" size={14} /></span>
-            <div>
-              <dt>{questions.length}</dt>
-              <dd>MCQs</dd>
+          {articleCount > 0 && (
+            <div class="stat">
+              <span class="stat-icon" aria-hidden="true"><Icon name="book" size={14} /></span>
+              <div>
+                <dt>{articleCount}</dt>
+                <dd>Articles</dd>
+              </div>
             </div>
-          </div>
+          )}
+          {mcqCount > 0 && (
+            <div class="stat">
+              <span class="stat-icon" aria-hidden="true"><Icon name="question" size={14} /></span>
+              <div>
+                <dt>{mcqCount}</dt>
+                <dd>MCQs</dd>
+              </div>
+            </div>
+          )}
           <div class="stat">
             <span class="stat-icon" aria-hidden="true"><Icon name="target" size={14} /></span>
             <div>
@@ -142,8 +218,16 @@ const tabs = [
         </dl>
       </div>
 
-      <div class="hero-art" aria-hidden="true">
-        <Illustration name={illustrationForSubject(subject.slug)} size={130} />
+      <div class="hero-art" aria-hidden={!hasImage}>
+        {hasImage ? (
+          <img
+            src={`/media/${subjectImage!.r2_key}/`}
+            alt={subjectImage!.alt_text || subject.title}
+            class="hero-img"
+          />
+        ) : (
+          <Illustration name={illustrationForSubject(subject.slug)} size={130} />
+        )}
       </div>
 
       <aside class="hero-quote">
@@ -153,7 +237,7 @@ const tabs = [
         </blockquote>
         <span class="hero-quote-rule" aria-hidden="true"></span>
         <p class="hero-quote-attr">
-          {data.title}<br />Builds a healthier tomorrow
+          {subject.title}<br />Builds a healthier tomorrow
         </p>
       </aside>
     </div>
@@ -173,48 +257,85 @@ const tabs = [
   <div class="container">
     <div class="hub">
       <div class="hub-main">
+        {/* --- introduction (folded FAQs / key concepts) ------------------- */}
+        {introductionHtml && (
+          <section class="section-plain" aria-label={`About ${subject.title}`}>
+            <div class="prose introduction" set:html={introductionHtml} />
+          </section>
+        )}
+
         {/* --- chapters ---------------------------------------------------- */}
         <section class="section-plain" aria-labelledby="study-notes">
           <div class="section-head">
-            <h2 id="study-notes">Topics in {data.title}</h2>
+            <h2 id="study-notes">Topics in {subject.title}</h2>
             <p>
               Browse study notes by topic. Each section includes detailed notes,
               diagrams and key points.
             </p>
           </div>
 
-          {groupsWithNotes.length > 0 ? (
+          {/* Segmented type filter — real links, so it works without JavaScript. */}
+          <nav class="type-filter" aria-label="Filter by content type">
+            <a href={path} class={!articleType ? 'active' : ''}>All</a>
+            <a href={`${path}?type=study-note`} class={articleType === 'study-note' ? 'active' : ''}>Study notes</a>
+            <a href={`${path}?type=article`} class={articleType === 'article' ? 'active' : ''}>Articles</a>
+          </nav>
+
+          {topicCards.length > 0 || unfiled.length > 0 ? (
             <div class="chapters">
-              {groupsWithNotes.map(({ chapter, notes: chapterNotes }) => (
-                <section class="chapter" aria-labelledby={`ch-${chapter.slug}`}>
+              {topicCards.map((topic) => (
+                <section class="chapter" aria-labelledby={`topic-${topic.slug}`}>
                   <div class="chapter-head">
                     <span class="chapter-art" aria-hidden="true">
                       <Illustration name={illustrationForSubject(subject.slug)} size={32} />
                     </span>
                     <div>
-                      <h3 id={`ch-${chapter.slug}`} class="chapter-title">{chapter.title}</h3>
-                      {chapter.description && (
-                        <p class="chapter-desc">{chapter.description}</p>
+                      <h3 id={`topic-${topic.slug}`} class="chapter-title">{topic.title}</h3>
+                      {topic.description && (
+                        <p class="chapter-desc">{topic.description}</p>
                       )}
                     </div>
                   </div>
 
                   <ul class="chapter-notes">
-                    {chapterNotes.map((note) => (
+                    {byTopic.get(topic.id)!.map((a) => (
                       <li>
-                        <a href={`/notes/${note.slug}/`}>
+                        <a href={hrefFor(a)}>
                           <span aria-hidden="true">›</span>
-                          {note.data.title}
+                          {a.title}
+                          {a.article_type === 'article' && <em class="chapter-tag">Article</em>}
                         </a>
                       </li>
                     ))}
                   </ul>
-
-                  <a class="chapter-more" href={`/notes/#subject-${subject.slug}`}>
-                    View all notes <span aria-hidden="true">→</span>
-                  </a>
                 </section>
               ))}
+
+              {unfiled.length > 0 && (
+                <section class="chapter" aria-labelledby="topic-other">
+                  <div class="chapter-head">
+                    <span class="chapter-art" aria-hidden="true">
+                      <Illustration name={illustrationForSubject(subject.slug)} size={32} />
+                    </span>
+                    <div>
+                      <h3 id="topic-other" class="chapter-title">More in {subject.title}</h3>
+                      <p class="chapter-desc">Notes and articles not yet filed under a topic.</p>
+                    </div>
+                  </div>
+
+                  <ul class="chapter-notes">
+                    {unfiled.map((a) => (
+                      <li>
+                        <a href={hrefFor(a)}>
+                          <span aria-hidden="true">›</span>
+                          {a.title}
+                          {a.article_type === 'article' && <em class="chapter-tag">Article</em>}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
             </div>
           ) : (
             <div class="empty-state">
@@ -226,32 +347,38 @@ const tabs = [
             </div>
           )}
 
-          {/* Chapters with no notes yet are listed plainly rather than shown
+          {/* Topics with no notes yet are listed plainly rather than shown
               as empty panels. */}
-          {grouped.some((g) => g.notes.length === 0) && (
+          {topicCards.length > 0 && plannedTopics.length > 0 && (
             <p class="upcoming">
               Also planned:
-              {grouped
-                .filter((g) => g.notes.length === 0)
-                .map((g, i) => (
-                  <>
-                    {i > 0 && <span aria-hidden="true">, </span>}
-                    <span>{g.chapter.title}</span>
-                  </>
-                ))}
+              {plannedTopics.map((t, i) => (
+                <>
+                  {i > 0 && <span aria-hidden="true">, </span>}
+                  <span>{t.title}</span>
+                </>
+              ))}
             </p>
+          )}
+
+          {totalPages > 1 && (
+            <nav class="pagination" aria-label="Pagination">
+              {page > 1 && <a class="btn btn-secondary btn-sm" href={pageLink(page - 1)}>← Previous</a>}
+              <span class="page-status">Page {page} of {totalPages}</span>
+              {page < totalPages && <a class="btn btn-secondary btn-sm" href={pageLink(page + 1)}>Next →</a>}
+            </nav>
           )}
         </section>
 
         {/* --- MCQs --------------------------------------------------------- */}
-        {questions.length > 0 && (
+        {mcqCount > 0 && (
           <section class="section" aria-labelledby="mcqs">
             <div class="section-head-row">
               <div>
                 <h2 id="mcqs">Practice questions</h2>
                 <p>
-                  {questions.length} question{questions.length === 1 ? '' : 's'} on
-                  {' '}{data.title}, each with the full answer and an explanation.
+                  {mcqCount} question{mcqCount === 1 ? '' : 's'} on
+                  {' '}{subject.title}, each with the full answer and an explanation.
                 </p>
               </div>
               <a class="link-arrow" href={`/practice/subject/${subject.slug}/`}>
@@ -260,58 +387,17 @@ const tabs = [
             </div>
 
             <ul class="chevron-list bordered-list">
-              {questions.slice(0, 6).map((q) => (
+              {mcqCards.map((q) => (
                 <li>
                   <a href={`/practice/${q.slug}/`}>
-                    <span class="q-text">{q.data.question}</span>
-                    <span class="tag">{q.data.type}</span>
+                    <span class="q-text">{q.question}</span>
+                    <span class="tag">{q.difficulty}</span>
                   </a>
                 </li>
               ))}
             </ul>
           </section>
         )}
-
-        {/* --- important concepts -------------------------------------------- */}
-        {data.importantConcepts.length > 0 && (
-          <section class="section" aria-labelledby="important-topics">
-            <div class="section-head">
-              <h2 id="important-topics">Important topics</h2>
-              <p>High-yield concepts examiners return to.</p>
-            </div>
-            <ul class="concepts">
-              {data.importantConcepts.map((concept) => <li>{concept}</li>)}
-            </ul>
-          </section>
-        )}
-
-        {/* --- related articles ----------------------------------------------- */}
-        {relatedPosts.length > 0 && (
-          <section class="section" aria-labelledby="articles">
-            <div class="section-head">
-              <h2 id="articles">Related articles</h2>
-            </div>
-            <ul class="chevron-list bordered-list">
-              {relatedPosts.map((post) => (
-                <li><a href={`/blog/${post.slug}/`}>{post.data.title}</a></li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {data.exams.length > 0 && (
-          <section class="section" aria-labelledby="exams">
-            <div class="section-head">
-              <h2 id="exams">Exams and boards</h2>
-              <p>This material maps to the following examinations.</p>
-            </div>
-            <ul class="link-list exam-list">
-              {data.exams.map((exam) => <li>{exam}</li>)}
-            </ul>
-          </section>
-        )}
-
-        <Faq faqs={data.faqs} />
       </div>
 
       {/* --- sidebar -------------------------------------------------------- */}
@@ -321,18 +407,12 @@ const tabs = [
             <h2>Quick links</h2>
             <ul>
               <li>
-                <a href={`/notes/#subject-${subject.slug}`}>All {data.title} notes</a>
+                <a href={`/notes/#subject-${subject.slug}`}>All {subject.title} notes</a>
                 <span aria-hidden="true">›</span>
               </li>
-              {questions.length > 0 && (
+              {mcqCount > 0 && (
                 <li>
-                  <a href={`/practice/subject/${subject.slug}/`}>{data.title} MCQs</a>
-                  <span aria-hidden="true">›</span>
-                </li>
-              )}
-              {data.importantConcepts.length > 0 && (
-                <li>
-                  <a href="#important-topics">Important questions</a>
+                  <a href={`/practice/subject/${subject.slug}/`}>{subject.title} MCQs</a>
                   <span aria-hidden="true">›</span>
                 </li>
               )}
@@ -357,11 +437,11 @@ const tabs = [
               <div class="feat">
                 <div class="feat-copy">
                   <p class="feat-title">
-                    <a href={`/notes/${featuredNote.slug}/`}>{featuredNote.data.title}</a>
+                    <a href={hrefFor(featuredNote)}>{featuredNote.title}</a>
                   </p>
-                  <p class="feat-desc">{featuredNote.data.description}</p>
-                  <a class="feat-link" href={`/notes/${featuredNote.slug}/`}>
-                    {data.title} <span aria-hidden="true">→</span>
+                  <p class="feat-desc">{featuredNote.excerpt}</p>
+                  <a class="feat-link" href={hrefFor(featuredNote)}>
+                    {subject.title} <span aria-hidden="true">→</span>
                   </a>
                 </div>
                 <span class="feat-art" aria-hidden="true">
@@ -371,13 +451,13 @@ const tabs = [
             </section>
           )}
 
-          {subjectTopics.length > 0 && (
+          {topicCards.length > 0 && (
             <section class="side-card">
               <h2>Topics covered</h2>
               <ul>
-                {subjectTopics.map((topic) => (
+                {topicCards.map((t) => (
                   <li>
-                    <a href={`/topics/${topic.slug}/`}>{topic.data.title}</a>
+                    <a href={`#topic-${t.slug}`}>{t.title}</a>
                     <span aria-hidden="true">›</span>
                   </li>
                 ))}
@@ -463,9 +543,9 @@ const tabs = [
     border-left: 1px solid var(--border);
   }
 
-  .stat:first-child {
-    padding-left: 0;
-    border-left: 0;
+  .stat:not(:first-child) {
+    /* keep the hairline divider between stats, but the first stat of each
+       wrapped row reads cleaner without a leading rule */
   }
 
   .stat-icon {
@@ -496,7 +576,7 @@ const tabs = [
     line-height: 1.4;
   }
 
-  /* --- hero aside: drawing panel + quote card ------------------------------ */
+  /* --- hero aside: image/illustration panel + quote card ------------------ */
   .hero-art {
     display: none;
     align-items: center;
@@ -506,6 +586,12 @@ const tabs = [
     border-radius: var(--radius-sm);
     background: var(--primary-surface);
     color: var(--primary);
+  }
+
+  .hero-img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-sm);
   }
 
   .hero-quote {
@@ -609,7 +695,7 @@ const tabs = [
     color: var(--primary);
   }
 
-  /* The first tab — Study Notes — is the page the reader is on. */
+  /* The first tab — Study Notes — is the section the reader lands on. */
   .tabs li:first-child a {
     color: var(--primary);
     font-weight: var(--weight-bold);
@@ -649,6 +735,46 @@ const tabs = [
       padding-top: var(--space-8);
       border-top: 1px solid var(--border);
     }
+  }
+
+  /* --- introduction prose (folded FAQs / key concepts) --------------------- */
+  .introduction {
+    max-width: 720px;
+  }
+
+  /* --- type filter: a quiet segmented link row ----------------------------- */
+  .type-filter {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin-bottom: var(--space-5);
+  }
+
+  .type-filter a {
+    display: inline-flex;
+    align-items: center;
+    height: 32px;
+    padding-inline: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease),
+      color 0.15s var(--ease);
+  }
+
+  .type-filter a:hover {
+    border-color: var(--border-strong);
+    color: var(--ink);
+  }
+
+  .type-filter a.active {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+    color: var(--primary);
   }
 
   /* --- chapter cards -------------------------------------------------------- */
@@ -732,22 +858,37 @@ const tabs = [
     color: var(--primary);
   }
 
-  .chapter-more {
-    display: inline-block;
-    margin-top: var(--space-4);
+  .chapter-tag {
+    margin-left: auto;
+    padding: 1px 6px;
+    border: 1px solid var(--primary-border);
+    border-radius: var(--radius-tag);
     color: var(--primary);
-    font-size: 0.75rem;
+    font-size: 0.5625rem;
+    font-style: normal;
     font-weight: var(--weight-bold);
-    text-decoration: none;
-  }
-
-  .chapter-more:hover {
-    color: var(--primary-hover);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
   }
 
   .upcoming {
     margin-top: var(--space-6);
     color: var(--faint);
+    font-size: var(--text-body-sm);
+  }
+
+  /* --- pagination ------------------------------------------------------------ */
+  .pagination {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    align-items: center;
+    margin-top: var(--space-8);
+  }
+
+  .page-status {
+    color: var(--mute);
     font-size: var(--text-body-sm);
   }
 
@@ -765,44 +906,6 @@ const tabs = [
 
   .q-text {
     flex: 1;
-  }
-
-  .concepts {
-    display: grid;
-    gap: var(--space-2);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  @media (min-width: 640px) {
-    .concepts {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--space-2) var(--space-6);
-    }
-  }
-
-  .concepts li {
-    position: relative;
-    padding-left: var(--space-6);
-    color: var(--body);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-normal);
-  }
-
-  .concepts li::before {
-    content: '';
-    position: absolute;
-    left: 0;
-    top: 0.62em;
-    width: 0.625rem;
-    height: 2px;
-    background: var(--primary);
-  }
-
-  .exam-list li {
-    color: var(--body);
-    font-size: var(--text-body-sm);
   }
 
   /* --- sidebar cards ---------------------------------------------------------- */
@@ -832,6 +935,10 @@ const tabs = [
   }
 
   .side-card ul li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
     border-bottom: 1px solid var(--border);
   }
 
@@ -845,13 +952,6 @@ const tabs = [
     color: var(--mute);
     font-size: 0.75rem;
     text-decoration: none;
-  }
-
-  .side-card ul li {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
   }
 
   .side-card ul li > span {

@@ -667,6 +667,40 @@ export async function countPublishedMcqsBySubject(
   return row?.n ?? 0;
 }
 
+/** Published-article counts for one subject, split by type — hub hero stats. */
+export async function countPublishedBySubjectType(
+  locals: App.Locals,
+  subjectId: number,
+): Promise<{ 'study-note': number; article: number }> {
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT article_type, COUNT(*) AS n FROM articles
+       WHERE status = 'published' AND subject_id = ? GROUP BY article_type`,
+    )
+    .bind(subjectId)
+    .all<{ article_type: 'study-note' | 'article'; n: number }>();
+  const out = { 'study-note': 0, article: 0 };
+  for (const r of rows.results) out[r.article_type] = r.n;
+  return out;
+}
+
+/** Published MCQ cards (question + slug) for a subject hub's sample list. */
+export async function listMcqCardsBySubject(
+  locals: App.Locals,
+  subjectId: number,
+  opts: { limit?: number } = {},
+): Promise<{ id: number; slug: string | null; question: string; difficulty: string }[]> {
+  const limit = Math.min(50, Math.max(1, opts.limit ?? 6));
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT id, slug, question, difficulty FROM mcqs
+       WHERE status = 'published' AND subject_id = ? ORDER BY id LIMIT ?`,
+    )
+    .bind(subjectId, limit)
+    .all<{ id: number; slug: string | null; question: string; difficulty: string }>();
+  return rows.results;
+}
+
 /** All topics (homepage browse column). */
 export async function listTopics(locals: App.Locals): Promise<TopicRow[]> {
   const rows = await env(locals)
