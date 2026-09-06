@@ -393,6 +393,7 @@ function emitArticle(item, articleType, doc) {
     'robots', 'reading_minutes', 'created_at', 'updated_at',
   ];
   if (articleType === 'article') cols.push('category');
+  if (articleType === 'study-note') cols.push('level');
 
   const vals = [
     q(d.title),
@@ -414,6 +415,7 @@ function emitArticle(item, articleType, doc) {
     q(ts(d.updatedDate ?? d.publishedDate)),
   ];
   if (articleType === 'article') vals.push(q(d.category ?? null));
+  if (articleType === 'study-note') vals.push(q(d.level ?? null));
 
   sql.push(
     `INSERT INTO articles (\n  ${cols.join(', ')}\n) VALUES (\n  ${vals.join(',\n  ')}\n);`

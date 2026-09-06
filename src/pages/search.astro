@@ -14,19 +14,29 @@ import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
 import Icon from '../components/Icon.astro';
 import Illustration, { illustrationForSubject } from '../components/Illustration.astro';
-import { getNotes, getBlogPosts, getQuestions, getCollection } from '../utils/collections';
+import { getCollection } from '../utils/collections';
+import {
+  listSubjectsWithCounts,
+  listPublishedArticles,
+  listPublishedMcqs,
+} from '../utils/content';
 
-const [notes, posts, questions, subjects, topics, levels] = await Promise.all([
-  getNotes(),
-  getBlogPosts(),
-  getQuestions(),
-  getCollection('subjects'),
+export const prerender = false;
+
+const [subjectRows, noteRows, postRows, mcqRows, topics] = await Promise.all([
+  listSubjectsWithCounts(Astro.locals),
+  listPublishedArticles(Astro.locals, { articleType: 'study-note', perPage: 100 }),
+  listPublishedArticles(Astro.locals, { articleType: 'article', perPage: 100 }),
+  listPublishedMcqs(Astro.locals, { limit: 200 }),
   getCollection('topics'),
-  getCollection('levels'),
 ]);
 
-const subjectLabel = (slug: string) =>
-  subjects.find((s) => s.slug === slug)?.data.title ?? slug;
+// Search changes as content is published; keep the browser copy short-lived
+// but let Cloudflare serve the index for a day.
+Astro.response.headers.set('Cache-Control', 'public, max-age=60, s-maxage=3600');
+
+/** D1 timestamps are UTC without a zone suffix. */
+const asDate = (s: string) => new Date(s + 'Z');
 
 /** The design abbreviates September as "Sep", but en-GB short gives "Sept". */
 const fmt = (d: Date) =>
@@ -34,7 +44,7 @@ const fmt = (d: Date) =>
     .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
     .replace('Sept ', 'Sep ');
 
-type Kind = 'note' | 'article' | 'mcq' | 'subject' | 'topic' | 'level';
+type Kind = 'note' | 'article' | 'mcq' | 'subject' | 'topic';
 
 interface Entry {
   title: string;
@@ -52,48 +62,46 @@ interface Entry {
 }
 
 const searchIndex: Entry[] = [
-  ...notes.map((note) => ({
-    title: note.data.title,
+  ...noteRows.rows.map((note) => ({
+    title: note.title,
     url: `/notes/${note.slug}/`,
-    excerpt: note.data.description,
+    excerpt: note.excerpt,
     kind: 'note' as const,
     label: 'Study note',
-    keywords:
-      `${note.data.title} ${note.data.description} ${note.data.overview} ${note.data.summary} ${note.data.keyTerms.map((t) => t.term).join(' ')}`.toLowerCase(),
-    subject: note.data.subject,
-    meta: `${subjectLabel(note.data.subject)} · Updated ${fmt(note.data.updatedDate)}`,
-    date: note.data.updatedDate.valueOf(),
+    keywords: `${note.title} ${note.excerpt} ${note.subject_title}`.toLowerCase(),
+    subject: note.subject_slug,
+    meta: `${note.subject_title} · Updated ${fmt(asDate(note.updated_at))}`,
+    date: asDate(note.updated_at).valueOf(),
   })),
-  ...posts.map((post) => ({
-    title: post.data.title,
+  ...postRows.rows.map((post) => ({
+    title: post.title,
     url: `/blog/${post.slug}/`,
-    excerpt: post.data.description,
+    excerpt: post.excerpt,
     kind: 'article' as const,
     label: 'Article',
-    keywords: `${post.data.title} ${post.data.description} ${post.data.category}`.toLowerCase(),
-    subject: '',
-    meta: `${post.data.category} · ${fmt(post.data.publishedDate)}`,
-    date: post.data.publishedDate.valueOf(),
+    keywords: `${post.title} ${post.excerpt} ${post.category ?? ''}`.toLowerCase(),
+    subject: post.subject_slug,
+    meta: `${(post.category ?? 'article').replace(/-/g, ' ')} · ${fmt(asDate(post.published_at))}`,
+    date: asDate(post.published_at).valueOf(),
   })),
-  ...questions.map((q) => ({
-    title: q.data.question,
+  ...mcqRows.map((q) => ({
+    title: q.question,
     url: `/practice/${q.slug}/`,
-    excerpt: q.data.explanation.slice(0, 180),
+    excerpt: q.explanation.slice(0, 180),
     kind: 'mcq' as const,
-    label: q.data.type === 'mcq' ? 'MCQ' : 'Practice question',
-    keywords: `${q.data.question} ${q.data.answer} ${q.data.explanation}`.toLowerCase(),
-    subject: q.data.subject,
-    meta: subjectLabel(q.data.subject),
+    label: 'MCQ',
+    keywords: `${q.question} ${q.explanation}`.toLowerCase(),
+    subject: q.subject_slug,
+    meta: q.subject_title,
     date: 0,
   })),
-  ...subjects.map((subject) => ({
-    title: `${subject.data.title} study notes`,
+  ...subjectRows.map((subject) => ({
+    title: `${subject.title} study notes`,
     url: `/subjects/${subject.slug}/`,
-    excerpt: subject.data.description,
+    excerpt: subject.description,
     kind: 'subject' as const,
     label: 'Subject',
-    keywords:
-      `${subject.data.title} ${subject.data.description} ${subject.data.chapters.map((c) => c.title).join(' ')}`.toLowerCase(),
+    keywords: `${subject.title} ${subject.description ?? ''}`.toLowerCase(),
     subject: subject.slug,
     meta: 'Subject hub',
     date: 0,
@@ -108,17 +116,6 @@ const searchIndex: Entry[] = [
       `${topic.data.title} ${topic.data.description} ${topic.data.beginnerExplanation}`.toLowerCase(),
     subject: '',
     meta: 'Topic hub',
-    date: 0,
-  })),
-  ...levels.map((level) => ({
-    title: level.data.title,
-    url: `/levels/${level.slug}/`,
-    excerpt: level.data.description,
-    kind: 'level' as const,
-    label: 'Education level',
-    keywords: `${level.data.title} ${level.data.description}`.toLowerCase(),
-    subject: '',
-    meta: 'Level overview',
     date: 0,
   })),
 ];
@@ -138,19 +135,14 @@ const filters = (['note', 'mcq', 'article', 'subject', 'topic'] as const).map((k
 }));
 
 /** Subjects with at least one indexed entry, for the subject filter. */
-const filterSubjects = subjects.filter((subject) =>
+const filterSubjects = subjectRows.filter((subject) =>
   searchIndex.some((entry) => entry.subject === subject.slug),
 );
 
-/** Rail: subjects by how much material they have, with real counts. */
-const railSubjects = subjects
-  .map((subject) => ({
-    subject,
-    noteCount: notes.filter((n) => n.data.subject === subject.slug).length,
-    mcqCount: questions.filter((q) => q.data.subject === subject.slug).length,
-  }))
-  .filter((row) => row.noteCount > 0 || row.mcqCount > 0)
-  .sort((a, b) => b.noteCount - a.noteCount);
+/** Rail: subjects with published material, most notes first, with real counts. */
+const railSubjects = subjectRows
+  .filter((s) => s.note_count > 0 || s.mcq_count > 0)
+  .sort((a, b) => b.note_count - a.note_count);
 
 const railCounts = (noteCount: number, mcqCount: number) => {
   const parts = [
@@ -181,9 +173,9 @@ const thumbIllustration = (entry: Entry) =>
 
 const initialQuery = Astro.url.searchParams.get('q') ?? '';
 
-const footerSubjects = subjects.map((s) => ({
+const footerSubjects = subjectRows.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 ---
 
@@ -273,7 +265,7 @@ const footerSubjects = subjects.map((s) => ({
             <select id="search-subject">
               <option value="">All Subjects</option>
               {filterSubjects.map((subject) => (
-                <option value={subject.slug}>{subject.data.title}</option>
+                <option value={subject.slug}>{subject.title}</option>
               ))}
             </select>
           </div>
@@ -356,7 +348,7 @@ const footerSubjects = subjects.map((s) => ({
             Related subjects
           </h2>
           <ul class="rail-subjects">
-            {railSubjects.map(({ subject, noteCount, mcqCount }) => (
+            {railSubjects.map((subject) => (
               <li>
                 <a href={`/subjects/${subject.slug}/`}>
                   <span class="rail-art" aria-hidden="true">
@@ -367,8 +359,8 @@ const footerSubjects = subjects.map((s) => ({
                     )}
                   </span>
                   <span class="rail-names">
-                    <span class="rail-name">{subject.data.title}</span>
-                    <span class="rail-count">{railCounts(noteCount, mcqCount)}</span>
+                    <span class="rail-name">{subject.title}</span>
+                    <span class="rail-count">{railCounts(subject.note_count, subject.mcq_count)}</span>
                   </span>
                 </a>
               </li>
@@ -506,8 +498,8 @@ const footerSubjects = subjects.map((s) => ({
     });
 
     // Support /search/?q=term URLs, used by the SearchAction schema and the
-    // header form. The page is prerendered, so the server cannot see the
-    // query string — it is read here, client-side.
+    // header form. The server pre-fills the input; this is the no-JS backstop
+    // for navigations that skipped a reload.
     const initial = new URLSearchParams(location.search).get('q');
     if (initial && !input.value) input.value = initial;
 

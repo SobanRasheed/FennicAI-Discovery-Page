@@ -390,14 +390,30 @@ export async function listAllPublishedForSitemap(
 ): Promise<{ loc: string; lastmod: string }[]> {
   const rows = await env(locals)
     .DB.prepare(
-      `SELECT a.slug, s.slug AS subject_slug, a.updated_at, a.published_at
-       FROM articles a JOIN subjects s ON s.id = a.subject_id
+      `SELECT a.slug, a.article_type, a.updated_at, a.published_at
+       FROM articles a
        WHERE a.status = 'published' AND a.robots LIKE 'index%'`,
     )
-    .all<{ slug: string; subject_slug: string; updated_at: string; published_at: string }>();
+    .all<{ slug: string; article_type: 'article' | 'study-note'; updated_at: string; published_at: string }>();
   return rows.results.map((r) => ({
-    loc: `/${r.subject_slug}/${r.slug}/`,
+    loc: r.article_type === 'study-note' ? `/notes/${r.slug}/` : `/blog/${r.slug}/`,
     lastmod: (r.updated_at || r.published_at || '').slice(0, 10),
+  }));
+}
+
+/** Published MCQ pages for the sitemap (the quiz pages are noindex). */
+export async function listPublishedMcqSlugsForSitemap(
+  locals: App.Locals,
+): Promise<{ loc: string; lastmod: string }[]> {
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT slug, updated_at, created_at FROM mcqs
+       WHERE status = 'published' AND slug IS NOT NULL`,
+    )
+    .all<{ slug: string; updated_at: string; created_at: string }>();
+  return rows.results.map((r) => ({
+    loc: `/practice/${r.slug}/`,
+    lastmod: (r.updated_at || r.created_at || '').slice(0, 10),
   }));
 }
 
@@ -470,7 +486,7 @@ export interface BlogPostCard extends BlogCard {
  */
 export async function listPublishedArticles(
   locals: App.Locals,
-  opts: { articleType?: 'article' | 'study-note'; category?: string | null; page?: number; perPage?: number } = {},
+  opts: { articleType?: 'article' | 'study-note'; category?: string | null; level?: string; page?: number; perPage?: number } = {},
 ): Promise<{ rows: BlogPostCard[]; total: number }> {
   const db = env(locals).DB;
   const where = [`a.status = 'published'`];
@@ -485,6 +501,10 @@ export async function listPublishedArticles(
       where.push('a.category = ?');
       params.push(opts.category);
     }
+  }
+  if (opts.level) {
+    where.push('a.level = ?');
+    params.push(opts.level);
   }
   const whereSql = where.join(' AND ');
   const page = Math.max(1, opts.page ?? 1);
@@ -653,6 +673,35 @@ export async function countPublishedMcqs(locals: App.Locals): Promise<number> {
     .DB.prepare(`SELECT COUNT(*) AS n FROM mcqs WHERE status = 'published'`)
     .first<{ n: number }>();
   return row?.n ?? 0;
+}
+
+/**
+ * Published note + MCQ counts grouped by level slug, for the /levels/ hub.
+ * Rows with a NULL level (older seeds) are simply not counted at any level.
+ */
+export async function listLevelCounts(
+  locals: App.Locals,
+): Promise<{ notes: Record<string, number>; mcqs: Record<string, number> }> {
+  const [noteRows, mcqRows] = await Promise.all([
+    env(locals)
+      .DB.prepare(
+        `SELECT level, COUNT(*) AS n FROM articles
+         WHERE status = 'published' AND article_type = 'study-note' AND level IS NOT NULL
+         GROUP BY level`,
+      )
+      .all<{ level: string; n: number }>(),
+    env(locals)
+      .DB.prepare(
+        `SELECT level, COUNT(*) AS n FROM mcqs
+         WHERE status = 'published' AND level IS NOT NULL
+         GROUP BY level`,
+      )
+      .all<{ level: string; n: number }>(),
+  ]);
+  const out = { notes: {} as Record<string, number>, mcqs: {} as Record<string, number> };
+  for (const r of noteRows.results) out.notes[r.level] = r.n;
+  for (const r of mcqRows.results) out.mcqs[r.level] = r.n;
+  return out;
 }
 
 /** Published MCQs for one subject — gates practice links on note pages. */

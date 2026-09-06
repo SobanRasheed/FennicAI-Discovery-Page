@@ -1,46 +1,39 @@
 ---
+/**
+ * /practice/type/[type]/ — practice is MCQ-only: 'mcq' renders the full
+ * question index from D1; the retired types (short / long / numerical)
+ * redirect to the practice hub so old links keep working.
+ */
 import Layout from '../../../layouts/Layout.astro';
 import PageHeader from '../../../components/PageHeader.astro';
 import QuestionList from '../../../components/QuestionList.astro';
-import { getQuestions, getCollection } from '../../../utils/collections';
+import { listSubjects, listPublishedMcqs } from '../../../utils/content';
 
-export async function getStaticPaths() {
-  // Defined here, not in the frontmatter: getStaticPaths is hoisted into its
-  // own module and cannot see component-scope constants.
-  const typeLabels: Record<string, { label: string; description: string }> = {
-    mcq: {
-      label: 'Multiple Choice Questions',
-      description: 'MCQs with four options and the reasoning behind each distractor.',
-    },
-    short: {
-      label: 'Short Answer Questions',
-      description: 'One- to three-line answers for definition and distinction questions.',
-    },
-    long: {
-      label: 'Long Answer Questions',
-      description: 'Full worked answers with the structure markers expect.',
-    },
-    numerical: {
-      label: 'Numerical Problems',
-      description: 'Problems with a number as the answer and the method behind it.',
-    },
-  };
-  return Object.keys(typeLabels).map((type) => ({
-    params: { type },
-    props: { type, meta: typeLabels[type] },
-  }));
+export const prerender = false;
+
+const type = String(Astro.params.type ?? '');
+
+if (type !== 'mcq') {
+  // Short/long/numerical questions were retired when practice became
+  // MCQ-only; their old URLs land on the practice hub.
+  return Astro.redirect('/practice/', 301);
 }
 
-const { type, meta } = Astro.props;
-const [allQuestions, subjects] = await Promise.all([
-  getQuestions(),
-  getCollection('subjects'),
+const [questions, subjects] = await Promise.all([
+  listPublishedMcqs(Astro.locals),
+  listSubjects(Astro.locals),
 ]);
-const questions = allQuestions.filter((q) => q.data.type === type);
+
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+const meta = {
+  label: 'Multiple Choice Questions',
+  description: 'MCQs with four options and the reasoning behind each distractor.',
+};
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 ---
 
@@ -56,11 +49,11 @@ const footerSubjects = subjects.map((s) => ({
     title={meta.label}
     lead={meta.description}
     crumbs={[{ label: 'Practice', href: '/practice/' }, { label: meta.label }]}
-    stats={[{ value: questions.length, label: 'Questions', icon: 'question' }]}
+    stats={[{ value: questions.length, label: 'Questions', icon: 'question' as const }]}
   />
 
   <div class="container page-body">
-    <QuestionList {questions} showType={false} />
+    <QuestionList {questions} />
   </div>
 </Layout>
 

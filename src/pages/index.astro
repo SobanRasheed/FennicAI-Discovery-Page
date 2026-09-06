@@ -4,43 +4,35 @@ import Search from '../components/Search.astro';
 import ArticleCard from '../components/ArticleCard.astro';
 import JsonLd from '../components/JsonLd.astro';
 import Illustration, { illustrationForSubject, type IllustrationName } from '../components/Illustration.astro';
-import { getNotes, getBlogPosts, getQuestions, getCollection } from '../utils/collections';
+import { listSubjectsWithCounts, listPublishedArticles } from '../utils/content';
 
-const [notes, posts, questions, subjects] = await Promise.all([
-  getNotes(),
-  getBlogPosts(),
-  getQuestions(),
-  getCollection('subjects'),
+export const prerender = false;
+
+const [subjectRows, noteRows, postRows] = await Promise.all([
+  listSubjectsWithCounts(Astro.locals),
+  listPublishedArticles(Astro.locals, { articleType: 'study-note', perPage: 12 }),
+  listPublishedArticles(Astro.locals, { articleType: 'article', perPage: 3 }),
 ]);
 
-/** Real per-subject note counts; a subject with none shows no count. */
-const subjectIndex = subjects
-  .map((subject) => ({
-    ...subject,
-    noteCount: notes.filter((n) => n.data.subject === subject.slug).length,
-    mcqCount: questions.filter((q) => q.data.subject === subject.slug).length,
-  }))
-  .sort((a, b) => b.noteCount - a.noteCount || a.data.title.localeCompare(b.data.title));
+// Edge caching: browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+/** D1 timestamps are UTC without a zone suffix. */
+const asDate = (s: string) => new Date(s + 'Z');
 
 /** The grid holds the eight most note-dense subjects, as in the design. */
-const homeSubjects = subjectIndex.slice(0, 8);
-
-/** Popular notes if flagged, otherwise the most recently updated. */
-const flaggedPopular = notes.filter((n) => n.data.popular);
-const popularNotes = (flaggedPopular.length >= 4 ? flaggedPopular : notes)
+const homeSubjects = subjectRows
   .slice()
-  .sort((a, b) => b.data.updatedDate.valueOf() - a.data.updatedDate.valueOf())
+  .sort((a, b) => b.note_count - a.note_count || a.title.localeCompare(b.title))
+  .slice(0, 8);
+
+/** Popular rail: the notes touched most recently. */
+const popularNotes = noteRows.rows
+  .slice()
+  .sort((a, b) => asDate(b.updated_at).valueOf() - asDate(a.updated_at).valueOf())
   .slice(0, 4);
 
-const latestPosts = posts.slice(0, 3);
-
-const subjectLabel = (slug: string) =>
-  subjects.find((s) => s.slug === slug)?.data.title ?? slug;
-
-const footerSubjects = subjects.map((s) => ({
-  href: `/subjects/${s.slug}/`,
-  label: s.data.title,
-}));
+const latestPosts = postRows.rows;
 
 /** Subjects with a PNG icon in /assets/images/; the rest fall back to a drawing. */
 const pngSubjects = new Set([
@@ -75,9 +67,10 @@ const categoryArt: Record<string, IllustrationName> = {
 const artForCategory = (slug: string): IllustrationName =>
   categoryArt[slug] ?? 'open-book';
 
-/** Reading time from the actual body, not a hardcoded number. */
-const readingMinutes = (body: string) =>
-  Math.max(1, Math.round(body.trim().split(/\s+/).length / 200));
+const footerSubjects = subjectRows.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.title,
+}));
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -186,9 +179,9 @@ const jsonLd = {
                 )}
               </span>
               <span class="subj-text">
-                <span class="subj-title">{subject.data.title}</span>
+                <span class="subj-title">{subject.title}</span>
                 <span class="subj-sub">
-                  {subjectSub(subject.noteCount, subject.mcqCount)}
+                  {subjectSub(subject.note_count, subject.mcq_count)}
                 </span>
               </span>
             </span>
@@ -220,10 +213,10 @@ const jsonLd = {
             <li>
               <ArticleCard
                 href={`/notes/${note.slug}/`}
-                title={note.data.title}
-                excerpt={note.data.description}
-                kicker={subjectLabel(note.data.subject)}
-                date={note.data.updatedDate}
+                title={note.title}
+                excerpt={note.excerpt}
+                kicker={note.subject_title}
+                date={asDate(note.updated_at)}
               />
             </li>
           ))}
@@ -253,12 +246,14 @@ const jsonLd = {
             <li>
               <ArticleCard
                 href={`/blog/${post.slug}/`}
-                title={post.data.title}
-                excerpt={post.data.description}
-                kicker={post.data.category.replace(/-/g, ' ')}
-                date={post.data.publishedDate}
-                readingMinutes={readingMinutes(post.body ?? '')}
-                illustration={artForCategory(post.data.category)}
+                title={post.title}
+                excerpt={post.excerpt}
+                kicker={(post.category ?? 'article').replace(/-/g, ' ')}
+                date={asDate(post.published_at)}
+                readingMinutes={post.reading_minutes}
+                image={post.media_key ? `/media/${post.media_key}/` : undefined}
+                imageAlt={post.media_key ? post.media_alt ?? '' : ''}
+                illustration={artForCategory(post.category ?? '')}
                 variant="media"
               />
             </li>

@@ -3,7 +3,11 @@
  * static routes. Cached at the edge like the pages it lists.
  */
 import type { APIRoute } from 'astro';
-import { listAllPublishedForSitemap, listSubjects } from '../utils/content';
+import {
+  listAllPublishedForSitemap,
+  listPublishedMcqSlugsForSitemap,
+  listSubjects,
+} from '../utils/content';
 
 export const prerender = false;
 
@@ -34,8 +38,9 @@ const STATIC_PATHS = [
 ];
 
 export const GET: APIRoute = async ({ locals, site }) => {
-  const [articles, subjects] = await Promise.all([
+  const [articles, mcqs, subjects] = await Promise.all([
     listAllPublishedForSitemap(locals).catch(() => [] as { loc: string; lastmod: string }[]),
+    listPublishedMcqSlugsForSitemap(locals).catch(() => [] as { loc: string; lastmod: string }[]),
     listSubjects(locals).catch(() => []),
   ]);
 
@@ -44,8 +49,9 @@ export const GET: APIRoute = async ({ locals, site }) => {
 
   const urls = [
     ...STATIC_PATHS.map((p) => ({ loc: p, lastmod: now, priority: p === '/' ? '1.0' : '0.8' })),
-    ...subjects.map((s) => ({ loc: `/${s.slug}/`, lastmod: (s as unknown as { updated_at?: string }).updated_at?.slice(0, 10) || now, priority: '0.7' })),
+    ...subjects.map((s) => ({ loc: `/subjects/${s.slug}/`, lastmod: (s as unknown as { updated_at?: string }).updated_at?.slice(0, 10) || now, priority: '0.7' })),
     ...articles.map((a) => ({ loc: a.loc, lastmod: a.lastmod || now, priority: '0.6' })),
+    ...mcqs.map((q) => ({ loc: q.loc, lastmod: q.lastmod || now, priority: '0.6' })),
   ];
 
   const xml = `<?xml version="1.0" encoding="UTF-8"?>

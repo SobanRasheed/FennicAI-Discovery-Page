@@ -18,70 +18,47 @@ import PageHeader from '../components/PageHeader.astro';
 import JsonLd from '../components/JsonLd.astro';
 import Icon from '../components/Icon.astro';
 import Illustration, { illustrationForSubject } from '../components/Illustration.astro';
-import { getQuestions, getCollection } from '../utils/collections';
+import { listSubjectsWithCounts, listPublishedMcqs } from '../utils/content';
 
-const [questions, subjects] = await Promise.all([
-  getQuestions(),
-  getCollection('subjects'),
+export const prerender = false;
+
+const [mcqs, subjects] = await Promise.all([
+  listPublishedMcqs(Astro.locals, { limit: 200 }),
+  listSubjectsWithCounts(Astro.locals),
 ]);
 
-const subjectTitle = (slug: string) =>
-  subjects.find((s) => s.slug === slug)?.data.title ?? slug;
-
-const chapterTitle = (subject: string, chapter?: string) => {
-  if (!chapter) return 'General';
-  return (
-    subjects.find((s) => s.slug === subject)?.data.chapters.find((c) => c.slug === chapter)
-      ?.title ?? chapter
-  );
-};
-
-const typeLabel: Record<string, string> = {
-  mcq: 'Multiple choice',
-  short: 'Short answer',
-  long: 'Long answer',
-  numerical: 'Numerical',
-};
-
-/** Exam-pattern groups from the real examTag values, largest first. */
-const patterns = [
-  ...new Set(questions.map((q) => q.data.examTag).filter((t): t is string => Boolean(t))),
-]
-  .map((tag) => ({
-    tag,
-    count: questions.filter((q) => q.data.examTag === tag).length,
-  }))
-  .sort((a, b) => b.count - a.count);
+// The question bank changes as MCQs are published; browsers revalidate
+// quickly, Cloudflare hourly.
+Astro.response.headers.set('Cache-Control', 'public, max-age=60, s-maxage=3600');
 
 /** Subjects that carry questions, for the filter and rail. */
 const filterSubjects = subjects
-  .map((subject) => ({
-    subject,
-    count: questions.filter((q) => q.data.subject === subject.slug).length,
-  }))
-  .filter((row) => row.count > 0)
-  .sort((a, b) => b.count - a.count);
+  .filter((s) => s.mcq_count > 0)
+  .sort((a, b) => b.mcq_count - a.mcq_count);
+
+/** Difficulty groups actually present in the bank. */
+const difficulties = ['easy', 'medium', 'hard'].filter(
+  (d) => mcqs.some((q) => q.difficulty === d),
+);
 
 /** Question rows: everything the client-side filter, sort, and search need. */
-const rows = questions.map((q) => ({
+const rows = mcqs.map((q) => ({
   slug: q.slug,
-  question: q.data.question,
-  subject: q.data.subject,
-  subjectTitle: subjectTitle(q.data.subject),
-  chapter: chapterTitle(q.data.subject, q.data.chapter),
-  examTag: q.data.examTag ?? '',
-  type: q.data.type,
-  typeLabel: typeLabel[q.data.type],
-  difficulty: q.data.difficulty,
-  illustration: illustrationForSubject(q.data.subject),
-  keywords: `${q.data.question} ${q.data.answer} ${q.data.examTag ?? ''} ${subjectTitle(q.data.subject)} ${chapterTitle(q.data.subject, q.data.chapter)}`.toLowerCase(),
+  question: q.question,
+  subject: q.subject_slug,
+  subjectTitle: q.subject_title,
+  chapter: q.topic_title ?? 'General',
+  difficulty: q.difficulty,
+  illustration: illustrationForSubject(q.subject_slug),
+  keywords:
+    `${q.question} ${q.explanation} ${q.subject_title} ${q.topic_title ?? ''}`.toLowerCase(),
 }));
 
-const totalTagged = questions.filter((q) => q.data.examTag).length;
+const hardCount = mcqs.filter((q) => q.difficulty === 'hard').length;
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 
 const jsonLd = {
@@ -89,16 +66,16 @@ const jsonLd = {
   '@type': 'CollectionPage',
   name: 'Past papers — exam-pattern practice questions',
   description:
-    'Practice questions grouped by exam pattern: board exam pattern, university midterms, and university finals, each with the full answer and explanation.',
+    'Practice questions grouped by subject and difficulty, each with the full answer and explanation.',
   url: new URL('/past-papers/', Astro.site).href,
   isPartOf: { '@type': 'WebSite', name: 'Medical Study Notes', url: Astro.site!.href },
   mainEntity: {
     '@type': 'ItemList',
-    itemListElement: patterns.map((pattern, i) => ({
+    itemListElement: filterSubjects.map((subject, i) => ({
       '@type': 'ListItem',
       position: i + 1,
-      name: `${pattern.tag} questions`,
-      numberOfItems: pattern.count,
+      name: `${subject.title} questions`,
+      numberOfItems: subject.mcq_count,
     })),
   },
 };
@@ -125,21 +102,21 @@ const jsonLd = {
         <Icon name="grid" size={22} />
         <div>
           <strong>Wide coverage</strong>
-          <span>{filterSubjects.length} subjects · {patterns.length} exam patterns</span>
+          <span>{filterSubjects.length} subjects · {difficulties.length} difficulty levels</span>
         </div>
       </li>
       <li>
         <Icon name="clipboard-check" size={22} />
         <div>
           <strong>Exam preparation</strong>
-          <span>{totalTagged} pattern-tagged questions</span>
+          <span>{rows.length} questions with worked answers</span>
         </div>
       </li>
       <li>
         <Icon name="chart" size={22} />
         <div>
           <strong>Better performance</strong>
-          <span>Answers and explanations included</span>
+          <span>{hardCount} exam-level hard questions</span>
         </div>
       </li>
     </ul>
@@ -175,13 +152,12 @@ const jsonLd = {
           <div class="section-head-row">
             <div>
               <h2 id="paper-list">Past papers</h2>
-              <p>Browse and filter the question bank by subject, exam pattern, or type.</p>
+              <p>Browse and filter the question bank by subject, difficulty, or keyword.</p>
             </div>
             <div class="list-controls">
               <label class="sort-field" for="pp-sort">
                 Sort by
                 <select id="pp-sort" data-sort>
-                  <option value="pattern">Exam pattern</option>
                   <option value="subject">Subject A–Z</option>
                   <option value="difficulty">Difficulty</option>
                 </select>
@@ -218,28 +194,18 @@ const jsonLd = {
                 <label for="pp-subject">Subject</label>
                 <select id="pp-subject">
                   <option value="">All subjects</option>
-                  {filterSubjects.map(({ subject }) => (
-                    <option value={subject.slug}>{subject.data.title}</option>
+                  {filterSubjects.map((subject) => (
+                    <option value={subject.slug}>{subject.title}</option>
                   ))}
                 </select>
               </div>
 
               <div class="field">
-                <label for="pp-pattern">Exam pattern</label>
-                <select id="pp-pattern">
-                  <option value="">All patterns</option>
-                  {patterns.map((pattern) => (
-                    <option value={pattern.tag}>{pattern.tag}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div class="field">
-                <label for="pp-type">Type</label>
-                <select id="pp-type">
-                  <option value="">All types</option>
-                  {Object.entries(typeLabel).map(([value, label]) => (
-                    <option value={value}>{label}</option>
+                <label for="pp-difficulty">Difficulty</label>
+                <select id="pp-difficulty">
+                  <option value="">All difficulties</option>
+                  {difficulties.map((d) => (
+                    <option value={d}>{d}</option>
                   ))}
                 </select>
               </div>
@@ -261,8 +227,6 @@ const jsonLd = {
               <li
                 data-row
                 data-subject={row.subject}
-                data-pattern={row.examTag}
-                data-type={row.type}
                 data-difficulty={row.difficulty}
                 data-sort-subject={row.subjectTitle}
                 data-keywords={row.keywords}
@@ -275,8 +239,7 @@ const jsonLd = {
                     <span class="paper-title">{row.question}</span>
                     <span class="paper-sub">{row.subjectTitle} · {row.chapter}</span>
                     <span class="paper-chips">
-                      {row.examTag && <span class="chip chip-pattern">{row.examTag}</span>}
-                      <span class="chip">{row.typeLabel}</span>
+                      <span class="chip">Multiple choice</span>
                       <span class="chip chip-{row.difficulty}">{row.difficulty}</span>
                     </span>
                   </span>
@@ -313,12 +276,12 @@ const jsonLd = {
             Popular subjects
           </h2>
           <ul class="rail-subjects">
-            {filterSubjects.map(({ subject, count }) => (
+            {filterSubjects.map((subject) => (
               <li>
                 <a href={`/practice/subject/${subject.slug}/`}>
-                  <span>{subject.data.title}</span>
+                  <span>{subject.title}</span>
                   <span class="rail-count">
-                    {count} question{count === 1 ? '' : 's'}
+                    {subject.mcq_count} question{subject.mcq_count === 1 ? '' : 's'}
                   </span>
                   <span class="rail-chev" aria-hidden="true">
                     <Icon name="chevron-right" size={16} />
@@ -362,8 +325,7 @@ const jsonLd = {
   <script>
     const searchEl = document.getElementById('pp-search') as HTMLInputElement | null;
     const subjectEl = document.getElementById('pp-subject') as HTMLSelectElement | null;
-    const patternEl = document.getElementById('pp-pattern') as HTMLSelectElement | null;
-    const typeEl = document.getElementById('pp-type') as HTMLSelectElement | null;
+    const difficultyEl = document.getElementById('pp-difficulty') as HTMLSelectElement | null;
     const sortEl = document.getElementById('pp-sort') as HTMLSelectElement | null;
     const list = document.querySelector<HTMLElement>('[data-list]');
     const rows = [...document.querySelectorAll<HTMLElement>('[data-row]')];
@@ -375,15 +337,13 @@ const jsonLd = {
     function apply() {
       const query = (searchEl?.value ?? '').trim().toLowerCase();
       const subject = subjectEl?.value ?? '';
-      const pattern = patternEl?.value ?? '';
-      const type = typeEl?.value ?? '';
+      const difficulty = difficultyEl?.value ?? '';
 
       let visible = 0;
       rows.forEach((row) => {
         const match =
           (!subject || row.dataset.subject === subject) &&
-          (!pattern || row.dataset.pattern === pattern) &&
-          (!type || row.dataset.type === type) &&
+          (!difficulty || row.dataset.difficulty === difficulty) &&
           (!query || (row.dataset.keywords ?? '').includes(query));
         row.toggleAttribute('hidden', !match);
         if (match) visible += 1;
@@ -422,15 +382,13 @@ const jsonLd = {
 
     searchEl?.addEventListener('input', apply);
     subjectEl?.addEventListener('change', apply);
-    patternEl?.addEventListener('change', apply);
-    typeEl?.addEventListener('change', apply);
+    difficultyEl?.addEventListener('change', apply);
     sortEl?.addEventListener('change', sortRows);
 
     document.querySelector('[data-clear]')?.addEventListener('click', () => {
       if (searchEl) searchEl.value = '';
       if (subjectEl) subjectEl.value = '';
-      if (patternEl) patternEl.value = '';
-      if (typeEl) typeEl.value = '';
+      if (difficultyEl) difficultyEl.value = '';
       apply();
     });
 
@@ -635,7 +593,7 @@ const jsonLd = {
 
   @media (min-width: 900px) {
     .filter-grid {
-      grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
+      grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 1fr));
     }
   }
 
