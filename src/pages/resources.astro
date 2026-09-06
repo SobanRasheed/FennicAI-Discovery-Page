@@ -4,8 +4,8 @@ import Breadcrumbs from '../components/Breadcrumbs.astro';
 ---
 
 <Layout
-  title="Resources — Primary Sources and Study Tools | devsyllabus"
-  description="Curated resources for computer science study: standards (RFCs), official documentation, canonical textbooks, and how to use them."
+  title="Resources — Textbooks and Study Tools | devsyllabus"
+  description="Curated resources for MBBS study: the standard textbooks by subject, free authoritative references, and how to use them alongside our notes."
   path="/resources/"
 >
   <Breadcrumbs crumbs={[{ label: 'Resources' }]} />
@@ -19,66 +19,73 @@ import Breadcrumbs from '../components/Breadcrumbs.astro';
     <a href="/disclaimer/">disclaimer</a>.
   </p>
 
-  <h2>Standards</h2>
+  <h2>Standard textbooks by subject</h2>
   <ul>
     <li>
-      <a href="https://www.rfc-editor.org/rfc/rfc9110" rel="noopener">RFC 9110 — HTTP Semantics</a>
-      — the authoritative definition of methods, headers, and status codes.
+      <em>Gray's Anatomy for Students</em> (Drake, Vogl, and Mitchell) and
+      <em>Snell's Clinical Anatomy by Regions</em> — the region-wise and
+      clinical approaches respectively; most first-year courses expect one
+      of these alongside an atlas such as <em>Netter's</em>.
     </li>
     <li>
-      <a href="https://www.rfc-editor.org/" rel="noopener">RFC Editor</a>
-      — the full RFC index, searchable.
+      <em>Guyton and Hall Textbook of Medical Physiology</em> — the
+      standard for physiology; <em>Ganong's Review of Medical
+      Physiology</em> is the condensed alternative many students revise
+      from.
     </li>
     <li>
-      ISO/IEC 9075 — the SQL standard. The editions published by ISO are
-      the definition of the language; most courses teach a close subset.
+      <em>Harper's Illustrated Biochemistry</em> — the standard
+      biochemistry text; <em>Lippincott Illustrated Reviews:
+      Biochemistry</em> is the common outline-format companion.
+    </li>
+    <li>
+      <em>Robbins &amp; Cotran Pathologic Basis of Disease</em> — the
+      reference for general and systemic pathology.
+    </li>
+    <li>
+      <em>Katzung's Basic &amp; Clinical Pharmacology</em> — prototypes
+      first, mechanisms clearly laid out; <em>Lippincott Illustrated
+      Reviews: Pharmacology</em> for quick revision.
+    </li>
+    <li>
+      <em>Jawetz, Melnick &amp; Adelberg's Medical Microbiology</em> —
+      organism-by-organism coverage matched to how professional exams
+      test it.
+    </li>
+    <li>
+      <em>Knight's Forensic Pathology</em> and <em>Parikh's Textbook of
+      Medical Jurisprudence</em> — the standard forensic medicine pairing
+      in our region.
+    </li>
+    <li>
+      <em>Park's Textbook of Preventive and Social Medicine</em> — the
+      reference for community medicine, especially the national programme
+      and biostatistics material.
     </li>
   </ul>
 
-  <h2>Official documentation</h2>
+  <h2>Free authoritative references</h2>
   <ul>
     <li>
-      <a href="https://developer.mozilla.org/en-US/docs/Web/HTTP" rel="noopener">MDN HTTP reference</a>
-      — practical, accurate HTTP documentation, with good coverage of
-      caching and conditional requests.
+      <a href="https://www.who.int/health-topics" rel="noopener">WHO health topics</a>
+      — fact sheets and guidance useful for community medicine and
+      communicable-disease notes.
     </li>
     <li>
-      <a href="https://developer.mozilla.org/en-US/docs/Web/JavaScript" rel="noopener">MDN JavaScript reference</a>
-      — the same standard of documentation for the language itself.
-    </li>
-  </ul>
-
-  <h2>Canonical textbooks</h2>
-  <ul>
-    <li>
-      <em>The C Programming Language</em> (Kernighan and Ritchie) — still
-      the reference for C semantics and idiom.
+      <a href="https://pubmed.ncbi.nlm.nih.gov/" rel="noopener">PubMed</a>
+      — the primary-literature index, for checking claims that go beyond
+      textbook teaching.
     </li>
     <li>
-      <em>Database System Concepts</em> (Silberschatz, Korth, and Sudarshan)
-      — the standard relational-model and normalization reference.
-    </li>
-    <li>
-      <em>An Introduction to Database Systems</em> (C. J. Date) — deeper
-      treatment of relational theory, useful for theory-heavy courses.
-    </li>
-  </ul>
-
-  <h2>Foundational reading</h2>
-  <ul>
-    <li>
-      <a href="https://ics.uci.edu/~fielding/pubs/dissertation/rest_arch_style.htm" rel="noopener">
-        Fielding's 2000 dissertation, chapter 5
-      </a>
-      — the original definition of REST. Reading it resolves most
-      "is this RESTful" debates.
+      <a href="https://www.ncbi.nlm.nih.gov/books/" rel="noopener">NCBI Bookshelf</a>
+      — free full-text access to several standard medical texts.
     </li>
   </ul>
 
   <h2>How to use these</h2>
   <p>
-    Study the devsyllabus notes first, then verify against the primary
-    source when a detail matters. That habit is what our
+    Study the devsyllabus notes first, then verify against the textbook
+    when a detail matters. That habit is what our
     <a href="/blog/active-recall-spaced-repetition/">study technique article</a>
     recommends for exam-prep anyway: retrieval first, reference second.
   </p>

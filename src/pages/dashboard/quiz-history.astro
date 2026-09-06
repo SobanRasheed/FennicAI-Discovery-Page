@@ -1,15 +1,16 @@
 ---
 /**
- * The quiz-history page (Figma's "Quiz History" screen). Every number here is
- * computed from the browser-local history the quiz runner records when a quiz
- * is finished — quizzes taken, average, best, questions answered, per-subject
- * averages, and the achievements (which are earned by actual activity, not
- * displayed as pre-unlocked badges).
+ * Quiz history (Figma "Screen 22 / Quiz History", node 302:2679). Every number
+ * here is computed from the browser-local history the quiz runner records when
+ * a quiz is finished — quizzes taken, average, best, questions answered,
+ * per-subject averages, and achievements that are earned by actual activity,
+ * never displayed as pre-unlocked badges.
  */
 import Layout from '../../layouts/Layout.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import StatCards from '../../components/StatCards.astro';
 import SidebarPanel from '../../components/SidebarPanel.astro';
+import Icon from '../../components/Icon.astro';
 import { getCollection } from '../../utils/collections';
 
 const subjects = await getCollection('subjects');
@@ -36,63 +37,64 @@ const footerSubjects = subjects.map((s) => ({
       { label: 'Dashboard', href: '/dashboard/' },
       { label: 'Quiz History' },
     ]}
-  />
+  >
+    <Fragment slot="aside">
+      <aside class="quiz-chip">
+        <span class="quiz-chip-icon" aria-hidden="true"><Icon name="clipboard-check" size={22} /></span>
+        <span class="quiz-chip-text">
+          <strong class="quiz-chip-value" data-chip-count>—</strong>
+          <span class="quiz-chip-label">Quizzes taken</span>
+        </span>
+      </aside>
+    </Fragment>
+  </PageHeader>
 
   <div class="container page-body">
     <section class="section" aria-label="Quiz summary">
       <div data-quiz-stats>
         <StatCards
           stats={[
-            { value: '—', label: 'Quizzes taken', icon: 'question' },
-            { value: '—', label: 'Average score', icon: 'chart' },
+            { value: '—', label: 'Quizzes taken', icon: 'clipboard-check' },
+            { value: '—', label: 'Average score', icon: 'target' },
             { value: '—', label: 'Best score', icon: 'star' },
-            { value: '—', label: 'Questions answered', icon: 'layers' },
+            { value: '—', label: 'Questions answered', icon: 'chart' },
           ]}
         />
       </div>
     </section>
 
     <div class="history-layout">
-      <div class="history-main">
-        {/* --- recent quizzes ------------------------------------------------- */}
-        <section class="section" aria-labelledby="recent-title">
-          <div class="section-head">
+      <section class="section" aria-labelledby="recent-title">
+        <div class="section-head">
+          <div>
             <h2 id="recent-title">Recent quizzes</h2>
             <p>Your latest attempts, newest first.</p>
           </div>
+          <a class="link-arrow" href="/practice/">Practice more <Icon name="arrow-right" size={14} /></a>
+        </div>
 
-          <ul class="quiz-list" data-quiz-list></ul>
+        <ul class="quiz-list" data-quiz-list></ul>
 
-          <div class="empty-state panel panel-pad" data-quiz-empty hidden>
-            <h3>No quizzes yet</h3>
-            <p>Take a subject quiz and your results will be recorded here.</p>
-            <a class="btn btn-primary" href="/practice/">Start practicing</a>
-          </div>
-        </section>
+        <div class="empty-state panel panel-pad" data-quiz-empty hidden>
+          <h3>No quizzes yet</h3>
+          <p>Take a subject quiz and your results will be recorded here.</p>
+          <a class="btn btn-primary" href="/practice/">Start practicing</a>
+        </div>
+      </section>
 
-        {/* --- per-subject performance ---------------------------------------- */}
-        <section class="section" aria-labelledby="by-subject-title" data-by-subject hidden>
-          <div class="section-head">
-            <h2 id="by-subject-title">Performance by subject</h2>
-            <p>Your average score for each subject you've practiced.</p>
-          </div>
-
-          <div class="subject-bars" data-subject-bars></div>
-        </section>
-
-        {/* --- achievements ------------------------------------------------------ */}
-        <section class="section" aria-labelledby="achievements-title" data-achievements hidden>
-          <div class="section-head">
-            <h2 id="achievements-title">Achievements</h2>
-            <p>Earned from your actual activity — no participation trophies.</p>
-          </div>
-
-          <ul class="achievement-list" data-achievement-list></ul>
-        </section>
-      </div>
-
-      {/* --- rail --------------------------------------------------------------- */}
       <div class="history-rail">
+        <div data-subject-panel hidden>
+          <SidebarPanel heading="Performance by subject" icon="chart">
+            <div class="subject-bars" data-subject-bars></div>
+          </SidebarPanel>
+        </div>
+
+        <div data-achievements hidden>
+          <SidebarPanel heading="Achievements" icon="star">
+            <ul class="achievement-list" data-achievement-list></ul>
+          </SidebarPanel>
+        </div>
+
         <SidebarPanel variant="tint" heading="Study tip" icon="bulb">
           <p class="rail-copy">
             Retake quizzes after a week to measure long-term recall.
@@ -104,13 +106,9 @@ const footerSubjects = subjects.map((s) => ({
             Quiz history is stored only in this browser, capped at the most
             recent 50 attempts. Clearing site data clears it.
           </p>
-        </SidebarPanel>
-
-        <SidebarPanel heading="Keep going" icon="target">
           <ul class="chevron-list">
             <li><a href="/dashboard/">Your dashboard</a></li>
             <li><a href="/dashboard/saved/">Saved items</a></li>
-            <li><a href="/practice/">Practice questions</a></li>
           </ul>
         </SidebarPanel>
       </div>
@@ -126,10 +124,21 @@ const footerSubjects = subjects.map((s) => ({
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!,
     );
 
-  const history = readQuizHistory();
-  const scoreClass = (pct: number) => (pct >= 80 ? 'score-high' : pct >= 50 ? 'score-mid' : 'score-low');
+  const icon = (paths: string, size = 16) =>
+    `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+  const CLIPBOARD_CHECK =
+    '<rect x="5" y="4.5" width="14" height="17" rx="2"/><path d="M9 4.5h6v3H9z"/><path d="M9 13.5l2.2 2.2 4-4.2"/>';
+  const STAR = '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9-5.2-2.8-5.2 2.8 1-5.9L3.5 9.7l5.9-.8z"/>';
+  const TARGET = '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5.5"/><circle cx="12" cy="12" r="2"/>';
+  const CALENDAR =
+    '<rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17"/><path d="M8 3.5V6"/><path d="M16 3.5V6"/>';
 
-  // --- stats -----------------------------------------------------------------
+  const history = readQuizHistory();
+
+  // --- stats + hero chip ----------------------------------------------------
+  const chip = document.querySelector<HTMLElement>('[data-chip-count]');
+  if (chip) chip.textContent = String(history.length);
+
   const tiles = document.querySelectorAll<HTMLElement>('[data-quiz-stats] .stat-value');
   const answered = history.reduce((sum, r) => sum + r.total, 0);
   const avg = history.length
@@ -160,12 +169,13 @@ const footerSubjects = subjects.map((s) => ({
         .map(
           (r) => `
           <li class="quiz-row panel">
-            <div>
+            <span class="quiz-icon" aria-hidden="true">${icon(CLIPBOARD_CHECK, 18)}</span>
+            <div class="quiz-text">
               <h3>${escape(r.subject)} MCQs</h3>
-              <p class="quiz-meta">${fmtDate(r.date)} · ${r.total} question${r.total === 1 ? '' : 's'} · ${r.correct}/${r.total} correct</p>
+              <p class="quiz-meta">${escape(r.subject)} · ${fmtDate(r.date)} · ${r.correct}/${r.total} correct</p>
             </div>
             <div class="quiz-row-side">
-              <span class="quiz-score ${scoreClass(r.pct)}">${r.pct}%</span>
+              <span class="quiz-score">${r.pct}%</span>
               <a class="btn btn-sm btn-secondary" href="/practice/quiz/${encodeURIComponent(r.subjectSlug)}/">Retake</a>
             </div>
           </li>`,
@@ -174,11 +184,11 @@ const footerSubjects = subjects.map((s) => ({
     }
   }
 
-  // --- performance by subject -----------------------------------------------------
-  const bySubjectEl = document.querySelector<HTMLElement>('[data-by-subject]');
+  // --- performance by subject (rail) ----------------------------------------------
+  const bySubjectPanel = document.querySelector<HTMLElement>('[data-subject-panel]');
   const barsEl = document.querySelector<HTMLElement>('[data-subject-bars]');
 
-  if (bySubjectEl && barsEl && history.length > 0) {
+  if (bySubjectPanel && barsEl && history.length > 0) {
     // Average per subject, most-practiced first.
     const groups = new Map<string, { subject: string; subjectSlug: string; total: number; sum: number }>();
     for (const r of history) {
@@ -201,41 +211,41 @@ const footerSubjects = subjects.map((s) => ({
         <div class="subject-bar">
           <div class="subject-bar-head">
             <span class="subject-name">${escape(row.subject)}</span>
-            <span class="subject-meta">${pct}% avg · ${row.total} attempt${row.total === 1 ? '' : 's'}</span>
+            <span class="subject-pct">${pct}%</span>
           </div>
           <div class="bar-track" role="img" aria-label="${escape(row.subject)}: ${pct}% average over ${row.total} attempt${row.total === 1 ? '' : 's'}">
-            <div class="bar-fill ${scoreClass(pct)}" style="width: ${pct}%"></div>
+            <div class="bar-fill" style="width: ${pct}%"></div>
           </div>
         </div>`;
       })
       .join('');
 
-    bySubjectEl.removeAttribute('hidden');
+    bySubjectPanel.removeAttribute('hidden');
   }
 
-  // --- achievements ---------------------------------------------------------------
+  // --- achievements (rail) -----------------------------------------------------------
   const achievementsEl = document.querySelector<HTMLElement>('[data-achievements]');
   const achievementList = document.querySelector<HTMLUListElement>('[data-achievement-list]');
 
   if (achievementsEl && achievementList) {
-    // Each achievement below is only listed when the history actually earns it.
+    // Each achievement is only listed when the history actually earns it.
     const above80 = history.filter((r) => r.pct >= 80).length;
     const distinctDays = new Set(history.map((r) => r.date.slice(0, 10))).size;
 
     const earned: { icon: string; title: string; detail: string }[] = [];
     if (history.length > 0) {
-      earned.push({ icon: 'star', title: 'First quiz completed', detail: 'Getting started' });
+      earned.push({ icon: STAR, title: 'First quiz completed', detail: 'Getting started' });
     }
     if (above80 > 0) {
       earned.push({
-        icon: 'target',
+        icon: TARGET,
         title: 'Scored above 80%',
         detail: `${above80} quiz${above80 === 1 ? '' : 'zes'}`,
       });
     }
     if (distinctDays >= 3) {
       earned.push({
-        icon: 'refresh',
+        icon: CALENDAR,
         title: 'Practiced on multiple days',
         detail: `${distinctDays} separate days`,
       });
@@ -245,9 +255,9 @@ const footerSubjects = subjects.map((s) => ({
       achievementList.innerHTML = earned
         .map(
           (a) => `
-          <li class="achievement panel">
-            <span class="achievement-icon" aria-hidden="true">★</span>
-            <div>
+          <li class="achievement">
+            <span class="achievement-icon" aria-hidden="true">${icon(a.icon)}</span>
+            <div class="achievement-text">
               <h3>${escape(a.title)}</h3>
               <p>${escape(a.detail)}</p>
             </div>
@@ -260,10 +270,45 @@ const footerSubjects = subjects.map((s) => ({
 </script>
 
 <style>
+  /* --- hero chip (Figma: tinted, clipboard icon + count + label) -------------- */
+  .quiz-chip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+    background: var(--quote-surface);
+  }
+
+  .quiz-chip-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+  }
+
+  .quiz-chip-value {
+    display: block;
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 1.375rem;
+    font-weight: var(--weight-semibold);
+    line-height: 1.1;
+  }
+
+  .quiz-chip-label {
+    display: block;
+    margin-top: var(--space-1);
+    color: var(--mute);
+    font-size: var(--text-micro);
+    line-height: var(--leading-snug);
+  }
+
   .page-body {
     padding-block: var(--space-12) var(--space-16);
   }
 
+  /* --- layout ------------------------------------------------------------------ */
   .history-layout {
     display: grid;
     gap: var(--space-10);
@@ -287,7 +332,7 @@ const footerSubjects = subjects.map((s) => ({
     line-height: var(--leading-normal);
   }
 
-  /* --- quiz rows ------------------------------------------------------------- */
+  /* --- quiz rows (Figma: 68px rows, 36px tinted icon tile, score pill) -------- */
   .quiz-list {
     display: grid;
     gap: var(--space-3);
@@ -299,21 +344,41 @@ const footerSubjects = subjects.map((s) => ({
   .quiz-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: var(--space-4);
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
+  }
+
+  .quiz-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-md);
+    background: var(--quote-surface);
+    color: var(--primary);
+  }
+
+  .quiz-text {
+    min-width: 0;
+    flex: 1;
   }
 
   .quiz-row h3 {
     color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-sm);
     font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    overflow-wrap: anywhere;
   }
 
   .quiz-meta {
     margin-top: var(--space-1);
     color: var(--mute);
-    font-size: var(--text-body-sm);
+    font-size: var(--text-caption);
   }
 
   .quiz-row-side {
@@ -324,73 +389,59 @@ const footerSubjects = subjects.map((s) => ({
   }
 
   .quiz-score {
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    font-weight: var(--weight-display);
-  }
-
-  .score-high {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3rem;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-tag);
+    background: var(--quote-surface);
     color: var(--primary);
+    font-size: var(--text-caption);
+    font-weight: var(--weight-semibold);
   }
 
-  .score-mid {
-    color: var(--ink);
-  }
-
-  .score-low {
-    color: var(--mute);
-  }
-
-  /* --- subject bars --------------------------------------------------------------- */
+  /* --- performance by subject (Figma rail card: label, % right, 6px track) ----- */
   .subject-bars {
     display: grid;
-    gap: var(--space-5);
+    gap: var(--space-4);
   }
 
   .subject-bar-head {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: var(--space-4);
+    gap: var(--space-3);
     margin-bottom: var(--space-2);
   }
 
   .subject-name {
     color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body);
+    font-size: var(--text-caption);
     font-weight: var(--weight-semibold);
   }
 
-  .subject-meta {
-    color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
+  .subject-pct {
+    color: var(--primary);
+    font-size: var(--text-caption);
+    font-weight: var(--weight-semibold);
   }
 
   .bar-track {
     width: 100%;
-    height: 0.5rem;
-    border-radius: 999px;
-    background: var(--surface-sunken);
+    height: 6px;
+    border-radius: 3px;
+    background: var(--quote-surface);
     overflow: hidden;
   }
 
   .bar-fill {
     height: 100%;
-    border-radius: 999px;
-    background: var(--ink);
-  }
-
-  .bar-fill.score-high {
+    border-radius: 3px;
     background: var(--primary);
   }
 
-  .bar-fill.score-low {
-    background: var(--mute);
-  }
-
-  /* --- achievements -------------------------------------------------------------------- */
+  /* --- achievements (Figma rail card: 16px icon, 13px title, 11px detail) ------- */
   .achievement-list {
     display: grid;
     gap: var(--space-3);
@@ -401,36 +452,42 @@ const footerSubjects = subjects.map((s) => ({
 
   .achievement {
     display: flex;
-    align-items: center;
-    gap: var(--space-4);
+    align-items: flex-start;
+    gap: var(--space-3);
   }
 
   .achievement-icon {
-    display: grid;
-    place-items: center;
-    width: 2.5rem;
-    height: 2.5rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
+    width: 28px;
+    height: 28px;
     border-radius: var(--radius-sm);
     background: var(--primary-surface);
     color: var(--primary);
-    font-size: 1.125rem;
+  }
+
+  .achievement-text {
+    min-width: 0;
   }
 
   .achievement h3 {
     color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body);
+    font-family: var(--font-sans);
+    font-size: var(--text-caption);
     font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
   }
 
   .achievement p {
     margin-top: var(--space-1);
     color: var(--mute);
-    font-size: var(--text-body-sm);
+    font-size: var(--text-micro);
+    line-height: var(--leading-snug);
   }
 
-  /* --- empty state -------------------------------------------------------------------------- */
+  /* --- empty state ------------------------------------------------------------------- */
   .empty-state[hidden] {
     display: none;
   }

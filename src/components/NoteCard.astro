@@ -24,14 +24,20 @@ const { note } = Astro.props;
 import { formatDate } from '../utils/collections';
 
 const subjectLabels: Record<string, string> = {
-  'web-development': 'Web Development',
-  'database-systems': 'Database Systems',
-  'programming-fundamentals': 'Programming Fundamentals',
+  anatomy: 'Anatomy',
+  physiology: 'Physiology',
+  biochemistry: 'Biochemistry',
+  pathology: 'Pathology',
+  pharmacology: 'Pharmacology',
+  microbiology: 'Microbiology',
+  'forensic-medicine': 'Forensic Medicine',
+  'community-medicine': 'Community Medicine',
 };
 
 const levelLabels: Record<string, string> = {
-  'bs-computer-science': 'BS Computer Science',
-  'class-12-cs': 'Class 12 CS',
+  'first-professional-mbbs': 'First Professional MBBS',
+  'second-professional-mbbs': 'Second Professional MBBS',
+  'third-professional-mbbs': 'Third Professional MBBS',
 };
 
 const subject = subjectLabels[note.data.subject] ?? note.data.subject;

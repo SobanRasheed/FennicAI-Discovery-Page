@@ -17,10 +17,7 @@ export type IllustrationName =
   | 'pathology'
   | 'neurology'
   | 'stethoscope'
-  | 'open-book'
-  | 'code'
-  | 'database'
-  | 'browser';
+  | 'open-book';
 
 interface Props {
   name: IllustrationName;
@@ -93,24 +90,6 @@ const drawings: Record<IllustrationName, string> = {
     <path d="M24 12v24.4"/>
     <path d="M15.5 16.5c2-.2 3.8 0 5.5.6M15.5 21.5c2-.2 3.8 0 5.5.6M15.5 26.5c2-.2 3.8 0 5.5.6"/>
     <path d="M32.5 16.5c-2-.2-3.8 0-5.5.6M32.5 21.5c-2-.2-3.8 0-5.5.6M32.5 26.5c-2-.2-3.8 0-5.5.6"/>`,
-
-  /* Angle brackets — programming. */
-  code: `<path d="M16 16.5L7.5 24l8.5 7.5"/>
-    <path d="M32 16.5L40.5 24 32 31.5"/>
-    <path d="M27.5 11l-7 26"/>`,
-
-  /* Storage cylinder — database systems. */
-  database: `<ellipse cx="24" cy="12" rx="13" ry="5"/>
-    <path d="M11 12v8c0 2.8 5.8 5 13 5s13-2.2 13-5v-8"/>
-    <path d="M11 24v8c0 2.8 5.8 5 13 5s13-2.2 13-5v-8"/>
-    <path d="M11 20c0 2.8 5.8 5 13 5s13-2.2 13-5M11 32c0 2.8 5.8 5 13 5s13-2.2 13-5"/>`,
-
-  /* Browser window — web development. */
-  browser: `<rect x="6.5" y="9" width="35" height="30" rx="2.5"/>
-    <path d="M6.5 16h35"/>
-    <circle cx="11.5" cy="12.5" r=".9"/>
-    <circle cx="15.5" cy="12.5" r=".9"/>
-    <path d="M13 23.5l4 4-4 4M21 31.5h9"/>`,
 };
 
 /** Map a subject slug to its drawing. Unknown subjects get the stethoscope. */
@@ -132,13 +111,6 @@ export function illustrationForSubject(slug: string): IllustrationName {
     neurology: 'neurology',
     neuroscience: 'neurology',
     psychiatry: 'neurology',
-    'programming-fundamentals': 'code',
-    programming: 'code',
-    'computer-science': 'code',
-    'database-systems': 'database',
-    databases: 'database',
-    'web-development': 'browser',
-    webdev: 'browser',
   };
   return map[slug] ?? 'stethoscope';
 }

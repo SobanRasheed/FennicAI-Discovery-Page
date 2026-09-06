@@ -1,27 +1,60 @@
 ---
 /**
- * The saved-items page (Figma's "Saved Notes" screen). The design shows 48
- * saved notes across fake collections with a streak counter; what actually
- * exists is a single browser-local bookmark list shared by study notes and
- * blog articles. This page renders that list honestly — counts, mixed
- * content and all — and drops everything that isn't real.
+ * Saved notes (Figma "Screen 21 / Saved Notes", node 302:2478). The design
+ * assumes server-side favourites, viewing history, streaks, and collections;
+ * none of that exists — saving is a browser-local bookmark. So the page keeps
+ * the design's rhythm (hero chip, four stat tiles, note rows, right rail) but
+ * every number and list on it is computed from this browser's saved list, and
+ * the design's streak/collections cards are replaced by cards that are honest.
  */
 import Layout from '../../layouts/Layout.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import StatCards from '../../components/StatCards.astro';
 import SidebarPanel from '../../components/SidebarPanel.astro';
-import { getCollection } from '../../utils/collections';
+import Icon from '../../components/Icon.astro';
+import { getNotes, getCollection } from '../../utils/collections';
 
-const subjects = await getCollection('subjects');
+const [notes, subjects] = await Promise.all([getNotes(), getCollection('subjects')]);
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
   label: s.data.title,
 }));
+
+/** Reading time at 200 wpm, same rule as everywhere else. */
+const minutes = (body: string | undefined) =>
+  Math.max(1, Math.round((body ?? '').split(/\s+/).filter(Boolean).length / 200));
+
+/** Subjects with a PNG icon in /assets/landing/; the rest get a glyph tile. */
+const pngSubjects = new Set([
+  'anatomy',
+  'biochemistry',
+  'community-medicine',
+  'forensic-medicine',
+  'microbiology',
+  'pathology',
+  'pharmacology',
+  'physiology',
+]);
+
+/**
+ * Per-note metadata the client script needs to enrich saved items with:
+ * subject title, minutes, and subject art. Keyed by note slug, delivered as a
+ * JSON island because module scripts can't take define:vars.
+ */
+const noteMeta: Record<string, { s: string; u: string; m: number; a: string }> = {};
+for (const note of notes) {
+  noteMeta[note.slug] = {
+    s: subjects.find((s) => s.slug === note.data.subject)?.data.title ?? 'Study note',
+    u: note.data.subject,
+    m: minutes(note.body),
+    a: pngSubjects.has(note.data.subject) ? `/assets/landing/subject-${note.data.subject}.png` : '',
+  };
+}
 ---
 <Layout
-  title="Saved Items | Medical Study Notes"
-  description="Everything you've bookmarked — study notes and articles — kept in this browser."
+  title="Saved Notes | Medical Study Notes"
+  description="Every note and article you've bookmarked, kept in this browser and ready when you are."
   path="/dashboard/saved/"
   noindex
   footerSubjects={footerSubjects}
@@ -29,77 +62,83 @@ const footerSubjects = subjects.map((s) => ({
 >
   <PageHeader
     kicker="Saved Notes"
-    title="Your Saved Notes"
-    lead="All the notes and articles you've bookmarked, in one place — ready when you are. The list lives in this browser; there's no account and nothing is stored on our servers."
-    crumbs={[
-      { label: 'Home', href: '/' },
-      { label: 'Dashboard', href: '/dashboard/' },
-      { label: 'Saved' },
-    ]}
-  />
+    title="Your saved notes"
+    lead="All the notes you've bookmarked, in one place — ready when you are."
+    crumbs={[{ label: 'Home', href: '/' }, { label: 'Dashboard', href: '/dashboard/' }, { label: 'Saved Notes' }]}
+  >
+    <Fragment slot="aside">
+      <aside class="saved-chip">
+        <span class="saved-chip-icon" aria-hidden="true"><Icon name="book-open" size={22} /></span>
+        <span class="saved-chip-text">
+          <strong class="saved-chip-value" data-chip-count>—</strong>
+          <span class="saved-chip-label">Notes saved</span>
+        </span>
+      </aside>
+    </Fragment>
+  </PageHeader>
 
   <div class="container page-body">
-    <section class="section" aria-label="Saved items summary">
+    <section class="section" aria-label="Your saved activity">
       <div data-saved-stats>
         <StatCards
           stats={[
-            { value: '—', label: 'Items saved', icon: 'bookmark' },
-            { value: '—', label: 'Study notes', icon: 'notes' },
-            { value: '—', label: 'Articles', icon: 'book-open' },
-            { value: '—', label: 'Subjects covered', icon: 'book' },
+            { value: '—', label: 'Notes saved', icon: 'notes' },
+            { value: '—', label: 'Articles saved', icon: 'book-open' },
+            { value: '—', label: 'Subjects covered', icon: 'globe' },
+            { value: '—', label: 'Minutes to read', icon: 'clock' },
           ]}
         />
       </div>
+      <p class="stats-note">
+        Counted from this browser's bookmark list — clearing site data clears it.
+      </p>
     </section>
 
     <div class="saved-layout">
-      {/* --- the list itself ------------------------------------------------- */}
-      <section class="section" aria-labelledby="saved-list-title">
+      <section class="section" aria-labelledby="saved-list">
         <div class="section-head">
-          <h2 id="saved-list-title">Everything you've saved</h2>
-          <p>Study notes and articles together, most recently saved first.</p>
+          <div>
+            <h2 id="saved-list">Saved notes</h2>
+            <p>Everything you've bookmarked, newest saves first.</p>
+          </div>
+          <a class="link-arrow" href="/notes/">Browse notes <Icon name="arrow-right" size={14} /></a>
         </div>
 
         <ul class="saved-list" data-saved-list></ul>
 
         <div class="empty-state panel panel-pad" data-saved-empty hidden>
           <h3>Nothing saved yet</h3>
-          <p>
-            Use the <strong>Save</strong> button on any study note or article
-            and it will appear here.
-          </p>
+          <p>Tap the bookmark button on any note or article and it will wait for you here.</p>
           <div class="empty-actions">
-            <a class="btn btn-primary" href="/notes/">Browse study notes</a>
+            <a class="btn btn-primary" href="/notes/">Browse notes</a>
             <a class="btn btn-secondary" href="/blog/">Read the blog</a>
           </div>
         </div>
       </section>
 
-      {/* --- rail --------------------------------------------------------------- */}
       <div class="saved-rail">
+        <SidebarPanel variant="tint" heading="Keep it up" icon="bookmark">
+          <p class="rail-copy">
+            Everything you save is kept in this browser only. Bookmark freely — there's
+            no account and nothing is tracked on our servers.
+          </p>
+        </SidebarPanel>
+
+        <SidebarPanel heading="Saved by subject" icon="grid">
+          <ul class="subject-counts" data-subject-counts></ul>
+          <p class="subject-empty" data-subject-empty>Save a note and your subjects will show up here.</p>
+        </SidebarPanel>
+
         <SidebarPanel variant="tint" heading="Study tip" icon="bulb">
           <p class="rail-copy">
             Review saved notes within 24 hours to boost long-term retention.
           </p>
         </SidebarPanel>
-
-        <SidebarPanel heading="Where things live" icon="shield">
-          <p class="rail-copy">
-            Saved items are stored only in this browser. Clearing site data
-            clears the list — there is no account to recover it from.
-          </p>
-        </SidebarPanel>
-
-        <SidebarPanel heading="Keep going" icon="target">
-          <ul class="chevron-list">
-            <li><a href="/dashboard/">Your dashboard</a></li>
-            <li><a href="/dashboard/quiz-history/">Quiz history</a></li>
-            <li><a href="/practice/">Practice questions</a></li>
-          </ul>
-        </SidebarPanel>
       </div>
     </div>
   </div>
+
+  <script is:inline type="application/json" id="saved-note-meta" set:html={JSON.stringify(noteMeta)} />
 </Layout>
 
 <script>
@@ -110,73 +149,196 @@ const footerSubjects = subjects.map((s) => ({
       ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!,
     );
 
-  const isNote = (href: string) => href.startsWith('/notes/');
+  const metaEl = document.getElementById('saved-note-meta');
+  const noteMeta: Record<string, { s: string; u: string; m: number; a: string }> = metaEl
+    ? JSON.parse(metaEl.textContent ?? '{}')
+    : {};
 
-  /** Label for where an item came from — its route, honestly described. */
-  const kindLabel = (href: string) => (isNote(href) ? 'Study note' : 'Article');
+  const NOTES_ICON =
+    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4"/><path d="M9.5 12h6"/><path d="M9.5 16h4"/></svg>';
+  const BOOK_OPEN_ICON =
+    '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 6.5C10 4.8 7 4.5 3.5 5v13c3.5-.5 6.5 0 8.5 1.7 2-1.7 5-2.2 8.5-1.7V5c-3.5-.5-6.5 0-8.5 1.5z"/><path d="M12 6.5v13"/></svg>';
+  const CHEVRON_ICON =
+    '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>';
 
-  const list = document.querySelector<HTMLUListElement>('[data-saved-list]');
-  const empty = document.querySelector<HTMLElement>('[data-saved-empty]');
+  // --- stats + hero chip ---------------------------------------------------
+  const saved = readSaved();
+  const notesOnly = saved.filter((item) => item.href.startsWith('/notes/'));
+  const articles = saved.length - notesOnly.length;
+  const subjectsCovered = new Set(
+    notesOnly.map((item) => noteMeta[item.slug]?.s).filter(Boolean),
+  );
+  const minutesSaved = notesOnly.reduce((sum, item) => sum + (noteMeta[item.slug]?.m ?? 0), 0);
+
+  const chip = document.querySelector<HTMLElement>('[data-chip-count]');
+  if (chip) chip.textContent = String(notesOnly.length);
+
   const tiles = document.querySelectorAll<HTMLElement>('[data-saved-stats] .stat-value');
+  const values = [
+    String(notesOnly.length),
+    String(articles),
+    subjectsCovered.size ? String(subjectsCovered.size) : '—',
+    minutesSaved ? String(minutesSaved) : '—',
+  ];
+  tiles.forEach((tile, i) => {
+    tile.textContent = values[i] ?? '—';
+  });
 
-  const render = (items: { slug: string; title: string; href: string }[]) => {
-    // stats
-    const noteCount = items.filter((i) => isNote(i.href)).length;
-    const values = [
-      String(items.length),
-      String(noteCount),
-      String(items.length - noteCount),
-      String(new Set(items.filter((i) => isNote(i.href)).map((i) => i.href.split('/')[2])).size),
+  // --- the saved list ------------------------------------------------------
+  const list = document.querySelector<HTMLElement>('[data-saved-list]');
+  const empty = document.querySelector<HTMLElement>('[data-saved-empty]');
+
+  const render = (items: ReturnType<typeof readSaved>) => {
+    if (list) {
+      if (items.length === 0) {
+        list.hidden = true;
+        empty?.removeAttribute('hidden');
+      } else {
+        list.hidden = false;
+        empty?.setAttribute('hidden', '');
+        list.innerHTML = items
+          .map((item) => {
+            const meta = noteMeta[item.slug];
+            const isNote = item.href.startsWith('/notes/');
+            const art = meta?.a
+              ? `<img src="${meta.a}" alt="" loading="lazy" decoding="async" />`
+              : isNote
+                ? NOTES_ICON
+                : BOOK_OPEN_ICON;
+            const metaLine = isNote
+              ? `${escape(meta?.s ?? 'Study note')} · ${meta?.m ?? '—'} min read`
+              : 'Blog article';
+            return `
+            <li class="saved-row panel">
+              <span class="saved-art" aria-hidden="true">${art}</span>
+              <div class="saved-text">
+                <h3><a href="${item.href}">${escape(item.title)}</a></h3>
+                <p class="saved-meta">${metaLine}</p>
+              </div>
+              <button class="btn btn-sm btn-secondary saved-remove" type="button" data-remove-slug="${escape(item.slug)}">
+                Remove
+              </button>
+            </li>`;
+          })
+          .join('');
+      }
+    }
+  };
+
+  render(saved);
+
+  list?.addEventListener('click', (event) => {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-remove-slug]');
+    if (!button) return;
+    const remaining = removeSaved(button.dataset.removeSlug ?? '');
+    render(remaining);
+    // The rest of the page is derived from the same list — refresh it all.
+    const kept = remaining;
+    const keptNotes = kept.filter((item) => item.href.startsWith('/notes/'));
+    if (chip) chip.textContent = String(keptNotes.length);
+    const keptSubjects = new Set(
+      keptNotes.map((item) => noteMeta[item.slug]?.s).filter(Boolean),
+    );
+    const tilesNow = document.querySelectorAll<HTMLElement>('[data-saved-stats] .stat-value');
+    const vals = [
+      String(keptNotes.length),
+      String(kept.length - keptNotes.length),
+      keptSubjects.size ? String(keptSubjects.size) : '—',
+      keptNotes.reduce((sum, item) => sum + (noteMeta[item.slug]?.m ?? 0), 0) || '—',
     ];
-    tiles.forEach((tile, i) => {
-      tile.textContent = values[i] ?? '—';
+    tilesNow.forEach((tile, i) => {
+      tile.textContent = vals[i] ?? '—';
     });
+    renderSubjectCounts(keptNotes);
+  });
 
-    if (!list) return;
+  // --- saved-by-subject panel ------------------------------------------------
+  const countsEl = document.querySelector<HTMLElement>('[data-subject-counts]');
+  const countsEmpty = document.querySelector<HTMLElement>('[data-subject-empty]');
 
-    if (items.length === 0) {
-      list.hidden = true;
-      empty?.removeAttribute('hidden');
+  const renderSubjectCounts = (items: ReturnType<typeof readSaved>) => {
+    if (!countsEl) return;
+    const bySubject = new Map<string, { count: number; slug: string }>();
+    for (const item of items) {
+      const meta = noteMeta[item.slug];
+      if (!meta) continue;
+      const entry = bySubject.get(meta.u) ?? { count: 0, slug: meta.u };
+      entry.count += 1;
+      bySubject.set(meta.u, entry);
+    }
+    if (bySubject.size === 0) {
+      countsEl.hidden = true;
+      countsEmpty?.removeAttribute('hidden');
       return;
     }
-
-    list.removeAttribute('hidden');
-    empty?.setAttribute('hidden', '');
-    list.innerHTML = items
-      .map(
-        (item) => `
-        <li class="saved-row panel" data-item-slug="${escape(item.slug)}">
-          <div>
-            <h3><a href="${escape(item.href)}">${escape(item.title)}</a></h3>
-            <p class="saved-meta">${kindLabel(item.href)} · <span class="saved-path">${escape(item.href)}</span></p>
-          </div>
-          <button
-            class="btn btn-sm btn-secondary"
-            type="button"
-            data-remove-slug="${escape(item.slug)}"
-          >
-            Remove
-          </button>
-        </li>`,
-      )
+    countsEl.hidden = false;
+    countsEmpty?.setAttribute('hidden', '');
+    countsEl.innerHTML = [...bySubject.entries()]
+      .sort((a, b) => b[1].count - a[1].count)
+      .map(([slug, { count }]) => {
+        const subjectTitle =
+          Object.values(noteMeta).find((meta) => meta.u === slug)?.s ?? slug;
+        const href = `/subjects/${encodeURIComponent(slug)}/`;
+        return `
+        <li>
+          <a href="${href}">
+            <span class="subject-name">${escape(subjectTitle)}</span>
+            <span class="subject-side">${count} note${count === 1 ? '' : 's'} ${CHEVRON_ICON}</span>
+          </a>
+        </li>`;
+      })
       .join('');
   };
 
-  render(readSaved());
-
-  // Removing an item: update the store, then re-render from what's left.
-  document.addEventListener('click', (event) => {
-    const btn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-remove-slug]');
-    if (!btn) return;
-    render(removeSaved(btn.dataset.removeSlug!));
-  });
+  renderSubjectCounts(notesOnly);
 </script>
 
 <style>
+  /* --- hero chip (Figma: 292×64 tinted, icon + count + label) ---------------- */
+  .saved-chip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+    background: var(--quote-surface);
+  }
+
+  .saved-chip-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary);
+  }
+
+  .saved-chip-value {
+    display: block;
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 1.375rem;
+    font-weight: var(--weight-semibold);
+    line-height: 1.1;
+  }
+
+  .saved-chip-label {
+    display: block;
+    margin-top: var(--space-1);
+    color: var(--mute);
+    font-size: var(--text-micro);
+    line-height: var(--leading-snug);
+  }
+
   .page-body {
     padding-block: var(--space-12) var(--space-16);
   }
 
+  .stats-note {
+    margin-top: var(--space-4);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  /* --- layout --------------------------------------------------------------- */
   .saved-layout {
     display: grid;
     gap: var(--space-10);
@@ -200,6 +362,7 @@ const footerSubjects = subjects.map((s) => ({
     line-height: var(--leading-normal);
   }
 
+  /* --- saved rows (Figma: 76px rows, 48px subject art) ---------------------- */
   .saved-list {
     display: grid;
     gap: var(--space-3);
@@ -208,22 +371,44 @@ const footerSubjects = subjects.map((s) => ({
     list-style: none;
   }
 
-  .saved-list[hidden] {
-    display: none;
-  }
-
   .saved-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: var(--space-4);
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
+  }
+
+  .saved-art {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    background: var(--quote-surface);
+    color: var(--primary);
+  }
+
+  .saved-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .saved-text {
+    min-width: 0;
+    flex: 1;
   }
 
   .saved-row h3 {
     color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-sm);
     font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    overflow-wrap: anywhere;
   }
 
   .saved-row h3 a {
@@ -239,18 +424,70 @@ const footerSubjects = subjects.map((s) => ({
   .saved-meta {
     margin-top: var(--space-1);
     color: var(--mute);
-    font-size: var(--text-body-sm);
+    font-size: var(--text-caption);
   }
 
-  .saved-path {
-    font-family: var(--font-mono);
+  .saved-remove {
+    flex-shrink: 0;
+    color: var(--mute);
+  }
+
+  /* --- saved-by-subject rows -------------------------------------------------- */
+  .subject-counts {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .subject-counts li + li {
+    border-top: 1px solid var(--border);
+  }
+
+  .subject-counts a {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .subject-counts a:hover .subject-name {
+    color: var(--primary);
+    text-decoration: underline;
+  }
+
+  .subject-name {
+    color: var(--ink);
+    font-size: var(--text-caption);
+    font-weight: var(--weight-semibold);
+  }
+
+  .subject-side {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    flex-shrink: 0;
+    color: var(--mute);
     font-size: var(--text-micro);
   }
 
-  .empty-state[hidden] {
+  .subject-side svg {
+    color: var(--primary);
+  }
+
+  .subject-empty {
+    color: var(--mute);
+    font-size: var(--text-caption);
+  }
+
+  .subject-empty[hidden],
+  .subject-counts[hidden] {
     display: none;
   }
 
+  /* --- empty state -------------------------------------------------------------- */
   .empty-state h3 {
     color: var(--ink);
     font-family: var(--font-display);
@@ -268,5 +505,9 @@ const footerSubjects = subjects.map((s) => ({
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-3);
+  }
+
+  .empty-state[hidden] {
+    display: none;
   }
 </style>

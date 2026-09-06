@@ -10,7 +10,7 @@ export async function getStaticPaths() {
   // getStaticPaths is hoisted into its own module and cannot see the
   // component-scope constant above, so it gets its own copy.
   const POSTS_PER_PAGE = 6;
-  const categories = ['api-design', 'study-techniques', 'databases', 'web-development'];
+  const categories = ['study-techniques', 'exam-preparation', 'subject-guides'];
   const paths = [];
   for (const category of categories) {
     const posts = await getPostsByCategory(category);

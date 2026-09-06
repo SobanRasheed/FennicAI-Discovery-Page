@@ -33,9 +33,9 @@ const latest = posts.slice(1);
 
 /** Tab subtitles for the real categories. */
 const categoryBlurbs: Record<string, string> = {
-  'api-design': 'Design better APIs',
-  databases: 'Work with data',
   'study-techniques': 'Learn effectively',
+  'exam-preparation': 'Score higher',
+  'subject-guides': 'Study smarter per subject',
 };
 
 const categoryLabel = (slug: string) => slug.replace(/-/g, ' ');
@@ -43,8 +43,8 @@ const categoryLabel = (slug: string) => slug.replace(/-/g, ' ');
 /** The design's chip icons, mapped onto the real categories. */
 const categoryIcons: Record<string, string> = {
   'study-techniques': '/assets/icons/lightbulb.svg',
-  'api-design': '/assets/icons/clipboard-check.svg',
-  databases: '/assets/icons/briefcase.svg',
+  'exam-preparation': '/assets/icons/clipboard-check.svg',
+  'subject-guides': '/assets/icons/briefcase.svg',
 };
 
 /**

@@ -12,6 +12,7 @@ import PageHeader from '../../components/PageHeader.astro';
 import StatCards from '../../components/StatCards.astro';
 import SidebarPanel from '../../components/SidebarPanel.astro';
 import RelatedContent from '../../components/RelatedContent.astro';
+import Illustration, { illustrationForSubject } from '../../components/Illustration.astro';
 import Icon from '../../components/Icon.astro';
 import { getNotes, getBlogPosts, getCollection, isoDate } from '../../utils/collections';
 
@@ -36,6 +37,21 @@ const freshNotes = [...notes]
   .slice(0, 3);
 
 const freshPosts = posts.slice(0, 3);
+
+/** Subjects with a PNG icon in /assets/landing/; the rest fall back to a drawing. */
+const pngSubjects = new Set([
+  'anatomy',
+  'biochemistry',
+  'community-medicine',
+  'forensic-medicine',
+  'microbiology',
+  'pathology',
+  'pharmacology',
+  'physiology',
+]);
+
+const subjectIcon = (slug: string) =>
+  pngSubjects.has(slug) ? `/assets/landing/subject-${slug}.png` : undefined;
 ---
 <Layout
   title="Dashboard | Medical Study Notes"
@@ -52,12 +68,13 @@ const freshPosts = posts.slice(0, 3);
     crumbs={[{ label: 'Home', href: '/' }, { label: 'Dashboard' }]}
   >
     <Fragment slot="aside">
-      <figure class="dash-quote">
-        <blockquote>
-          <p>Consistency beats intensity. A little every day grows into mastery.</p>
-        </blockquote>
-        <figcaption>LEARN DAILY · GROW DAILY</figcaption>
-      </figure>
+      <aside class="dash-chip">
+        <span class="dash-chip-icon" aria-hidden="true"><Icon name="graduation-cap" size={28} /></span>
+        <p class="dash-chip-label">Keep it up</p>
+        <p class="dash-chip-body">
+          Every note you save and quiz you take is counted here — from this browser alone.
+        </p>
+      </aside>
     </Fragment>
   </PageHeader>
 
@@ -68,8 +85,8 @@ const freshPosts = posts.slice(0, 3);
         <StatCards
           stats={[
             { value: '—', label: 'Items saved', icon: 'bookmark' },
-            { value: '—', label: 'Quizzes taken', icon: 'question' },
-            { value: '—', label: 'Average score', icon: 'chart' },
+            { value: '—', label: 'Quizzes taken', icon: 'clipboard-check' },
+            { value: '—', label: 'Average score', icon: 'target' },
             { value: '—', label: 'Best score', icon: 'star' },
           ]}
         />
@@ -86,14 +103,24 @@ const freshPosts = posts.slice(0, 3);
       <div class="dash-main">
         <section class="section" aria-labelledby="fresh-notes">
           <div class="section-head">
-            <h2 id="fresh-notes">Keep learning</h2>
-            <p>The most recently updated study notes — a good place to pick things back up.</p>
+            <div>
+              <h2 id="fresh-notes">Keep learning</h2>
+              <p>Pick up right where you left off — the most recently updated notes.</p>
+            </div>
+            <a class="link-arrow" href="/notes/">View all <Icon name="arrow-right" size={14} /></a>
           </div>
 
           <ul class="continue-list">
             {freshNotes.map((note) => (
               <li class="continue-item panel">
-                <div>
+                <span class="continue-art" aria-hidden="true">
+                  {subjectIcon(note.data.subject) ? (
+                    <img src={subjectIcon(note.data.subject)} alt="" loading="lazy" decoding="async" />
+                  ) : (
+                    <Illustration name={illustrationForSubject(note.data.subject)} size={30} />
+                  )}
+                </span>
+                <div class="continue-text">
                   <h3><a href={`/notes/${note.slug}/`}>{note.data.title}</a></h3>
                   <p class="continue-meta">
                     {subjects.find((s) => s.slug === note.data.subject)?.data.title}
@@ -101,8 +128,8 @@ const freshPosts = posts.slice(0, 3);
                     · {minutes(note.body)} min read
                   </p>
                 </div>
-                <a class="btn btn-sm btn-secondary" href={`/notes/${note.slug}/`}>
-                  Read <Icon name="arrow-right" size={13} />
+                <a class="btn btn-sm btn-primary continue-btn" href={`/notes/${note.slug}/`}>
+                  Read
                 </a>
               </li>
             ))}
@@ -111,7 +138,10 @@ const freshPosts = posts.slice(0, 3);
 
         <section class="section" aria-labelledby="recent-quizzes">
           <div class="section-head">
-            <h2 id="recent-quizzes">Recent quiz results</h2>
+            <div>
+              <h2 id="recent-quizzes">Recent quiz results</h2>
+              <p>Your latest MCQ attempts.</p>
+            </div>
             <a class="link-arrow" href="/dashboard/quiz-history/">View all <Icon name="arrow-right" size={14} /></a>
           </div>
 
@@ -127,7 +157,7 @@ const freshPosts = posts.slice(0, 3);
 
       {/* --- rail ----------------------------------------------------------- */}
       <div class="dash-rail">
-        <SidebarPanel heading="Recommended reading" icon="notes">
+        <SidebarPanel heading="Recommended for You" icon="star">
           <RelatedContent
             items={freshPosts.map((post) => ({
               href: `/blog/${post.slug}/`,
@@ -141,19 +171,23 @@ const freshPosts = posts.slice(0, 3);
           />
         </SidebarPanel>
 
+        <figure class="dash-tip">
+          <span class="dash-tip-icon" aria-hidden="true"><Icon name="bulb" size={30} /></span>
+          <blockquote>
+            <p>Consistency beats intensity. A little every day grows into mastery.</p>
+          </blockquote>
+          <figcaption>Learn daily · Grow daily</figcaption>
+        </figure>
+
         <SidebarPanel variant="tint" heading="Where things live" icon="shield">
           <p class="privacy-copy">
             Saved items and quiz results are stored only in this browser. Clearing
             site data clears them — there is no account to recover them from.
           </p>
-        </SidebarPanel>
-
-        <SidebarPanel heading="Quick links" icon="link">
           <ul class="chevron-list">
             <li><a href="/dashboard/saved/">Saved items</a></li>
             <li><a href="/dashboard/quiz-history/">Quiz history</a></li>
             <li><a href="/practice/">Practice questions</a></li>
-            <li><a href="/past-papers/">Past papers</a></li>
           </ul>
         </SidebarPanel>
       </div>
@@ -202,12 +236,15 @@ const freshPosts = posts.slice(0, 3);
         .map(
           (r) => `
           <li class="quiz-row panel">
-            <div>
+            <span class="quiz-icon" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4.5" width="14" height="17" rx="2"/><path d="M9 4.5h6v3H9z"/><path d="M9 13.5l2.2 2.2 4-4.2"/></svg>
+            </span>
+            <div class="quiz-text">
               <h3>${escape(r.subject)} MCQs</h3>
               <p class="quiz-meta">${fmtDate(r.date)} · ${r.total} question${r.total === 1 ? '' : 's'} · ${r.correct}/${r.total} correct</p>
             </div>
             <div class="quiz-row-side">
-              <span class="quiz-score ${r.pct >= 80 ? 'score-high' : r.pct >= 50 ? 'score-mid' : 'score-low'}">${r.pct}%</span>
+              <span class="quiz-score">${r.pct}%</span>
               <a class="btn btn-sm btn-secondary" href="/practice/quiz/${encodeURIComponent(r.subjectSlug)}/">Retake</a>
             </div>
           </li>`,
@@ -218,35 +255,34 @@ const freshPosts = posts.slice(0, 3);
 </script>
 
 <style>
-  .dash-quote {
-    margin: 0;
-    padding: var(--space-6);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
+  /* --- hero chip ---------------------------------------------------------- */
+  .dash-chip {
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-5);
+    border-radius: var(--radius-lg);
+    background: var(--quote-surface);
   }
 
-  .dash-quote blockquote {
-    margin: 0;
+  .dash-chip-icon {
+    color: var(--primary);
   }
 
-  .dash-quote p {
-    color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-display-sm);
-    font-style: italic;
-    font-weight: var(--weight-medium);
-    line-height: 1.35;
-    text-wrap: balance;
-  }
-
-  .dash-quote figcaption {
+  .dash-chip-label {
     margin-top: var(--space-3);
-    color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    letter-spacing: var(--track-caps);
+    color: var(--primary);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-semibold);
+    letter-spacing: 0.15em;
     text-transform: uppercase;
+  }
+
+  .dash-chip-body {
+    margin-top: var(--space-2);
+    max-width: 24ch;
+    color: var(--mute);
+    font-size: var(--text-caption);
+    line-height: var(--leading-normal);
   }
 
   .page-body {
@@ -295,15 +331,41 @@ const freshPosts = posts.slice(0, 3);
   .continue-item {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: var(--space-4);
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
+  }
+
+  .continue-art {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    border-radius: var(--radius-md);
+    background: var(--quote-surface);
+    color: var(--primary);
+  }
+
+  .continue-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .continue-text {
+    min-width: 0;
+    flex: 1;
   }
 
   .continue-item h3 {
     color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-sm);
     font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    overflow-wrap: anywhere;
   }
 
   .continue-item h3 a {
@@ -319,7 +381,11 @@ const freshPosts = posts.slice(0, 3);
   .continue-meta {
     margin-top: var(--space-1);
     color: var(--mute);
-    font-size: var(--text-body-sm);
+    font-size: var(--text-caption);
+  }
+
+  .continue-btn {
+    flex-shrink: 0;
   }
 
   /* --- quiz rows -------------------------------------------------------------------- */
@@ -334,21 +400,41 @@ const freshPosts = posts.slice(0, 3);
   .quiz-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
     gap: var(--space-4);
+    padding: var(--space-3);
+    border-radius: var(--radius-lg);
+  }
+
+  .quiz-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-md);
+    background: var(--quote-surface);
+    color: var(--primary);
+  }
+
+  .quiz-text {
+    min-width: 0;
+    flex: 1;
   }
 
   .quiz-row h3 {
     color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-sm);
     font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    overflow-wrap: anywhere;
   }
 
   .quiz-meta {
     margin-top: var(--space-1);
     color: var(--mute);
-    font-size: var(--text-body-sm);
+    font-size: var(--text-caption);
   }
 
   .quiz-row-side {
@@ -359,21 +445,16 @@ const freshPosts = posts.slice(0, 3);
   }
 
   .quiz-score {
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    font-weight: var(--weight-display);
-  }
-
-  .score-high {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 3rem;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-tag);
+    background: var(--quote-surface);
     color: var(--primary);
-  }
-
-  .score-mid {
-    color: var(--ink);
-  }
-
-  .score-low {
-    color: var(--mute);
+    font-size: var(--text-caption);
+    font-weight: var(--weight-semibold);
   }
 
   .empty-state h3 {
@@ -391,5 +472,41 @@ const freshPosts = posts.slice(0, 3);
 
   .empty-state[hidden] {
     display: none;
+  }
+
+  /* --- study tip card (rail) --------------------------------------------------------- */
+  .dash-tip {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: var(--space-6);
+    border-radius: var(--radius-lg);
+    background: var(--quote-surface);
+  }
+
+  .dash-tip-icon {
+    color: var(--primary);
+  }
+
+  .dash-tip blockquote {
+    margin: var(--space-4) 0 0;
+  }
+
+  .dash-tip p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-sm);
+    font-style: italic;
+    line-height: 1.55;
+    text-wrap: balance;
+  }
+
+  .dash-tip figcaption {
+    margin-top: var(--space-4);
+    color: var(--primary);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-semibold);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
   }
 </style>

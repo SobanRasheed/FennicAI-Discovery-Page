@@ -68,9 +68,9 @@ const subjectSub = (noteCount: number, mcqCount: number) => {
 
 /** Decorative line art for the article cards, keyed by category slug. */
 const categoryArt: Record<string, IllustrationName> = {
-  'api-design': 'code',
-  'databases': 'database',
   'study-techniques': 'open-book',
+  'exam-preparation': 'stethoscope',
+  'subject-guides': 'anatomy',
 };
 const artForCategory = (slug: string): IllustrationName =>
   categoryArt[slug] ?? 'open-book';
