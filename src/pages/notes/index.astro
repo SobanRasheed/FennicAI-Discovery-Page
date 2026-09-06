@@ -291,18 +291,18 @@ const jsonLd = {
             Popular subjects
           </h2>
           <ul class="rail-subjects">
-            {subjectRows.map(({ subject, count }) => (
-              <li id={`subject-${subject.slug}`}>
-                <a href={`/subjects/${subject.slug}/`}>
+            {subjectRows.map(({ slug, title, count }) => (
+              <li id={`subject-${slug}`}>
+                <a href={`/subjects/${slug}/`}>
                   <span class="rail-art" aria-hidden="true">
-                    {subjectIcon(subject.slug) ? (
-                      <img src={subjectIcon(subject.slug)} alt="" loading="lazy" decoding="async" />
+                    {subjectIcon(slug) ? (
+                      <img src={subjectIcon(slug)} alt="" loading="lazy" decoding="async" />
                     ) : (
-                      <Illustration name={illustrationForSubject(subject.slug)} size={22} />
+                      <Illustration name={illustrationForSubject(slug)} size={22} />
                     )}
                   </span>
                   <span class="rail-names">
-                    <span class="rail-name">{subject.data.title}</span>
+                    <span class="rail-name">{title}</span>
                     <span class="rail-count">{count} note{count === 1 ? '' : 's'}</span>
                   </span>
                 </a>
@@ -821,20 +821,19 @@ const jsonLd = {
 </style>
 
 <script>
-  // Client-side filtering over the prerendered list. Everything still works
-  // without this script: the full list is server-rendered and the hero search
-  // submits to /search/ as a plain GET form.
+  // Client-side filtering over the server-rendered list. Everything still
+  // works without this script: the full list is server-rendered and the hero
+  // search submits to /search/ as a plain GET form.
   const heroForm = document.querySelector<HTMLFormElement>('.notes-search form');
   const queryInput = heroForm?.querySelector<HTMLInputElement>('input[name="q"]') ?? null;
   const subjectSel = document.getElementById('notes-subject') as HTMLSelectElement;
   const topicSel = document.getElementById('notes-topic') as HTMLSelectElement;
-  const levelSel = document.getElementById('notes-level') as HTMLSelectElement;
   const sortSel = document.getElementById('notes-sort') as HTMLSelectElement;
   const countEl = document.getElementById('notes-count');
   const emptyEl = document.getElementById('notes-empty');
   const list = document.getElementById('note-list');
 
-  if (list && subjectSel && topicSel && levelSel && sortSel && countEl && emptyEl) {
+  if (list && subjectSel && topicSel && sortSel && countEl && emptyEl) {
     const rows = Array.from(list.querySelectorAll<HTMLElement>('.note-row'));
 
     const comparators: Record<string, (a: HTMLElement, b: HTMLElement) => number> = {
@@ -847,15 +846,13 @@ const jsonLd = {
       const q = (queryInput?.value ?? '').trim().toLowerCase();
       const subject = subjectSel.value;
       const topic = topicSel.value;
-      const level = levelSel.value;
 
       let visible = 0;
       rows.forEach((row) => {
         const matches =
           (!q || row.dataset.search!.includes(q)) &&
           (!subject || row.dataset.subject === subject) &&
-          (!topic || row.dataset.chapter === topic) &&
-          (!level || row.dataset.level === level);
+          (!topic || row.dataset.topic === topic);
         row.hidden = !matches;
         if (matches) visible++;
       });
@@ -871,14 +868,12 @@ const jsonLd = {
       if (queryInput) queryInput.value = '';
       subjectSel.value = '';
       topicSel.value = '';
-      levelSel.value = '';
       sortSel.value = 'recent';
       apply();
     }
 
     subjectSel.addEventListener('change', apply);
     topicSel.addEventListener('change', apply);
-    levelSel.addEventListener('change', apply);
     sortSel.addEventListener('change', apply);
     queryInput?.addEventListener('input', apply);
     document.getElementById('notes-reset')?.addEventListener('click', reset);
