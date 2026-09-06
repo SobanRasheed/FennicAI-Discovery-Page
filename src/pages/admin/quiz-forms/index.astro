@@ -1,0 +1,93 @@
+---
+/**
+ * /admin/quiz-forms/ (§12): Google Form quiz links — list with filters +
+ * pagination. These are quizzes the admin builds as Google Forms; students
+ * are redirected to the external form. The in-house MCQ engine is separate
+ * and stays under /admin/mcqs/.
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { env } from '../../../utils/backend';
+import { listSubjects } from '../../../utils/content';
+
+export const prerender = false;
+
+const url = Astro.url;
+const q = url.searchParams.get('q') ?? '';
+const status = url.searchParams.get('status') ?? '';
+const subjectIdRaw = url.searchParams.get('subjectId');
+const subjectId = subjectIdRaw && /^\d+$/.test(subjectIdRaw) ? Number(subjectIdRaw) : null;
+const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
+const perPage = 25;
+
+const where: string[] = [];
+const params: unknown[] = [];
+if (status) { where.push('f.status = ?'); params.push(status); }
+if (subjectId) { where.push('f.subject_id = ?'); params.push(subjectId); }
+if (q) { where.push('(LOWER(f.title) LIKE ? OR LOWER(f.topic) LIKE ?)'); params.push(`%${q.toLowerCase()}%`, `%${q.toLowerCase()}%`); }
+const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+const db = env(Astro.locals).DB;
+const [total, rows, subjects] = await Promise.all([
+  db.prepare(`SELECT COUNT(*) AS n FROM quiz_forms f ${whereSql}`).bind(...params).first<{ n: number }>(),
+  db.prepare(
+    `SELECT f.id, f.title, f.topic, f.status, f.google_form_url, f.updated_at, s.title AS subject
+     FROM quiz_forms f LEFT JOIN subjects s ON s.id = f.subject_id
+     ${whereSql} ORDER BY f.updated_at DESC LIMIT ? OFFSET ?`,
+  ).bind(...params, perPage, (page - 1) * perPage).all<{ id: number; title: string; topic: string | null; status: string; google_form_url: string; updated_at: string; subject: string | null }>(),
+  listSubjects(Astro.locals, true).catch(() => []),
+]);
+
+const totalPages = Math.max(1, Math.ceil((total?.n ?? 0) / perPage));
+const user = Astro.locals.user!;
+const error = url.searchParams.get('error');
+const pageLink = (p: number) => {
+  const sp = new URLSearchParams(url.searchParams);
+  sp.set('page', String(p));
+  return `/admin/quiz-forms/?${sp.toString()}`;
+};
+---
+<AdminLayout title="Google Form Quizzes" user={user} active="quiz-forms">
+  <h1>Google Form quizzes</h1>
+  <p style="max-width:46rem;">
+    Quizzes you build as Google Forms instead of writing MCQs here. Each entry
+    shows a card on the practice pages with its thumbnail and topic; students
+    are redirected to the form. The in-house MCQ engine stays under
+    <a href="/admin/mcqs/">MCQs</a>.
+  </p>
+  {error && <p class="flash flash-error">{error}</p>}
+  <p><a class="btn btn-primary" href="/admin/quiz-forms/new/">New Google Form quiz</a></p>
+
+  <form method="get" action="/admin/quiz-forms/">
+    <input type="search" name="q" value={q} placeholder="Search title or topic" />
+    <select name="status">
+      <option value="">All statuses</option>
+      {['draft', 'published', 'unpublished'].map((s) => <option value={s} selected={status === s}>{s}</option>)}
+    </select>
+    <select name="subjectId">
+      <option value="">All subjects</option>
+      {subjects.map((s) => <option value={s.id} selected={subjectId === s.id}>{s.title}</option>)}
+    </select>
+    <button class="btn" type="submit">Filter</button>
+  </form>
+
+  <table>
+    <tr><th>Title</th><th>Topic</th><th>Subject</th><th>Status</th><th>Updated</th><th></th></tr>
+    {rows.results.map((f) => (
+      <tr>
+        <td><a href={`/admin/quiz-forms/${f.id}/`}>{f.title}</a></td>
+        <td>{f.topic ?? '—'}</td>
+        <td>{f.subject ?? '—'}</td>
+        <td><span class="badge">{f.status}</span></td>
+        <td>{f.updated_at.slice(0, 10)}</td>
+        <td><a class="btn" href={`/admin/quiz-forms/${f.id}/`}>Edit</a></td>
+      </tr>
+    ))}
+    {rows.results.length === 0 && <tr><td colspan="6">No Google Form quizzes yet.</td></tr>}
+  </table>
+
+  <div class="pagination">
+    {page > 1 && <a class="btn" href={pageLink(page - 1)}>← Previous</a>}
+    <span>Page {page} of {totalPages} · {total?.n ?? 0} total</span>
+    {page < totalPages && <a class="btn" href={pageLink(page + 1)}>Next →</a>}
+  </div>
+</AdminLayout>

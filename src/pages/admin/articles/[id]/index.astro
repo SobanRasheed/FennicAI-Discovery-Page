@@ -184,9 +184,15 @@ const editorData = {
         <a href="/admin/references/" style="font-size:0.85rem;">Manage references →</a>
       </details>
 
-      <label for="f-featured">Featured image media ID</label>
+      <label for="f-featured">Featured image (thumbnail)</label>
       <input id="f-featured" name="featuredMediaId" value={article.featured_media_id ?? ''} />
-      <button class="btn btn-pick-featured" type="button" style="margin-top:0.25rem;">Pick from media library</button>
+      <div style="display:flex;gap:0.5rem;margin-top:0.25rem;flex-wrap:wrap;">
+        <button class="btn btn-pick-featured" type="button">Pick from library</button>
+        <button class="btn btn-upload-featured" type="button">Upload image</button>
+      </div>
+      <div id="featured-preview" hidden style="margin-top:0.5rem;">
+        <img src="" alt="" style="display:block;max-width:220px;max-height:124px;border:1px solid #ddd;border-radius:6px;object-fit:contain;" />
+      </div>
 
       <h2>SEO</h2>
       <label for="f-seotitle">SEO title</label>
@@ -199,8 +205,15 @@ const editorData = {
       <input id="f-ogtitle" name="ogTitle" value={article.og_title ?? ''} />
       <label for="f-ogdesc">Open Graph description</label>
       <textarea id="f-ogdesc" name="ogDescription" rows="2">{article.og_description ?? ''}</textarea>
-      <label for="f-ogimage">OG image media ID</label>
+      <label for="f-ogimage">OG image (social share thumbnail)</label>
       <input id="f-ogimage" name="ogImageMediaId" value={article.og_image_media_id ?? ''} />
+      <div style="display:flex;gap:0.5rem;margin-top:0.25rem;flex-wrap:wrap;">
+        <button class="btn btn-pick-og" type="button">Pick from library</button>
+        <button class="btn btn-upload-og" type="button">Upload image</button>
+      </div>
+      <div id="og-preview" hidden style="margin-top:0.5rem;">
+        <img src="" alt="" style="display:block;max-width:220px;max-height:124px;border:1px solid #ddd;border-radius:6px;object-fit:contain;" />
+      </div>
       <label for="f-robots">Robots</label>
       <select id="f-robots" name="robots">
         {['index,follow', 'noindex,follow', 'index,nofollow', 'noindex,nofollow'].map((r) => (

@@ -29,6 +29,8 @@ import {
   ReferencesBlock,
   Underline,
 } from '../utils/editor-blocks';
+import { pickMedia, uploadMediaFile } from './admin/media-client';
+import mammoth from 'mammoth';
 
 interface McqAttrs {
   question: string;
@@ -45,7 +47,10 @@ const val = (name: string) => (field(name) as { value?: string } | null)?.value 
 
 export function initEditor(articleId: number): void {
   const dataEl = document.getElementById('article-data');
-  const csrf = (document.getElementById('csrf-token') as HTMLTextAreaElement)?.value ?? '';
+  // The token is embedded as a JSON-quoted string in a <script type="application/json">;
+  // script elements have no .value, so read and parse textContent.
+  const csrfEl = document.getElementById('csrf-token');
+  const csrf = csrfEl ? (JSON.parse(csrfEl.textContent || '""') as string) : '';
   const article = dataEl ? (JSON.parse(dataEl.textContent || '{}') as Record<string, unknown>) : {};
   const subjects = dataEl ? ((article.subjects as { id: number; title: string; topics: { id: number; title: string }[] }[]) ?? []) : [];
 
@@ -102,8 +107,9 @@ export function initEditor(articleId: number): void {
     ['❝', 'Blockquote', () => editor.chain().focus().toggleBlockquote().run()],
     ['―', 'Horizontal rule', () => editor.chain().focus().setHorizontalRule().run()],
     ['🔗', 'Insert link', insertLink],
-    ['🖼', 'Insert image from media library', () => pickMedia().then((m) => m && insertImage(m.url, m.alt))],
+    ['🖼', 'Insert image from media library', () => pickMedia(csrf).then((m) => m && insertImage(m.url, m.alt))],
     ['⊞', 'Insert table', () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()],
+    ['📄', 'Import Word document (.docx) — headings, lists, tables, and images are converted; embedded images are uploaded to the media library', importWord],
     ['x₂', 'Subscript', () => editor.chain().focus().toggleSubscript().run()],
     ['x²', 'Superscript', () => editor.chain().focus().toggleSuperscript().run()],
     ['⬅', 'Undo (Mod-Z)', () => editor.chain().focus().undo().run()],
@@ -154,6 +160,69 @@ export function initEditor(articleId: number): void {
 
   function insertImage(url: string, alt: string): void {
     editor.chain().focus().setImage({ src: url, alt }).run();
+  }
+
+  // -------------------------------------------------------------------------
+  // Word (.docx) import via mammoth (§12)
+  // -------------------------------------------------------------------------
+
+  async function importWord(): Promise<void> {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    input.addEventListener('change', async () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      const statusEl2 = $('.save-status');
+      const prevText = statusEl2?.textContent ?? '';
+      const note = (msg: string) => { if (statusEl2) statusEl2.textContent = msg; };
+      try {
+        note('Importing Word document…');
+        const arrayBuffer = await f.arrayBuffer();
+        const result = await mammoth.convertToHtml({ arrayBuffer });
+        const doc = new DOMParser().parseFromString(result.value, 'text/html');
+
+        // mammoth inlines embedded images as data URIs. Upload each one to
+        // the media library (auto-adjusted + alt-texted) and rewrite the src
+        // so the article never carries base64 payloads.
+        const imgs = [...doc.querySelectorAll('img')];
+        let n = 0;
+        for (const img of imgs) {
+          n++;
+          const src = img.getAttribute('src') ?? '';
+          if (!src.startsWith('data:')) continue;
+          note(`Uploading embedded image ${n}/${imgs.length}…`);
+          const blob = await (await fetch(src)).blob();
+          const ext = blob.type.split('/')[1]?.split('+')[0] || 'png';
+          const file = new File([blob], `word-import-${Date.now()}-${n}.${ext}`, { type: blob.type });
+          const alt = (img.getAttribute('alt') ?? '').trim();
+          const m = await uploadMediaFile(csrf, file, alt.length >= 5 ? alt : `Imported figure ${n}`);
+          img.setAttribute('src', m.url);
+          if (alt.length >= 5) img.setAttribute('alt', alt);
+          else img.removeAttribute('alt');
+        }
+
+        const html = doc.body.innerHTML;
+        if (!html.trim()) {
+          window.alert('The Word document contained no convertible content.');
+          note(prevText);
+          return;
+        }
+        const hasContent = editor.getJSON().content?.some(
+          (node) => node.type !== 'paragraph' || (node.content?.length ?? 0) > 0,
+        );
+        if (hasContent && !window.confirm('Replace the current article content with the Word document? (Cancel appends it at the end instead.)')) {
+          editor.chain().focus().insertContent(html).run();
+        } else {
+          editor.commands.setContent(html);
+        }
+        note(`Imported ${f.name}${imgs.length ? ` (${imgs.length} image${imgs.length > 1 ? 's' : ''} uploaded to the media library)` : ''}. Fill in the SEO fields and thumbnail, then save.`);
+      } catch (err) {
+        window.alert(`Word import failed: ${(err as Error).message}`);
+        note(prevText);
+      }
+    });
+    input.click();
   }
 
   // -------------------------------------------------------------------------
@@ -295,103 +364,6 @@ export function initEditor(articleId: number): void {
     parent.appendChild(e);
     return e;
   }
-
-  // -------------------------------------------------------------------------
-  // Media picker: upload or reuse (R2 via /api/media)
-  // -------------------------------------------------------------------------
-
-  interface MediaItem { id: number; r2_key: string; filename: string; mime_type: string; alt_text: string; }
-  async function pickMedia(): Promise<{ url: string; alt: string } | null> {
-    return new Promise((resolve) => {
-      const dlg = document.createElement('div');
-      dlg.className = 'msn-dialog media-picker';
-      const h = document.createElement('h3');
-      h.textContent = 'Media library';
-      dlg.appendChild(h);
-
-      const search = document.createElement('input');
-      search.type = 'search';
-      search.placeholder = 'Search files';
-      dlg.appendChild(search);
-      const list = document.createElement('div');
-      list.className = 'media-list';
-      dlg.appendChild(list);
-
-      const upLabel = document.createElement('label');
-      upLabel.textContent = 'Upload new file';
-      const file = document.createElement('input');
-      file.type = 'file';
-      file.accept = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml,application/pdf';
-      upLabel.appendChild(file);
-      const alt = document.createElement('input');
-      alt.type = 'text';
-      alt.placeholder = 'Alt text (required for images)';
-      dlg.append(upLabel, alt);
-      const uploadBtn = document.createElement('button');
-      uploadBtn.type = 'button';
-      uploadBtn.textContent = 'Upload';
-      uploadBtn.className = 'btn btn-primary';
-      const err = errLine(dlg);
-      uploadBtn.addEventListener('click', async () => {
-        const f = file.files?.[0];
-        if (!f) return;
-        if (f.type.startsWith('image/') && alt.value.trim().length < 5) {
-          err.textContent = 'Meaningful alt text (5+ characters) is required for images.';
-          return;
-        }
-        const body = new FormData();
-        body.set('file', f);
-        body.set('altText', alt.value.trim());
-        const res = await fetch('/api/media/', { method: 'POST', headers: { 'X-CSRF-Token': csrf }, body });
-        const data = await res.json() as { url?: string; error?: string };
-        if (!res.ok) {
-          err.textContent = data.error ?? 'Upload failed.';
-          return;
-        }
-        resolve({ url: data.url!, alt: alt.value.trim() });
-        dlg.remove();
-      });
-      dlg.appendChild(uploadBtn);
-
-      const cancel = document.createElement('button');
-      cancel.type = 'button';
-      cancel.textContent = 'Cancel';
-      cancel.className = 'btn';
-      cancel.addEventListener('click', () => {
-        resolve(null);
-        dlg.remove();
-      });
-      dlg.appendChild(cancel);
-      document.body.appendChild(dlg);
-
-      const render = async (q: string) => {
-        const res = await fetch(`/api/media/?perPage=30${q ? `&q=${encodeURIComponent(q)}` : ''}`, { headers: { 'X-CSRF-Token': csrf } });
-        if (!res.ok) return;
-        const data = await res.json() as { media: MediaItem[] };
-        list.innerHTML = '';
-        for (const m of data.media.filter((x) => x.mime_type.startsWith('image/'))) {
-          const item = document.createElement('button');
-          item.type = 'button';
-          item.textContent = `${m.filename}${m.alt_text ? ` — "${m.alt_text}"` : ' — no alt text'}`;
-          item.className = 'media-item';
-          item.addEventListener('click', () => {
-            resolve({ url: `/media/${m.r2_key}/`, alt: m.alt_text });
-            dlg.remove();
-          });
-          list.appendChild(item);
-        }
-        if (!data.media.length) {
-          const none = document.createElement('p');
-          none.textContent = 'No media yet. Upload a file below.';
-          list.appendChild(none);
-        }
-      };
-      search.addEventListener('input', () => render(search.value));
-      render('');
-    });
-  }
-  // Expose for the sidebar's featured-image picker.
-  (window as unknown as Record<string, unknown>).msnPickMedia = pickMedia;
 
   // -------------------------------------------------------------------------
   // Internal linking (§7)
@@ -591,19 +563,92 @@ export function initEditor(articleId: number): void {
     setStatus('scheduled', new Date(when).toISOString());
   });
 
-  // Featured-image picker button.
+  // Media-ID inputs show a live thumbnail of whatever ID they hold, so the
+  // editor sees what a Featured/OG image actually is instead of guessing by
+  // number. Blank or unknown IDs clear the preview.
+  const mediaPreview = (inputName: string, img: HTMLImageElement | null) => {
+    const input = field(inputName) as HTMLInputElement | null;
+    if (!input || !img) return;
+    let seq = 0;
+    const refresh = async () => {
+      const id = input.value.trim();
+      const mine = ++seq;
+      if (!/^\d+$/.test(id)) {
+        img.parentElement!.hidden = true;
+        return;
+      }
+      const res = await fetch(`/api/media/${id}/`, { headers: { 'X-CSRF-Token': csrf } });
+      const data = res.ok
+        ? (await res.json() as { url?: string; mime_type?: string; filename?: string })
+        : {};
+      if (mine !== seq) return; // a newer keystroke already superseded this fetch
+      if (data.url && data.mime_type?.startsWith('image/')) {
+        img.src = data.url;
+        img.title = data.filename ?? '';
+        img.parentElement!.hidden = false;
+      } else {
+        img.parentElement!.hidden = true;
+      }
+    };
+    input.addEventListener('input', refresh);
+    refresh();
+  };
+  mediaPreview(
+    'featuredMediaId',
+    document.querySelector<HTMLImageElement>('#featured-preview img'),
+  );
+  mediaPreview(
+    'ogImageMediaId',
+    document.querySelector<HTMLImageElement>('#og-preview img'),
+  );
+
+  // Featured/OG image picker + direct-upload buttons. Upload skips the
+  // library dialog: pick a local file, auto-adjust it, upload, and set the
+  // field immediately.
+  const setMediaField = (inputName: string, m: { id: number }) => {
+    const input = field(inputName) as HTMLInputElement;
+    input.value = String(m.id);
+    // Programmatic value changes don't fire 'input' — nudge the preview.
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    scheduleSave();
+  };
+  const directUpload = async (inputName: string) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml';
+    input.addEventListener('change', async () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      // Alt text keeps the media library honest — prefill from the filename.
+      const alt = window.prompt(
+        `Alt text for "${f.name}" (required, describes the image for screen readers):`,
+        f.name.replace(/\.[a-z0-9]+$/i, '').replace(/[-_]+/g, ' '),
+      );
+      if (alt === null) return;
+      if (alt.trim().length < 5) {
+        window.alert('Meaningful alt text (5+ characters) is required for images.');
+        return;
+      }
+      try {
+        setMediaField(inputName, await uploadMediaFile(csrf, f, alt.trim()));
+      } catch (err) {
+        window.alert((err as Error).message);
+      }
+    });
+    input.click();
+  };
   $('.btn-pick-featured')?.addEventListener('click', async () => {
-    const m = await pickMedia();
+    const m = await pickMedia(csrf);
     if (!m) return;
-    // Resolve the media id from the picker's picked URL via search API.
-    const res = await fetch(`/api/media/?q=${encodeURIComponent(m.alt || '')}`);
-    if (res.ok) {
-      const data = await res.json() as { media: { id: number; r2_key: string }[] };
-      const hit = data.media.find((x) => `/media/${x.r2_key}/` === m.url);
-      if (hit) (field('featuredMediaId') as HTMLInputElement).value = String(hit.id);
-      scheduleSave();
-    }
+    setMediaField('featuredMediaId', m);
   });
+  $('.btn-upload-featured')?.addEventListener('click', () => directUpload('featuredMediaId'));
+  $('.btn-pick-og')?.addEventListener('click', async () => {
+    const m = await pickMedia(csrf);
+    if (!m) return;
+    setMediaField('ogImageMediaId', m);
+  });
+  $('.btn-upload-og')?.addEventListener('click', () => directUpload('ogImageMediaId'));
 
   // Topic picker follows subject selection.
   const subjectSel = field('subjectId') as HTMLSelectElement | null;

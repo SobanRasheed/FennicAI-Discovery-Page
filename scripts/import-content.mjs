@@ -18,6 +18,12 @@
  *   imported content replaces the seed.
  *
  * Run from the project root:  node scripts/import-content.mjs
+ *
+ * NOTE: the source collections (src/content/{notes,blog,questions}) were
+ * deleted after the import was applied and verified — the canonical copy of
+ * that content now lives in D1 (and in migrations/0005_import_content.sql).
+ * This script is kept as the record of how 0005 was generated; re-running it
+ * requires restoring the collections from git history.
  * Then apply:                 npx wrangler d1 migrations apply medical-study-notes --local
  *
  * Note: js-yaml is a transitive dependency (via astro) — if it ever disappears

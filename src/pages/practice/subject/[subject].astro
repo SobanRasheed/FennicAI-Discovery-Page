@@ -8,11 +8,13 @@
 import Layout from '../../../layouts/Layout.astro';
 import PageHeader from '../../../components/PageHeader.astro';
 import QuestionList from '../../../components/QuestionList.astro';
+import Icon from '../../../components/Icon.astro';
 import {
   getSubjectBySlug,
   listSubjects,
   listPublishedMcqs,
   countPublishedMcqsBySubject,
+  listPublishedQuizForms,
 } from '../../../utils/content';
 
 export const prerender = false;
@@ -23,10 +25,11 @@ if (!subject || !subject.is_active) {
   return new Response('Not found', { status: 404 });
 }
 
-const [questions, subjects, mcqCount] = await Promise.all([
+const [questions, subjects, mcqCount, formQuizzes] = await Promise.all([
   listPublishedMcqs(Astro.locals, { subjectSlug }),
   listSubjects(Astro.locals),
   countPublishedMcqsBySubject(Astro.locals, subject.id),
+  listPublishedQuizForms(Astro.locals, subject.id).catch(() => []),
 ]);
 
 Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
@@ -75,6 +78,35 @@ const byDifficulty = ['easy', 'medium', 'hard']
   </PageHeader>
 
   <div class="container page-body">
+    {formQuizzes.length > 0 && (
+      <section class="form-quizzes" aria-labelledby="subject-form-quizzes">
+        <h2 id="subject-form-quizzes">Google Form quizzes</h2>
+        <p>
+          Selected {subject.title} quizzes run on Google Forms — they open in a
+          new tab and your answers go straight to the form.
+        </p>
+        <ul class="form-quiz-list">
+          {formQuizzes.map((f) => (
+            <li>
+              <a href={f.google_form_url} target="_blank" rel="noopener">
+                {f.media_key && (
+                  <img src={`/media/${f.media_key}/`} alt="" width="88" height="66" loading="lazy" decoding="async" />
+                )}
+                <span class="form-quiz-body">
+                  <span class="form-quiz-title">{f.title}</span>
+                  {f.topic && <span class="form-quiz-topic">{f.topic}</span>}
+                  <span class="form-quiz-note">
+                    <Icon name="external-link" size={14} />
+                    Opens in Google Forms (new tab)
+                  </span>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
+
     <QuestionList {questions} showSubject={false} />
   </div>
 </Layout>
@@ -88,5 +120,95 @@ const byDifficulty = ['easy', 'medium', 'hard']
 
   .page-body {
     padding-block: var(--space-8) var(--space-16);
+  }
+
+  /* --- Google Form quiz cards --------------------------------------------- */
+  .form-quizzes {
+    margin: 0 0 var(--space-10);
+  }
+
+  .form-quizzes h2 {
+    margin: 0 0 var(--space-2);
+    font-family: var(--font-display);
+    font-size: 1.25rem;
+  }
+
+  .form-quizzes > p {
+    margin: 0 0 var(--space-4);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .form-quiz-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  @media (min-width: 600px) {
+    .form-quiz-list {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  .form-quiz-list a {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 0.15s var(--ease);
+  }
+
+  .form-quiz-list a:hover {
+    border-color: var(--border-strong);
+  }
+
+  .form-quiz-list img {
+    flex-shrink: 0;
+    width: 88px;
+    height: 66px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+  }
+
+  .form-quiz-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .form-quiz-title {
+    color: var(--ink);
+    font-size: 0.875rem;
+    font-weight: var(--weight-semibold);
+    line-height: 1.3;
+    transition: color 0.15s var(--ease);
+  }
+
+  .form-quiz-list a:hover .form-quiz-title {
+    color: var(--primary);
+  }
+
+  .form-quiz-topic {
+    color: var(--mute);
+    font-size: 0.75rem;
+  }
+
+  .form-quiz-note {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--faint);
+    font-size: 0.6875rem;
   }
 </style>

@@ -38,6 +38,7 @@ const levelNotes = noteRows.rows.map((n) => ({
   level: level.slug,
   levelLabel: data.title,
   updated: n.updated_at,
+  image: n.media_key ? { src: `/media/${n.media_key}/`, alt: n.media_alt } : null,
 }));
 
 // Subjects actually used by this level's notes, with their D1 descriptions.

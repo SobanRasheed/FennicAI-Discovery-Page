@@ -34,6 +34,7 @@ const authorNotes = noteRows.map((n) => ({
   subjectLabel: n.subject_title,
   level: null,
   updated: n.updated_at,
+  image: n.media_key ? { src: `/media/${n.media_key}/`, alt: n.media_alt } : null,
 }));
 
 const authorPosts = postRows.map((p) => ({
@@ -43,6 +44,7 @@ const authorPosts = postRows.map((p) => ({
   category: p.category,
   published: p.published_at,
   updated: p.updated_at,
+  image: p.media_key ? { src: `/media/${p.media_key}/`, alt: p.media_alt } : null,
 }));
 
 const site = Astro.site!;

@@ -73,3 +73,35 @@ const pageLink = (p: number) => {
     {page < totalPages && <a class="btn" href={pageLink(page + 1)}>Next →</a>}
   </div>
 </AdminLayout>
+
+<script>
+  // Auto-adjust before upload: oversized raster images are downscaled and
+  // re-encoded in the browser (see image-resize.ts), then the form submits
+  // exactly as it would without JavaScript.
+  import { resizeImageFile } from '../../../components/admin/image-resize';
+
+  const uploadForm = document.querySelector<HTMLFormElement>(
+    'form[action="/admin/media/upload/"]',
+  );
+  const fileInput = uploadForm?.querySelector<HTMLInputElement>('input[type="file"]');
+
+  uploadForm?.addEventListener('submit', async (event) => {
+    const file = fileInput?.files?.[0];
+    if (!file || !fileInput) return;
+    event.preventDefault();
+    const uploadBtn = uploadForm.querySelector<HTMLButtonElement>('button[type="submit"]');
+    if (uploadBtn) {
+      uploadBtn.disabled = true;
+      uploadBtn.textContent = 'Adjusting image…';
+    }
+    try {
+      const adjusted = await resizeImageFile(file);
+      const dt = new DataTransfer();
+      dt.items.add(adjusted);
+      fileInput.files = dt.files;
+    } finally {
+      // form.submit() doesn't re-fire 'submit', so this runs once.
+      uploadForm.submit();
+    }
+  });
+</script>

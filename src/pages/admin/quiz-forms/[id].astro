@@ -1,0 +1,82 @@
+---
+/**
+ * /admin/quiz-forms/new/ and /admin/quiz-forms/:id/ — Google Form quiz
+ * editor. No-JS friendly: plain form POST to /admin/quiz-forms/save/.
+ * The thumbnail pick/upload buttons are progressive enhancement.
+ */
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import { listSubjects } from '../../../utils/content';
+import { env } from '../../../utils/backend';
+import { jsonForScript } from '../../../utils/json-script';
+
+export const prerender = false;
+
+const idParam = String(Astro.params.id ?? '');
+const isNew = idParam === 'new';
+const id = /^\d+$/.test(idParam) ? Number(idParam) : null;
+if (!isNew && !id) {
+  return Astro.redirect('/admin/quiz-forms/', 302);
+}
+
+const db = env(Astro.locals).DB;
+const form = id
+  ? await db.prepare(`SELECT * FROM quiz_forms WHERE id = ?`).bind(id).first<Record<string, unknown>>()
+  : null;
+if (id && !form) {
+  return Astro.redirect('/admin/quiz-forms/', 302);
+}
+
+const subjects = await listSubjects(Astro.locals, true).catch(() => []);
+const error = Astro.url.searchParams.get('error');
+const csrfToken = Astro.locals.csrfToken!;
+const user = Astro.locals.user!;
+---
+<AdminLayout title={isNew ? 'New Google Form quiz' : 'Edit Google Form quiz'} user={user} active="quiz-forms">
+  <h1>{isNew ? 'New Google Form quiz' : 'Edit Google Form quiz'}</h1>
+  {error && <p class="flash flash-error">{error}</p>}
+
+  <form method="post" action="/admin/quiz-forms/save/" style="max-width:44rem;">
+    {id && <input type="hidden" name="id" value={id} />}
+    <label for="f-title">Title</label>
+    <input id="f-title" name="title" value={form?.title ?? ''} required maxlength="200" placeholder="e.g. Cardiac Cycle — Unit Test" />
+
+    <label for="f-topic">Topic</label>
+    <input id="f-topic" name="topic" value={form?.topic ?? ''} maxlength="200" placeholder="e.g. Cardiac cycle" />
+
+    <label for="f-subject">Subject</label>
+    <select id="f-subject" name="subjectId">
+      <option value="">— none —</option>
+      {subjects.map((s) => <option value={s.id} selected={form?.subject_id === s.id}>{s.title}</option>)}
+    </select>
+
+    <label for="f-url">Google Form URL</label>
+    <input id="f-url" name="googleFormUrl" type="url" value={form?.google_form_url ?? ''} required maxlength="500"
+      placeholder="https://docs.google.com/forms/d/…" />
+    <p style="font-size:0.85rem;color:#64748b;">Students are redirected to this form. Only https://docs.google.com/forms/… or https://forms.gle/… links are accepted.</p>
+
+    <label for="f-media">Thumbnail image (optional)</label>
+    <input id="f-media" name="mediaId" value={form?.media_id ?? ''} inputmode="numeric" placeholder="Media ID — or use the buttons below" />
+    <div style="display:flex;gap:0.5rem;margin-top:0.25rem;flex-wrap:wrap;">
+      <button class="btn btn-pick-thumb" type="button">Pick from library</button>
+      <button class="btn btn-upload-thumb" type="button">Upload image</button>
+    </div>
+    <div id="thumb-preview" hidden style="margin-top:0.5rem;">
+      <img src="" alt="" style="display:block;max-width:220px;max-height:124px;border:1px solid #ddd;border-radius:6px;object-fit:contain;" />
+    </div>
+
+    <p style="margin-top:1.25rem;">
+      <button class="btn btn-primary" type="submit" name="save" value="1">Save</button>
+      {id && <button class="btn" type="submit" name="publish" value="1">Save &amp; publish</button>}
+      {id && <button class="btn" type="submit" name="unpublish" value="1">Save &amp; unpublish</button>}
+      <a class="btn" href="/admin/quiz-forms/">Cancel</a>
+      {id && <button class="btn btn-danger" type="submit" name="delete" value="1"
+        style="color:#b91c1c;border-color:#b91c1c;">Delete</button>}
+    </p>
+  </form>
+
+  <script type="application/json" id="csrf-token" set:html={jsonForScript(csrfToken)} />
+  <script>
+    import { initQuizFormMedia } from '../../../components/admin/quiz-form-media';
+    initQuizFormMedia();
+  </script>
+</AdminLayout>

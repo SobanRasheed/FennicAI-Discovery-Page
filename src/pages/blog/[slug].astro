@@ -145,7 +145,8 @@ const footerSubjects = subjects.map((s) => ({
 Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
 
 /** The share image: the admin's OG pick, else the featured image. */
-const ogImage = ogMedia ? new URL(`/media/${ogMedia.r2_key}/`, site).href : undefined;
+const ogMediaRow = ogMedia ?? featuredMedia;
+const ogImage = ogMediaRow ? new URL(`/media/${ogMediaRow.r2_key}/`, site).href : undefined;
 
 const articleSchema = {
   '@context': 'https://schema.org',
@@ -162,7 +163,7 @@ const articleSchema = {
     url: site.href,
   },
   articleSection: article.category ?? undefined,
-  image: ogImage ?? (featuredMedia ? new URL(`/media/${featuredMedia.r2_key}/`, site).href : undefined),
+  image: ogImage,
 };
 ---
 <ArticleLayout

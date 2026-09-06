@@ -15,15 +15,65 @@ import { fileURLToPath } from 'node:url';
 // The Cloudflare adapter emits static assets to dist/client/ (the Worker
 // entry lives in dist/server/ and serves these at the site root).
 const distDir = fileURLToPath(new URL('../dist/client/', import.meta.url));
+const pagesDir = fileURLToPath(new URL('../src/pages/', import.meta.url));
 
-function walkHtml(dir) {
-  const out = [];
+function walk(dir, exts, out = []) {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry);
-    if (statSync(full).isDirectory()) out.push(...walkHtml(full));
-    else if (entry.endsWith('.html')) out.push(full);
+    if (statSync(full).isDirectory()) walk(full, exts, out);
+    else if (exts.some((e) => entry.endsWith(e))) out.push(full);
   }
   return out;
+}
+
+/**
+ * Server-rendered routes (`export const prerender = false`) are served by the
+ * Worker at request time, so they have no file in dist/client/. Links to them
+ * are not broken — they are verified against the running worker instead (the
+ * curl sweep). Build a pattern per SSR page file: dynamic segments ([slug])
+ * match one path segment, rest segments ([...slug]) match any remainder.
+ */
+const ssrRouteRes = (() => {
+  const patterns = [];
+  for (const file of walk(pagesDir, ['.astro'])) {
+    if (!/prerender\s*=\s*false/.test(readFileSync(file, 'utf8'))) continue;
+    let route = file.slice(pagesDir.length).replaceAll('\\', '/');
+    route = route.replace(/(?:^|\/)index\.astro$/, '/');
+    route = route.replace(/\.astro$/, '');
+    // Normalize to the URL form: leading slash, bare "/" for the root.
+    if (route !== '/' && !route.startsWith('/')) route = '/' + route;
+    // [...rest] swallows everything to the end; [param] matches one segment.
+    // A trailing '/?' keeps both '/notes' and '/notes/' forms working.
+    const regex = new RegExp(
+      route === '/'
+        ? '^/$'
+        : '^' +
+            route
+              .split('/')
+              .map((seg) =>
+                seg.startsWith('[...')
+                  ? '[\\s\\S]*'
+                  : seg.startsWith('[')
+                    ? '[^/]+'
+                    : seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+              )
+              .join('/') +
+            '/?$',
+    );
+    patterns.push(regex);
+  }
+  return patterns;
+})();
+
+/** True when a URL is served by an SSR route instead of a static file. */
+function isSsrRoute(url) {
+  let path = url.split('#')[0].split('?')[0];
+  if (path === '') path = '/';
+  return ssrRouteRes.some((re) => re.test(path));
+}
+
+function walkHtml(dir) {
+  return walk(dir, ['.html']);
 }
 
 const files = walkHtml(distDir).sort();
@@ -90,7 +140,7 @@ for (const file of files) {
     if (/^(https?:|mailto:|tel:|javascript:)/.test(href)) continue;
     if (href.startsWith('#')) continue;
     if (href.startsWith('//')) continue;
-    if (resolveTarget(href) === null) {
+    if (resolveTarget(href) === null && !isSsrRoute(href)) {
       if (!brokenLinks.has(href)) brokenLinks.set(href, new Set());
       brokenLinks.get(href).add(rel);
     }
@@ -112,7 +162,7 @@ for (const file of files) {
       const urls = [];
       collectUrls(JSON.parse(match[1]), urls);
       for (const url of urls) {
-        if (resolveTarget(url) === null) {
+        if (resolveTarget(url) === null && !isSsrRoute(url)) {
           if (!brokenLinks.has(url)) brokenLinks.set(url, new Set());
           brokenLinks.get(url).add(`${rel} (data index)`);
         }

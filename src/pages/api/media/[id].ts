@@ -1,5 +1,6 @@
 /**
  * Single media item API.
+ * GET    /api/media/:id/  — metadata (id, url, mime) for previews
  * PUT    /api/media/:id/  — alt text (required for images), title, caption
  * DELETE /api/media/:id/  — remove from R2 + D1
  */
@@ -16,6 +17,23 @@ async function loadMedia(locals: import('astro').App.Locals, id: number) {
   if (!row) throw new HttpError(404, 'Media not found.');
   return row;
 }
+
+export const GET: APIRoute = async ({ locals, params }) => {
+  try {
+    requirePermission(locals, 'media:read');
+    if (!/^\d+$/.test(String(params.id))) throw new HttpError(400, 'Invalid media id.');
+    const media = await loadMedia(locals, Number(params.id));
+    return json({
+      id: media.id,
+      r2_key: media.r2_key,
+      url: `/media/${media.r2_key}/`,
+      mime_type: media.mime_type,
+      filename: media.filename,
+    });
+  } catch (err) {
+    return jsonError((err as HttpError).status ?? 500, (err as Error).message);
+  }
+};
 
 export const PUT: APIRoute = async ({ request, locals, params }) => {
   try {

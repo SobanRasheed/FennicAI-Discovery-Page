@@ -29,6 +29,7 @@ import {
   listSubjectsWithCounts,
   listPublishedMcqsWithOptions,
   listPublishedBySubject,
+  listPublishedQuizForms,
 } from '../../../utils/content';
 import { jsonForScript } from '../../../utils/json-script';
 
@@ -40,10 +41,11 @@ if (!subject || !subject.is_active) {
   return new Response('Not found', { status: 404 });
 }
 
-const [mcqs, subjects, subjectNotes] = await Promise.all([
+const [mcqs, subjects, subjectNotes, subjectFormQuizzes] = await Promise.all([
   listPublishedMcqsWithOptions(Astro.locals, subject.slug),
   listSubjectsWithCounts(Astro.locals),
   listPublishedBySubject(Astro.locals, subject.id, { articleType: 'study-note', perPage: 3 }),
+  listPublishedQuizForms(Astro.locals, subject.id).catch(() => []),
 ]);
 
 Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
@@ -561,6 +563,29 @@ const quizDataJson = jsonForScript(quizData);
                       <span class="rail-q-text">{q.question}</span>
                       <span class="rail-q-chev" aria-hidden="true">
                         <Icon name="chevron-right" size={16} />
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {subjectFormQuizzes.length > 0 && (
+            <div class="rail-card">
+              <p class="rail-heading">
+                <Icon name="external-link" size={22} />
+                Google Form quizzes
+              </p>
+              <ul class="rail-questions">
+                {subjectFormQuizzes.map((f) => (
+                  <li>
+                    <a href={f.google_form_url} target="_blank" rel="noopener">
+                      <span class="rail-q-num" aria-hidden="true">
+                        <Icon name="external-link" size={14} />
+                      </span>
+                      <span class="rail-q-text">
+                        {f.title}{f.topic ? ` — ${f.topic}` : ''}
+                        <span class="visually-hidden"> (opens in a new tab on Google Forms)</span>
                       </span>
                     </a>
                   </li>

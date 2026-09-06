@@ -22,14 +22,16 @@ import { getCollection } from '../../utils/collections';
 import {
   listSubjectsWithCounts,
   listPublishedMcqs,
+  listPublishedQuizForms,
 } from '../../utils/content';
 
 export const prerender = false;
 
-const [mcqs, subjects, levels] = await Promise.all([
+const [mcqs, subjects, levels, quizForms] = await Promise.all([
   listPublishedMcqs(Astro.locals),
   listSubjectsWithCounts(Astro.locals),
   getCollection('levels'),
+  listPublishedQuizForms(Astro.locals).catch(() => []),
 ]);
 
 Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
@@ -251,6 +253,44 @@ const jsonLd = {
                   </span>
                   <span class="mcq-card-chev" aria-hidden="true">
                     <Icon name="chevron-right" size={16} />
+                  </span>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* --- google form quizzes -------------------------------------------- */}
+        {quizForms.length > 0 && (
+          <section class="section" aria-labelledby="form-quizzes">
+            <div class="section-head-row">
+              <div>
+                <h2 id="form-quizzes">Take a quiz on Google Forms</h2>
+                <p>
+                  Selected quizzes run on Google Forms — they open in a new tab
+                  and your answers go straight to the form.
+                </p>
+              </div>
+            </div>
+
+            <div class="card-grid">
+              {quizForms.map((f) => (
+                <a class="mcq-card form-quiz-card" href={f.google_form_url} target="_blank" rel="noopener">
+                  <span class="mcq-card-art" aria-hidden="true">
+                    {f.media_key ? (
+                      <img src={`/media/${f.media_key}/`} alt="" loading="lazy" decoding="async" />
+                    ) : (
+                      <Icon name="question" size={32} />
+                    )}
+                  </span>
+                  <span class="mcq-card-body">
+                    {f.subject_title && <span class="mcq-card-kicker">{f.subject_title}</span>}
+                    <span class="mcq-card-title">{f.title}</span>
+                    {f.topic && <span class="mcq-card-count">{f.topic}</span>}
+                    <span class="mcq-card-desc">Opens in Google Forms (new tab)</span>
+                  </span>
+                  <span class="mcq-card-chev" aria-hidden="true">
+                    <Icon name="external-link" size={16} />
                   </span>
                 </a>
               ))}

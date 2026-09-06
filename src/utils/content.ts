@@ -773,6 +773,42 @@ export async function countPublishedMcqs(locals: App.Locals): Promise<number> {
   return row?.n ?? 0;
 }
 
+export interface QuizFormCard {
+  id: number;
+  title: string;
+  topic: string | null;
+  google_form_url: string;
+  media_key: string | null;
+  media_alt: string | null;
+  subject_slug: string | null;
+  subject_title: string | null;
+}
+
+/**
+ * Published Google Form quiz links, newest first — cards on the practice
+ * pages that redirect students to the external form. Optional subjectId
+ * scopes the cards to one subject's practice pages.
+ */
+export async function listPublishedQuizForms(
+  locals: App.Locals,
+  subjectId?: number,
+): Promise<QuizFormCard[]> {
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT f.id, f.title, f.topic, f.google_form_url,
+              m.r2_key AS media_key, m.alt_text AS media_alt,
+              s.slug AS subject_slug, s.title AS subject_title
+       FROM quiz_forms f
+       LEFT JOIN media m ON m.id = f.media_id
+       LEFT JOIN subjects s ON s.id = f.subject_id
+       WHERE f.status = 'published'${subjectId ? ' AND f.subject_id = ?' : ''}
+       ORDER BY f.updated_at DESC`,
+    )
+    .bind(...(subjectId ? [subjectId] : []))
+    .all<QuizFormCard>();
+  return rows.results;
+}
+
 /**
  * Published note + MCQ counts grouped by level slug, for the /levels/ hub.
  * Rows with a NULL level (older seeds) are simply not counted at any level.
@@ -978,11 +1014,12 @@ export async function listTopics(locals: App.Locals): Promise<TopicRow[]> {
 
 export async function dashboardStats(locals: App.Locals) {
   const db = env(locals).DB;
-  const [published, drafts, subjects, mcqs, awaiting, recentEdits, recentPubs] = await Promise.all([
+  const [published, drafts, subjects, mcqs, formQuizzes, awaiting, recentEdits, recentPubs] = await Promise.all([
     db.prepare(`SELECT COUNT(*) AS n FROM articles WHERE status = 'published'`).first<{ n: number }>(),
     db.prepare(`SELECT COUNT(*) AS n FROM articles WHERE status IN ('draft', 'review', 'scheduled')`).first<{ n: number }>(),
     db.prepare(`SELECT COUNT(*) AS n FROM subjects WHERE is_active = 1`).first<{ n: number }>(),
     db.prepare(`SELECT COUNT(*) AS n FROM mcqs WHERE status = 'published'`).first<{ n: number }>(),
+    db.prepare(`SELECT COUNT(*) AS n FROM quiz_forms WHERE status = 'published'`).first<{ n: number }>(),
     db.prepare(`SELECT COUNT(*) AS n FROM articles WHERE status = 'review'`).first<{ n: number }>(),
     db
       .prepare(
@@ -1009,6 +1046,7 @@ export async function dashboardStats(locals: App.Locals) {
     drafts: drafts?.n ?? 0,
     subjects: subjects?.n ?? 0,
     mcqs: mcqs?.n ?? 0,
+    formQuizzes: formQuizzes?.n ?? 0,
     awaitingReview: awaiting?.n ?? 0,
     recentEdits: recentEdits.results,
     recentPubs: recentPubs.results,
