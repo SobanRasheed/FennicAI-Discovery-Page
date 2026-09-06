@@ -6,15 +6,14 @@
  */
 import Layout from '../../layouts/Layout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import { getCollection } from '../../utils/collections';
-import { listPublishedArticles, listBlogCategoryCounts } from '../../utils/content';
+import { listPublishedArticles, listBlogCategoryCounts, listSubjects } from '../../utils/content';
 
 export const prerender = false;
 
 const [{ rows: posts }, categories, subjects] = await Promise.all([
   listPublishedArticles(Astro.locals, { articleType: 'article', perPage: 1000 }),
   listBlogCategoryCounts(Astro.locals),
-  getCollection('subjects'),
+  listSubjects(Astro.locals),
 ]);
 
 // Edge caching: browsers get 5 min, Cloudflare revalidates daily.
@@ -36,7 +35,7 @@ const years = [...byYear.keys()].sort((a, b) => b - a);
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 ---
 

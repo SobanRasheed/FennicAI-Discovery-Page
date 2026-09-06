@@ -12,23 +12,27 @@ import Faq from '../components/Faq.astro';
 import SidebarPanel from '../components/SidebarPanel.astro';
 import Icon from '../components/Icon.astro';
 import JsonLd from '../components/JsonLd.astro';
-import { getBlogPosts, getCollection } from '../utils/collections';
+import { listPublishedArticles, listSubjects } from '../utils/content';
 
-const [posts, subjects] = await Promise.all([getBlogPosts(), getCollection('subjects')]);
+export const prerender = false;
 
-const footerSubjects = subjects.map((s) => ({
+const [postRows, subjectRows] = await Promise.all([
+  listPublishedArticles(Astro.locals, { articleType: 'article', perPage: 4 }),
+  listSubjects(Astro.locals),
+]);
+
+// Edge caching: browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+const footerSubjects = subjectRows.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 
-/** Reading minutes at 200 wpm — same rule as the blog listing. */
-const minutes = (body: string | undefined) =>
-  Math.max(1, Math.round((body ?? '').split(/\s+/).filter(Boolean).length / 200));
-
-const popularArticles = posts.slice(0, 4).map((post) => ({
+const popularArticles = postRows.rows.map((post) => ({
   href: `/blog/${post.slug}/`,
-  title: post.data.title,
-  minutes: minutes(post.body),
+  title: post.title,
+  minutes: post.reading_minutes,
 }));
 
 /**

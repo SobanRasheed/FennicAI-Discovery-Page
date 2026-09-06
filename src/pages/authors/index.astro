@@ -1,19 +1,23 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import { getNotes, getBlogPosts } from '../../utils/collections';
 import { getCollection } from '../../utils/collections';
+import { listAuthorCounts, listSubjects } from '../../utils/content';
 
-const [authors, notes, posts] = await Promise.all([
+export const prerender = false;
+
+const [authors, counts, subjectRows] = await Promise.all([
   getCollection('authors'),
-  getNotes(),
-  getBlogPosts(),
+  listAuthorCounts(Astro.locals),
+  listSubjects(Astro.locals),
 ]);
 
-const authorsWithCounts = authors.map((author) => ({
-  author,
-  noteCount: notes.filter((n) => n.data.author === author.slug).length,
-  postCount: posts.filter((p) => p.data.author === author.slug).length,
+// Edge caching: browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+const footerSubjects = subjectRows.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.title,
 }));
 ---
 
@@ -21,6 +25,7 @@ const authorsWithCounts = authors.map((author) => ({
   title="Authors — Who Writes devsyllabus | devsyllabus"
   description="Meet the devsyllabus author team: backgrounds, expertise, and the notes and articles each author has published."
   path="/authors/"
+  footerSubjects={footerSubjects}
 >
   <Breadcrumbs crumbs={[{ label: 'Authors' }]} />
 
@@ -34,12 +39,18 @@ const authorsWithCounts = authors.map((author) => ({
   </p>
 
   <ul>
-    {authorsWithCounts.map(({ author, noteCount, postCount }) => (
-      <li>
-        <a href={`/authors/${author.slug}/`}>{author.data.title}</a>
-        <span> — {author.data.role}, {noteCount} note{noteCount === 1 ? '' : 's'}, {postCount} article{postCount === 1 ? '' : 's'}</span>
-      </li>
-    ))}
+    {authors.map((author) => {
+      const c = counts[author.slug] ?? { notes: 0, articles: 0 };
+      return (
+        <li>
+          <a href={`/authors/${author.slug}/`}>{author.data.title}</a>
+          <span>
+            {' '}— {author.data.role}, {c.notes} note{c.notes === 1 ? '' : 's'},{' '}
+            {c.articles} article{c.articles === 1 ? '' : 's'}
+          </span>
+        </li>
+      );
+    })}
   </ul>
   </div>
 </Layout>

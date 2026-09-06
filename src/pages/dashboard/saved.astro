@@ -12,18 +12,23 @@ import PageHeader from '../../components/PageHeader.astro';
 import StatCards from '../../components/StatCards.astro';
 import SidebarPanel from '../../components/SidebarPanel.astro';
 import Icon from '../../components/Icon.astro';
-import { getNotes, getCollection } from '../../utils/collections';
+import { listPublishedArticles, listSubjects } from '../../utils/content';
 
-const [notes, subjects] = await Promise.all([getNotes(), getCollection('subjects')]);
+export const prerender = false;
 
-const footerSubjects = subjects.map((s) => ({
+const [noteRows, subjectRows] = await Promise.all([
+  listPublishedArticles(Astro.locals, { articleType: 'study-note', perPage: 100 }),
+  listSubjects(Astro.locals),
+]);
+
+// The shell (meta lookup table) is generic and cacheable; the personal
+// saved list itself is filled in client-side from this browser's storage.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+const footerSubjects = subjectRows.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
-
-/** Reading time at 200 wpm, same rule as everywhere else. */
-const minutes = (body: string | undefined) =>
-  Math.max(1, Math.round((body ?? '').split(/\s+/).filter(Boolean).length / 200));
 
 /** Subjects with a PNG icon in /assets/landing/; the rest get a glyph tile. */
 const pngSubjects = new Set([
@@ -43,12 +48,12 @@ const pngSubjects = new Set([
  * JSON island because module scripts can't take define:vars.
  */
 const noteMeta: Record<string, { s: string; u: string; m: number; a: string }> = {};
-for (const note of notes) {
+for (const note of noteRows.rows) {
   noteMeta[note.slug] = {
-    s: subjects.find((s) => s.slug === note.data.subject)?.data.title ?? 'Study note',
-    u: note.data.subject,
-    m: minutes(note.body),
-    a: pngSubjects.has(note.data.subject) ? `/assets/landing/subject-${note.data.subject}.png` : '',
+    s: note.subject_title ?? 'Study note',
+    u: note.subject_slug ?? '',
+    m: note.reading_minutes ?? 1,
+    a: pngSubjects.has(note.subject_slug ?? '') ? `/assets/landing/subject-${note.subject_slug}.png` : '',
   };
 }
 ---

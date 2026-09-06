@@ -4,43 +4,66 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import Faq from '../../components/Faq.astro';
 import NoteCard from '../../components/NoteCard.astro';
 import PostCard from '../../components/PostCard.astro';
-import { getNotes, getBlogPosts, getQuestions, getContentByTopic } from '../../utils/collections';
 import { getCollection } from '../../utils/collections';
+import { listMcqCardsByTag, listPublishedByTag, listSubjects } from '../../utils/content';
 
-export async function getStaticPaths() {
-  const topics = await getCollection('topics');
-  return topics.map((topic) => ({ params: { slug: topic.slug }, props: { topic } }));
+export const prerender = false;
+
+const slug = String(Astro.params.slug ?? '');
+const topics = await getCollection('topics');
+const topic = topics.find((t) => t.slug === slug);
+if (!topic) {
+  return new Response('Not found', { status: 404 });
 }
-
-const { topic } = Astro.props;
 const { data } = topic;
 
-const [content, allTopics, notes] = await Promise.all([
-  getContentByTopic(topic.slug),
-  getCollection('topics'),
-  getNotes(),
+const [noteRows, postRows, questions, allSubjects] = await Promise.all([
+  listPublishedByTag(Astro.locals, topic.slug, { articleType: 'study-note' }),
+  listPublishedByTag(Astro.locals, topic.slug, { articleType: 'article' }),
+  listMcqCardsByTag(Astro.locals, topic.slug),
+  listSubjects(Astro.locals),
 ]);
 
-const relatedConcepts = allTopics.filter((t) =>
-  data.relatedConcepts.includes(t.slug),
-);
+// Edge caching: browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+const notes = noteRows.map((n) => ({
+  slug: n.slug,
+  title: n.title,
+  description: n.excerpt,
+  subject: n.subject_slug,
+  subjectLabel: n.subject_title,
+  level: null,
+  updated: n.updated_at,
+}));
+
+const posts = postRows.map((p) => ({
+  slug: p.slug,
+  title: p.title,
+  description: p.excerpt,
+  category: p.category,
+  published: p.published_at,
+  updated: p.updated_at,
+}));
 
 // Subjects whose notes carry this topic — for the hierarchy cross-links.
-const topicSubjects = [
-  ...new Set(
-    notes.filter((n) => n.data.topics.includes(topic.slug)).map((n) => n.data.subject),
-  ),
-];
-const subjects = await getCollection('subjects');
-const subjectLinks = topicSubjects
-  .map((slug) => subjects.find((s) => s.slug === slug))
-  .filter(Boolean);
+const topicSubjects = [...new Set(notes.map((n) => n.subject))]
+  .map((s) => allSubjects.find((row) => row.slug === s))
+  .filter((s): s is (typeof allSubjects)[number] => s !== undefined);
+
+const relatedConcepts = topics.filter((t) => data.relatedConcepts.includes(t.slug));
+
+const footerSubjects = allSubjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.title,
+}));
 ---
 
 <Layout
   title={`${data.title}: Notes, Articles, and Practice Questions | devsyllabus`}
   description={data.description}
   path={`/topics/${topic.slug}/`}
+  footerSubjects={footerSubjects}
 >
   <Breadcrumbs crumbs={[{ label: 'Topic Hubs', href: '/topics/' }, { label: data.title }]} />
 
@@ -53,39 +76,39 @@ const subjectLinks = topicSubjects
     <p>{data.beginnerExplanation}</p>
   </section>
 
-  {subjectLinks.length > 0 && (
+  {topicSubjects.length > 0 && (
     <section>
       <h2>Part of these subjects</h2>
       <ul>
-        {subjectLinks.map((subject) => (
-          <li><a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a></li>
+        {topicSubjects.map((subject) => (
+          <li><a href={`/subjects/${subject.slug}/`}>{subject.title}</a></li>
         ))}
       </ul>
     </section>
   )}
 
-  {content.notes.length > 0 && (
+  {notes.length > 0 && (
     <section>
       <h2>Study notes</h2>
-      {content.notes.map((note) => <NoteCard note={note} />)}
+      {notes.map((note) => <NoteCard note={note} />)}
     </section>
   )}
 
-  {content.posts.length > 0 && (
+  {posts.length > 0 && (
     <section>
       <h2>Articles</h2>
-      {content.posts.map((post) => <PostCard post={post} />)}
+      {posts.map((post) => <PostCard post={post} />)}
     </section>
   )}
 
-  {content.questions.length > 0 && (
+  {questions.length > 0 && (
     <section>
       <h2>Practice questions</h2>
       <ul>
-        {content.questions.map((q) => (
+        {questions.map((q) => (
           <li>
-            <a href={`/practice/${q.slug}/`}>{q.data.question}</a>
-            <span> ({q.data.type}, {q.data.difficulty})</span>
+            <a href={`/practice/${q.slug}/`}>{q.question}</a>
+            <span> (MCQ, {q.difficulty})</span>
           </li>
         ))}
       </ul>

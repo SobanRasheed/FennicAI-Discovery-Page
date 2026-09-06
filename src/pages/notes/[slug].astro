@@ -28,6 +28,7 @@ import {
   listPublishedBySubject,
   listSubjects,
   countPublishedMcqsBySubject,
+  getMediaById,
 } from '../../utils/content';
 
 export const prerender = false;
@@ -39,13 +40,16 @@ if (!article || !article.subject_id) {
   return new Response('Not found', { status: 404 });
 }
 
-const [extras, mcqs, topics, subjectNotes, subjects, subjectMcqCount] = await Promise.all([
+const [extras, mcqs, topics, subjectNotes, subjects, subjectMcqCount, heroMedia] = await Promise.all([
   getArticleExtras(Astro.locals, article.id),
   getMcqsForArticle(Astro.locals, article.id, true),
   listTopicsBySubject(Astro.locals, article.subject_id),
   listPublishedBySubject(Astro.locals, article.subject_id, { articleType: 'study-note', perPage: 50 }),
   listSubjects(Astro.locals),
   countPublishedMcqsBySubject(Astro.locals, article.subject_id),
+  (article.og_image_media_id ?? article.featured_media_id)
+    ? getMediaById(Astro.locals, article.og_image_media_id ?? article.featured_media_id!)
+    : Promise.resolve(null),
 ]);
 
 const topic = article.topic_id ? topics.find((t) => t.id === article.topic_id) : null;
@@ -125,6 +129,9 @@ const canonical = article.canonical_url || new URL(publicPath, site).href;
 
 const asDate = (d: string | null) => (d ? new Date(d + 'Z') : undefined);
 
+/** The share/hero image: the admin's OG pick, else the featured image. */
+const ogImage = heroMedia ? new URL(`/media/${heroMedia.r2_key}/`, site).href : undefined;
+
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
   label: s.title,
@@ -143,6 +150,7 @@ const articleSchema = {
   author: article.author_name ? { '@type': 'Person', name: article.author_name } : undefined,
   publisher: { '@type': 'Organization', name: 'Medical Study Notes', url: site.href },
   mainEntityOfPage: { '@type': 'WebPage', '@id': canonical },
+  image: ogImage,
   articleSection: subjectTitle || undefined,
   ...(extras.references.length > 0 && {
     citation: extras.references.map((r) => ({
@@ -161,6 +169,7 @@ const articleSchema = {
   description={description}
   path={publicPath}
   noindex={noindex}
+  ogImage={ogImage}
   publishedTime={asDate(article.published_at)}
   modifiedTime={asDate(article.updated_at)}
   footerSubjects={footerSubjects}
@@ -240,6 +249,17 @@ const articleSchema = {
     readingMinutes={article.reading_minutes}
     author={article.author_name ?? undefined}
   />
+
+  {heroMedia && (
+    <figure class="note-hero-art">
+      <img
+        src={`/media/${heroMedia.r2_key}/`}
+        alt={heroMedia.alt_text ?? ''}
+        loading="eager"
+        decoding="async"
+      />
+    </figure>
+  )}
 
   <div class="prose note-body" set:html={contentHtml} />
 

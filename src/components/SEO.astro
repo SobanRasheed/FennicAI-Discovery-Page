@@ -12,11 +12,13 @@ interface Props {
   path: string;
   noindex?: boolean;
   ogType?: 'website' | 'article';
+  /** Absolute URL of the share image; shown in og:image/twitter:image when set. */
+  ogImage?: string;
   publishedTime?: Date;
   modifiedTime?: Date;
 }
 
-const { title, description, path, noindex = false, ogType = 'website' } = Astro.props;
+const { title, description, path, noindex = false, ogType = 'website', ogImage } = Astro.props;
 
 const canonical = new URL(path, Astro.site).href;
 const robots = noindex ? 'noindex, nofollow' : 'index, follow';
@@ -35,11 +37,13 @@ const robots = noindex ? 'noindex, nofollow' : 'index, follow';
 <meta property="og:description" content={description} />
 <meta property="og:url" content={canonical} />
 <meta property="og:locale" content="en_US" />
+{ogImage && <meta property="og:image" content={ogImage} />}
 
 <!-- Twitter -->
-<meta name="twitter:card" content="summary" />
+<meta name="twitter:card" content={ogImage ? 'summary_large_image' : 'summary'} />
 <meta name="twitter:title" content={title} />
 <meta name="twitter:description" content={description} />
+{ogImage && <meta name="twitter:image" content={ogImage} />}
 
 {
   ogType === 'article' && (

@@ -13,7 +13,6 @@ import TableOfContents from '../../components/TableOfContents.astro';
 import ReferenceList from '../../components/ReferenceList.astro';
 import JsonLd from '../../components/JsonLd.astro';
 import Icon from '../../components/Icon.astro';
-import { getCollection } from '../../utils/collections';
 import {
   getPublishedArticleBySlug,
   getArticleExtras,
@@ -21,6 +20,7 @@ import {
   listRelatedByTag,
   listBlogCategoryCounts,
   getMediaById,
+  listSubjects,
 } from '../../utils/content';
 
 export const prerender = false;
@@ -32,14 +32,17 @@ if (!article) {
   return new Response('Not found', { status: 404 });
 }
 
-const [extras, neighbors, relatedPosts, categoryCounts, subjects, featuredMedia] = await Promise.all([
+const [extras, neighbors, relatedPosts, categoryCounts, subjects, featuredMedia, ogMedia] = await Promise.all([
   getArticleExtras(Astro.locals, article.id),
   getPublishedNeighbors(Astro.locals, article.slug, 'article'),
   listRelatedByTag(Astro.locals, article.id, 'article', 3),
   listBlogCategoryCounts(Astro.locals),
-  getCollection('subjects'),
+  listSubjects(Astro.locals),
   article.featured_media_id
     ? getMediaById(Astro.locals, article.featured_media_id)
+    : Promise.resolve(null),
+  article.og_image_media_id
+    ? getMediaById(Astro.locals, article.og_image_media_id)
     : Promise.resolve(null),
 ]);
 
@@ -135,11 +138,14 @@ const relatedImage = (i: number) => relatedImages[i % relatedImages.length] ?? '
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 
 // Edge caching (§16): browsers get 5 min, Cloudflare revalidates daily.
 Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+/** The share image: the admin's OG pick, else the featured image. */
+const ogImage = ogMedia ? new URL(`/media/${ogMedia.r2_key}/`, site).href : undefined;
 
 const articleSchema = {
   '@context': 'https://schema.org',
@@ -156,7 +162,7 @@ const articleSchema = {
     url: site.href,
   },
   articleSection: article.category ?? undefined,
-  image: featuredMedia ? new URL(`/media/${featuredMedia.r2_key}/`, site).href : undefined,
+  image: ogImage ?? (featuredMedia ? new URL(`/media/${featuredMedia.r2_key}/`, site).href : undefined),
 };
 ---
 <ArticleLayout
@@ -164,6 +170,7 @@ const articleSchema = {
   description={description}
   path={publicPath}
   noindex={noindex}
+  ogImage={ogImage}
   publishedTime={asDate(article.published_at)}
   modifiedTime={asDate(article.updated_at) ?? asDate(article.published_at)}
   footerSubjects={footerSubjects}
@@ -378,7 +385,7 @@ const articleSchema = {
               <a href={`/notes/${n.slug}/`}>
                 <span class="rail-note-title">{n.title}</span>
                 <span class="rail-note-ctx">
-                  {subjects.find((s) => s.slug === n.subject_slug)?.data.title}
+                  {subjects.find((s) => s.slug === n.subject_slug)?.title}
                 </span>
               </a>
             </li>

@@ -650,6 +650,104 @@ export async function listRelatedByTag(
   return rows.results;
 }
 
+/**
+ * Published articles carrying a tag slug, newest first — topic hub
+ * listings. Topic association lives in article_tags (tags.slug).
+ */
+export async function listPublishedByTag(
+  locals: App.Locals,
+  tagSlug: string,
+  opts: { articleType?: 'article' | 'study-note' } = {},
+): Promise<BlogPostCard[]> {
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT ${CARD_COLS}, a.category, m.r2_key AS media_key, m.alt_text AS media_alt,
+              u.display_name AS author_name
+       FROM articles a
+       LEFT JOIN subjects s ON s.id = a.subject_id
+       LEFT JOIN media m ON m.id = a.featured_media_id
+       LEFT JOIN users u ON u.id = a.author_id
+       WHERE a.status = 'published' ${opts.articleType ? 'AND a.article_type = ?' : ''}
+         AND a.id IN (SELECT at.article_id FROM article_tags at
+                      JOIN tags t ON t.id = at.tag_id WHERE t.slug = ?)
+       ORDER BY COALESCE(a.published_at, a.created_at) DESC`,
+    )
+    .bind(...(opts.articleType ? [opts.articleType, tagSlug] : [tagSlug]))
+    .all<BlogPostCard>();
+  return rows.results;
+}
+
+/**
+ * Published MCQ cards whose tags_json array contains a topic slug — the
+ * topic hub's practice list. tags_json is a JSON array of slug strings.
+ */
+export async function listMcqCardsByTag(
+  locals: App.Locals,
+  tagSlug: string,
+  opts: { limit?: number } = {},
+): Promise<{ slug: string; question: string; difficulty: string }[]> {
+  const limit = Math.min(50, Math.max(1, opts.limit ?? 50));
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT slug, question, difficulty FROM mcqs
+       WHERE status = 'published' AND slug IS NOT NULL AND tags_json LIKE ?
+       ORDER BY id LIMIT ?`,
+    )
+    .bind(`%"${tagSlug}"%`, limit)
+    .all<{ slug: string; question: string; difficulty: string }>();
+  return rows.results;
+}
+
+/**
+ * Published articles bylined to an author persona slug, newest first —
+ * author profile pages. The byline is a slug (articles.author_slug), not
+ * a login user id, so persona pages survive CMS account changes.
+ */
+export async function listPublishedByAuthor(
+  locals: App.Locals,
+  authorSlug: string,
+  opts: { articleType?: 'article' | 'study-note' } = {},
+): Promise<BlogPostCard[]> {
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT ${CARD_COLS}, a.category, m.r2_key AS media_key, m.alt_text AS media_alt,
+              u.display_name AS author_name
+       FROM articles a
+       LEFT JOIN subjects s ON s.id = a.subject_id
+       LEFT JOIN media m ON m.id = a.featured_media_id
+       LEFT JOIN users u ON u.id = a.author_id
+       WHERE a.status = 'published' AND a.author_slug = ?
+         ${opts.articleType ? 'AND a.article_type = ?' : ''}
+       ORDER BY COALESCE(a.published_at, a.created_at) DESC`,
+    )
+    .bind(...(opts.articleType ? [authorSlug, opts.articleType] : [authorSlug]))
+    .all<BlogPostCard>();
+  return rows.results;
+}
+
+/**
+ * Published note/article counts grouped by author persona slug, for the
+ * /authors/ index. Articles without a persona byline are not counted.
+ */
+export async function listAuthorCounts(
+  locals: App.Locals,
+): Promise<Record<string, { notes: number; articles: number }>> {
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT author_slug, article_type, COUNT(*) AS n FROM articles
+       WHERE status = 'published' AND author_slug IS NOT NULL
+       GROUP BY author_slug, article_type`,
+    )
+    .all<{ author_slug: string; article_type: 'article' | 'study-note'; n: number }>();
+  const out: Record<string, { notes: number; articles: number }> = {};
+  for (const r of rows.results) {
+    out[r.author_slug] ??= { notes: 0, articles: 0 };
+    if (r.article_type === 'study-note') out[r.author_slug].notes = r.n;
+    else out[r.author_slug].articles = r.n;
+  }
+  return out;
+}
+
 /** Subjects with published note/MCQ counts, for the subject grid. */
 export async function listSubjectsWithCounts(
   locals: App.Locals,

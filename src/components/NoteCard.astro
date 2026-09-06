@@ -3,25 +3,28 @@
  * Link card for a study note. Shows the subject/level context so cards on
  * hub and listing pages carry their hierarchy with them.
  *
- * Restyled onto the design system: a hairline editorial row with mono kicker
- * links and a serif title, matching the entry lists used elsewhere.
+ * Takes a flat D1-backed shape (subject/level slugs + optional labels), so
+ * collection-based and database-backed pages render identically.
  */
 interface Props {
   note: {
     slug: string;
-    data: {
-      title: string;
-      description: string;
-      subject: string;
-      level: string;
-      chapter: string;
-      updatedDate: Date;
-    };
+    title: string;
+    description: string;
+    /** Subject slug; the label map covers the eight core subjects. */
+    subject: string;
+    /** D1 subject title, when the caller already has it. */
+    subjectLabel?: string | null;
+    /** Level slug; omitted/null hides the level kicker. */
+    level?: string | null;
+    /** D1 subject label for the level, when the caller already has it. */
+    levelLabel?: string | null;
+    /** D1 'YYYY-MM-DD HH:MM:SS' timestamp or a Date. */
+    updated: string | Date;
   };
 }
 
 const { note } = Astro.props;
-import { formatDate } from '../utils/collections';
 
 const subjectLabels: Record<string, string> = {
   anatomy: 'Anatomy',
@@ -40,20 +43,28 @@ const levelLabels: Record<string, string> = {
   'third-professional-mbbs': 'Third Professional MBBS',
 };
 
-const subject = subjectLabels[note.data.subject] ?? note.data.subject;
-const level = levelLabels[note.data.level] ?? note.data.level;
+const subject = note.subjectLabel ?? subjectLabels[note.subject] ?? note.subject;
+const level = note.level
+  ? note.levelLabel ?? levelLabels[note.level] ?? note.level
+  : null;
+
+/** D1 timestamps are UTC without a zone suffix. */
+const updated =
+  note.updated instanceof Date ? note.updated : new Date(note.updated + 'Z');
+const isoUpdated = updated.toISOString();
+const displayUpdated = isoUpdated.slice(0, 10);
 ---
 
 <article class="ncard">
   <p class="ncard-meta">
-    <a class="kicker" href={`/subjects/${note.data.subject}/`}>{subject}</a>
-    <span aria-hidden="true">·</span>
-    <a class="kicker" href={`/levels/${note.data.level}/`}>{level}</a>
+    <a class="kicker" href={`/subjects/${note.subject}/`}>{subject}</a>
+    {level && <span aria-hidden="true">·</span>}
+    {level && <a class="kicker" href={`/levels/${note.level}/`}>{level}</a>}
   </p>
-  <h3 class="ncard-title"><a href={`/notes/${note.slug}/`}>{note.data.title}</a></h3>
-  <p class="ncard-desc">{note.data.description}</p>
-  <time class="ncard-date" datetime={note.data.updatedDate.toISOString()}>
-    Updated {formatDate(note.data.updatedDate)}
+  <h3 class="ncard-title"><a href={`/notes/${note.slug}/`}>{note.title}</a></h3>
+  <p class="ncard-desc">{note.description}</p>
+  <time class="ncard-date" datetime={isoUpdated}>
+    Updated {displayUpdated}
   </time>
 </article>
 

@@ -2,42 +2,45 @@
 /**
  * Link card for a blog post in listings and related-content blocks.
  *
- * Restyled onto the design system: a hairline editorial row with a mono
- * category kicker, serif title, and quiet date, matching the entry lists.
+ * Takes a flat D1-backed shape (category slug + timestamps), so
+ * collection-based and database-backed pages render identically.
  */
 interface Props {
   post: {
     slug: string;
-    data: {
-      title: string;
-      description: string;
-      category: string;
-      publishedDate: Date;
-      updatedDate?: Date;
-      author: string;
-    };
+    title: string;
+    description: string;
+    /** Category slug; null falls back to the plain /blog/ stream. */
+    category: string | null;
+    /** D1 'YYYY-MM-DD HH:MM:SS' timestamp or a Date. */
+    published: string | Date;
+    updated?: string | Date | null;
   };
   showDate?: boolean;
 }
 
-import { formatDate } from '../utils/collections';
 const { post, showDate = true } = Astro.props;
+
+/** D1 timestamps are UTC without a zone suffix. */
+const asDate = (v: string | Date) => (v instanceof Date ? v : new Date(v + 'Z'));
+
+const published = asDate(post.published);
+const updated = post.updated ? asDate(post.updated) : null;
+
+const kickerHref = post.category ? `/blog/category/${post.category}/` : '/blog/';
+const kickerLabel = (post.category ?? 'article').replace(/-/g, ' ');
 ---
 
 <article class="pcard">
   <p class="pcard-meta">
-    <a class="kicker" href={`/blog/category/${post.data.category}/`}>
-      {post.data.category.replace(/-/g, ' ')}
-    </a>
+    <a class="kicker" href={kickerHref}>{kickerLabel}</a>
     {showDate && (
-      <time datetime={post.data.publishedDate.toISOString()}>
-        {formatDate(post.data.publishedDate)}
-      </time>
+      <time datetime={published.toISOString()}>{published.toISOString().slice(0, 10)}</time>
     )}
-    {post.data.updatedDate && <span>updated {formatDate(post.data.updatedDate)}</span>}
+    {updated && <span>updated {updated.toISOString().slice(0, 10)}</span>}
   </p>
-  <h3 class="pcard-title"><a href={`/blog/${post.slug}/`}>{post.data.title}</a></h3>
-  <p class="pcard-desc">{post.data.description}</p>
+  <h3 class="pcard-title"><a href={`/blog/${post.slug}/`}>{post.title}</a></h3>
+  <p class="pcard-desc">{post.description}</p>
 </article>
 
 <style>

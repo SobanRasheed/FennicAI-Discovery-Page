@@ -2,8 +2,7 @@
 import Layout from '../../../layouts/Layout.astro';
 import PageHeader from '../../../components/PageHeader.astro';
 import BlogListing from '../../../components/BlogListing.astro';
-import { getCollection } from '../../../utils/collections';
-import { BLOG_CATEGORIES, listPublishedArticles } from '../../../utils/content';
+import { BLOG_CATEGORIES, listPublishedArticles, listSubjects } from '../../../utils/content';
 
 export const prerender = false;
 
@@ -25,7 +24,7 @@ if (!(BLOG_CATEGORIES as readonly string[]).includes(category)) {
 
 const [{ rows: posts, total }, subjects] = await Promise.all([
   listPublishedArticles(Astro.locals, { articleType: 'article', category, perPage: POSTS_PER_PAGE }),
-  getCollection('subjects'),
+  listSubjects(Astro.locals),
 ]);
 
 if (total === 0) {
@@ -39,7 +38,7 @@ const label = categoryLabels[category] ?? category.replace(/-/g, ' ');
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 ---
 

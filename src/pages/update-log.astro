@@ -1,31 +1,50 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Breadcrumbs from '../components/Breadcrumbs.astro';
-import { getNotes, getBlogPosts, formatDate } from '../utils/collections';
+import { listPublishedArticles, listSubjects } from '../utils/content';
 
-const [notes, posts] = await Promise.all([getNotes(), getBlogPosts()]);
+export const prerender = false;
+
+const [noteRows, postRows, subjectRows] = await Promise.all([
+  listPublishedArticles(Astro.locals, { articleType: 'study-note', perPage: 100 }),
+  listPublishedArticles(Astro.locals, { articleType: 'article', perPage: 100 }),
+  listSubjects(Astro.locals),
+]);
+
+// Edge caching: browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+/** D1 timestamps are UTC without a zone suffix. */
+const asDate = (s: string) => new Date(s + 'Z');
+const fmt = (s: string) => asDate(s).toISOString().slice(0, 10);
 
 // Every content item with an update history, newest first.
 const updated = [
-  ...notes.map((note) => ({
-    title: note.data.title,
+  ...noteRows.rows.map((note) => ({
+    title: note.title,
     url: `/notes/${note.slug}/`,
-    published: note.data.publishedDate,
-    updated: note.data.updatedDate,
+    published: note.published_at,
+    updated: note.updated_at,
   })),
-  ...posts.map((post) => ({
-    title: post.data.title,
+  ...postRows.rows.map((post) => ({
+    title: post.title,
     url: `/blog/${post.slug}/`,
-    published: post.data.publishedDate,
-    updated: post.data.updatedDate ?? post.data.publishedDate,
+    published: post.published_at,
+    updated: post.updated_at,
   })),
-].sort((a, b) => b.updated.valueOf() - a.updated.valueOf());
+].sort((a, b) => asDate(b.updated).valueOf() - asDate(a.updated).valueOf());
+
+const footerSubjects = subjectRows.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.title,
+}));
 ---
 
 <Layout
   title="Update Log — Recently Updated Pages | devsyllabus"
   description="Every recently updated study note and article on devsyllabus, with the date each page was last revised."
   path="/update-log/"
+  footerSubjects={footerSubjects}
 >
   <Breadcrumbs crumbs={[{ label: 'Update Log' }]} />
 
@@ -41,7 +60,7 @@ const updated = [
     {updated.map((item) => (
       <li>
         <a href={item.url}>{item.title}</a>
-        <span> — updated {formatDate(item.updated)} (published {formatDate(item.published)})</span>
+        <span> — updated {fmt(item.updated)} (published {fmt(item.published)})</span>
       </li>
     ))}
   </ul>

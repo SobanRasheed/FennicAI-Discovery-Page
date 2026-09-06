@@ -14,29 +14,34 @@ import SidebarPanel from '../../components/SidebarPanel.astro';
 import RelatedContent from '../../components/RelatedContent.astro';
 import Illustration, { illustrationForSubject } from '../../components/Illustration.astro';
 import Icon from '../../components/Icon.astro';
-import { getNotes, getBlogPosts, getCollection, isoDate } from '../../utils/collections';
+import { listPublishedArticles, listSubjects } from '../../utils/content';
 
-const [notes, posts, subjects] = await Promise.all([
-  getNotes(),
-  getBlogPosts(),
-  getCollection('subjects'),
+export const prerender = false;
+
+const [noteRows, postRows, subjectRows] = await Promise.all([
+  listPublishedArticles(Astro.locals, { articleType: 'study-note', perPage: 100 }),
+  listPublishedArticles(Astro.locals, { articleType: 'article', perPage: 3 }),
+  listSubjects(Astro.locals),
 ]);
 
-const footerSubjects = subjects.map((s) => ({
+// The generic shell is cacheable; the personal stats are filled client-side.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+/** D1 timestamps are UTC without a zone suffix. */
+const asDate = (s: string) => new Date(s + 'Z');
+
+const footerSubjects = subjectRows.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 
-/** Reading time at 200 wpm, same rule as everywhere else. */
-const minutes = (body: string | undefined) =>
-  Math.max(1, Math.round((body ?? '').split(/\s+/).filter(Boolean).length / 200));
-
 /** Freshest notes first — what "continue learning" honestly becomes. */
-const freshNotes = [...notes]
-  .sort((a, b) => b.data.updatedDate.valueOf() - a.data.updatedDate.valueOf())
+const freshNotes = noteRows.rows
+  .slice()
+  .sort((a, b) => asDate(b.updated_at).valueOf() - asDate(a.updated_at).valueOf())
   .slice(0, 3);
 
-const freshPosts = posts.slice(0, 3);
+const freshPosts = postRows.rows;
 
 /** Subjects with a PNG icon in /assets/landing/; the rest fall back to a drawing. */
 const pngSubjects = new Set([
@@ -114,18 +119,18 @@ const subjectIcon = (slug: string) =>
             {freshNotes.map((note) => (
               <li class="continue-item panel">
                 <span class="continue-art" aria-hidden="true">
-                  {subjectIcon(note.data.subject) ? (
-                    <img src={subjectIcon(note.data.subject)} alt="" loading="lazy" decoding="async" />
+                  {subjectIcon(note.subject_slug) ? (
+                    <img src={subjectIcon(note.subject_slug)} alt="" loading="lazy" decoding="async" />
                   ) : (
-                    <Illustration name={illustrationForSubject(note.data.subject)} size={30} />
+                    <Illustration name={illustrationForSubject(note.subject_slug)} size={30} />
                   )}
                 </span>
                 <div class="continue-text">
-                  <h3><a href={`/notes/${note.slug}/`}>{note.data.title}</a></h3>
+                  <h3><a href={`/notes/${note.slug}/`}>{note.title}</a></h3>
                   <p class="continue-meta">
-                    {subjects.find((s) => s.slug === note.data.subject)?.data.title}
-                    · Updated {isoDate(note.data.updatedDate)}
-                    · {minutes(note.body)} min read
+                    {note.subject_title}
+                    · Updated {asDate(note.updated_at).toISOString()}
+                    · {note.reading_minutes} min read
                   </p>
                 </div>
                 <a class="btn btn-sm btn-primary continue-btn" href={`/notes/${note.slug}/`}>
@@ -161,8 +166,8 @@ const subjectIcon = (slug: string) =>
           <RelatedContent
             items={freshPosts.map((post) => ({
               href: `/blog/${post.slug}/`,
-              title: post.data.title,
-              context: post.data.category.replace(/-/g, ' '),
+              title: post.title,
+              context: (post.category ?? 'article').replace(/-/g, ' '),
             }))}
             variant="list"
             heading=""

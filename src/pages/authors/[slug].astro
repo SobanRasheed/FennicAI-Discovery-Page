@@ -4,20 +4,46 @@ import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import JsonLd from '../../components/JsonLd.astro';
 import NoteCard from '../../components/NoteCard.astro';
 import PostCard from '../../components/PostCard.astro';
-import { getNotes, getBlogPosts } from '../../utils/collections';
 import { getCollection } from '../../utils/collections';
+import { listPublishedByAuthor, listSubjects } from '../../utils/content';
 
-export async function getStaticPaths() {
-  const authors = await getCollection('authors');
-  return authors.map((author) => ({ params: { slug: author.slug }, props: { author } }));
+export const prerender = false;
+
+const slug = String(Astro.params.slug ?? '');
+const authors = await getCollection('authors');
+const author = authors.find((a) => a.slug === slug);
+if (!author) {
+  return new Response('Not found', { status: 404 });
 }
-
-const { author } = Astro.props;
 const { data } = author;
 
-const [notes, posts] = await Promise.all([getNotes(), getBlogPosts()]);
-const authorNotes = notes.filter((n) => n.data.author === author.slug);
-const authorPosts = posts.filter((p) => p.data.author === author.slug);
+const [noteRows, postRows, subjectRows] = await Promise.all([
+  listPublishedByAuthor(Astro.locals, author.slug, { articleType: 'study-note' }),
+  listPublishedByAuthor(Astro.locals, author.slug, { articleType: 'article' }),
+  listSubjects(Astro.locals),
+]);
+
+// Edge caching: browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+const authorNotes = noteRows.map((n) => ({
+  slug: n.slug,
+  title: n.title,
+  description: n.excerpt,
+  subject: n.subject_slug,
+  subjectLabel: n.subject_title,
+  level: null,
+  updated: n.updated_at,
+}));
+
+const authorPosts = postRows.map((p) => ({
+  slug: p.slug,
+  title: p.title,
+  description: p.excerpt,
+  category: p.category,
+  published: p.published_at,
+  updated: p.updated_at,
+}));
 
 const site = Astro.site!;
 
@@ -30,12 +56,18 @@ const personSchema = {
   url: new URL(`/authors/${author.slug}/`, site).href,
   knowsAbout: data.expertise,
 };
+
+const footerSubjects = subjectRows.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.title,
+}));
 ---
 
 <Layout
   title={`${data.title} — ${data.role} | devsyllabus`}
   description={`${data.title}, ${data.role} at devsyllabus. ${data.bio.slice(0, 120)}`}
   path={`/authors/${author.slug}/`}
+  footerSubjects={footerSubjects}
 >
   <JsonLd data={personSchema} />
 

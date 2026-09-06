@@ -17,6 +17,9 @@ interface Props {
   description: string;
   path: string;
   noindex?: boolean;
+  ogType?: 'website' | 'article';
+  /** Absolute URL of the share image, forwarded to SEO. */
+  ogImage?: string;
   publishedTime?: Date;
   modifiedTime?: Date;
   crumbs?: { href?: string; label: string }[];
@@ -30,6 +33,7 @@ const {
   description,
   path,
   noindex = false,
+  ogImage,
   publishedTime,
   modifiedTime,
   crumbs = [],
@@ -48,6 +52,7 @@ const hasHero = Astro.slots.has('hero');
   {path}
   {noindex}
   ogType="article"
+  ogImage={ogImage}
   {publishedTime}
   {modifiedTime}
   {footerSubjects}

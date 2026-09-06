@@ -3,34 +3,61 @@ import Layout from '../../layouts/Layout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import Faq from '../../components/Faq.astro';
 import NoteCard from '../../components/NoteCard.astro';
-import { getNotesByLevel, getQuestionsByLevel, getNotes } from '../../utils/collections';
 import { getCollection } from '../../utils/collections';
+import { listLevelCounts, listPublishedArticles, listSubjects } from '../../utils/content';
 
-export async function getStaticPaths() {
-  const levels = await getCollection('levels');
-  return levels.map((level) => ({ params: { slug: level.slug }, props: { level } }));
+export const prerender = false;
+
+const slug = String(Astro.params.slug ?? '');
+const levels = await getCollection('levels');
+const level = levels.find((l) => l.slug === slug);
+if (!level) {
+  return new Response('Not found', { status: 404 });
 }
-
-const { level } = Astro.props;
 const { data } = level;
 
-const [levelNotes, levelQuestions, allNotes, subjects] = await Promise.all([
-  getNotesByLevel(level.slug),
-  getQuestionsByLevel(level.slug),
-  getNotes(),
-  getCollection('subjects'),
+const [noteRows, counts, subjectRows] = await Promise.all([
+  listPublishedArticles(Astro.locals, {
+    articleType: 'study-note',
+    level: level.slug,
+    perPage: 100,
+  }),
+  listLevelCounts(Astro.locals),
+  listSubjects(Astro.locals),
 ]);
 
-// Subjects actually used by this level's notes.
-const levelSubjects = [
-  ...new Set(levelNotes.map((n) => n.data.subject)),
-].map((slug) => subjects.find((s) => s.slug === slug)).filter(Boolean);
+// Edge caching: browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+const levelNotes = noteRows.rows.map((n) => ({
+  slug: n.slug,
+  title: n.title,
+  description: n.excerpt,
+  subject: n.subject_slug,
+  subjectLabel: n.subject_title,
+  level: level.slug,
+  levelLabel: data.title,
+  updated: n.updated_at,
+}));
+
+// Subjects actually used by this level's notes, with their D1 descriptions.
+const levelSubjects = [...new Map(levelNotes.map((n) => [n.subject, n])).values()]
+  .map((s) => subjectRows.find((row) => row.slug === s))
+  .filter((s): s is (typeof subjectRows)[number] => s !== undefined);
+
+const mcqCount = counts.mcqs[level.slug] ?? 0;
+
+const footerSubjects = subjectRows.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.title,
+}));
 ---
 
 <Layout
   title={`${data.title} Study Notes and Practice Questions | devsyllabus`}
   description={data.description}
   path={`/levels/${level.slug}/`}
+  footerSubjects={footerSubjects}
 >
   <Breadcrumbs crumbs={[{ label: 'Education Levels', href: '/levels/' }, { label: data.title }]} />
 
@@ -43,8 +70,8 @@ const levelSubjects = [
     <ul>
       {levelSubjects.map((subject) => (
         <li>
-          <a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a>
-          <span> — {subject.data.description}</span>
+          <a href={`/subjects/${subject.slug}/`}>{subject.title}</a>
+          <span> — {subject.description}</span>
         </li>
       ))}
     </ul>
@@ -59,12 +86,14 @@ const levelSubjects = [
     )}
   </section>
 
-  {levelQuestions.length > 0 && (
+  {mcqCount > 0 && (
     <section>
-      <h2>Practice questions ({levelQuestions.length})</h2>
+      <h2>Practice questions ({mcqCount})</h2>
       <p>
-        <a href="/practice/">Browse the practice question bank</a> — filterable
-        to this level's subjects.
+        <a href={`/practice/level/${level.slug}/`}>
+          Practice this level's questions
+        </a>{' '}
+        — multiple choice with worked explanations.
       </p>
     </section>
   )}

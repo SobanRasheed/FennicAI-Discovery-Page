@@ -2,8 +2,7 @@
 import Layout from '../../../layouts/Layout.astro';
 import PageHeader from '../../../components/PageHeader.astro';
 import BlogListing from '../../../components/BlogListing.astro';
-import { getCollection } from '../../../utils/collections';
-import { listPublishedArticles } from '../../../utils/content';
+import { listPublishedArticles, listSubjects } from '../../../utils/content';
 
 export const prerender = false;
 
@@ -22,7 +21,7 @@ const [{ rows: posts, total }, subjects] = await Promise.all([
     page: currentPage,
     perPage: POSTS_PER_PAGE,
   }),
-  getCollection('subjects'),
+  listSubjects(Astro.locals),
 ]);
 
 // Out-of-range pages don't exist.
@@ -36,7 +35,7 @@ Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 ---
 

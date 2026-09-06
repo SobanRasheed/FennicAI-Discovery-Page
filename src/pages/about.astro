@@ -14,14 +14,17 @@ import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
 import Icon from '../components/Icon.astro';
 import JsonLd from '../components/JsonLd.astro';
-import { getNotes, getQuestions, getBlogPosts, getCollection } from '../utils/collections';
+import { listPublishedArticles, listSubjectsWithCounts } from '../utils/content';
 
-const [notes, questions, posts, subjects] = await Promise.all([
-  getNotes(),
-  getQuestions(),
-  getBlogPosts(),
-  getCollection('subjects'),
+export const prerender = false;
+
+const [subjectRows, postRows] = await Promise.all([
+  listSubjectsWithCounts(Astro.locals),
+  listPublishedArticles(Astro.locals, { articleType: 'article', perPage: 100 }),
 ]);
+
+// Edge caching: browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
 
 const pillars = [
   {
@@ -74,16 +77,18 @@ const values = [
 ] as const;
 
 /** The stats bar: real content counts, not the design's placeholder numbers. */
+const noteCount = subjectRows.reduce((sum, s) => sum + s.note_count, 0);
+const mcqCount = subjectRows.reduce((sum, s) => sum + s.mcq_count, 0);
 const stats = [
-  { value: notes.length, label: 'Study notes', icon: 'file' },
-  { value: questions.length, label: 'Practice questions', icon: 'question' },
-  { value: subjects.length, label: 'Subjects', icon: 'book-open' },
-  { value: posts.length, label: 'Articles', icon: 'chart' },
+  { value: noteCount, label: 'Study notes', icon: 'file' },
+  { value: mcqCount, label: 'Practice questions', icon: 'question' },
+  { value: subjectRows.length, label: 'Subjects', icon: 'book-open' },
+  { value: postRows.total, label: 'Articles', icon: 'chart' },
 ] as const;
 
-const footerSubjects = subjects.map((s) => ({
+const footerSubjects = subjectRows.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 
 const siteHref = Astro.site?.href ?? '';
