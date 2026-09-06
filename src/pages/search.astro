@@ -18,6 +18,7 @@ import Search from '../components/Search.astro';
 import SidebarPanel from '../components/SidebarPanel.astro';
 import Icon from '../components/Icon.astro';
 import { getNotes, getBlogPosts, getQuestions, getCollection } from '../utils/collections';
+import { jsonForScript } from '../utils/json-script';
 
 const [notes, posts, questions, subjects, topics, levels] = await Promise.all([
   getNotes(),
@@ -309,7 +310,7 @@ const footerSubjects = subjects.map((s) => ({
     </div>
   </div>
 
-  <script type="application/json" id="search-data" set:html={JSON.stringify(searchIndex)} is:inline />
+  <script type="application/json" id="search-data" set:html={jsonForScript(searchIndex)} is:inline />
 
   <script>
     interface Entry {

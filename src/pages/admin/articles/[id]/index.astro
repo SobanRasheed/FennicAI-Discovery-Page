@@ -8,6 +8,7 @@
 import AdminLayout from '../../../../layouts/AdminLayout.astro';
 import { getArticleById, getArticleExtras, listSubjects, listTopicsBySubject } from '../../../../utils/content';
 import { env } from '../../../../utils/backend';
+import { jsonForScript } from '../../../../utils/json-script';
 
 export const prerender = false;
 
@@ -207,8 +208,8 @@ const editorData = {
     </form>
   </div>
 
-  <script type="application/json" id="article-data" set:html={JSON.stringify(editorData)} />
-  <script type="application/json" id="csrf-token" set:html={JSON.stringify(csrfToken)} />
+  <script type="application/json" id="article-data" set:html={jsonForScript(editorData)} />
+  <script type="application/json" id="csrf-token" set:html={jsonForScript(csrfToken)} />
   <script>
     import { initEditor } from '../../../../components/admin-editor';
     const data = JSON.parse(document.getElementById('article-data')!.textContent!);

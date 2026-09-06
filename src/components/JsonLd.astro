@@ -3,10 +3,12 @@
  * Renders one JSON-LD block. Pages compose several: WebSite on the home
  * page, Article + FAQPage + BreadcrumbList on posts, Quiz on questions.
  */
+import { jsonForScript } from '../utils/json-script';
+
 interface Props {
   data: Record<string, unknown>;
 }
 const { data } = Astro.props;
 ---
 
-<script type="application/ld+json" set:html={JSON.stringify(data)} />
+<script type="application/ld+json" set:html={jsonForScript(data)} />

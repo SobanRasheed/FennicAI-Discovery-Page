@@ -107,7 +107,7 @@ const footerSubjects = subjects.map((s) => ({
   label: s.data.title,
 }));
 
-const quizDataJson = JSON.stringify(quizData).replace(/</g, '\\u003c');
+const quizDataJson = jsonForScript(quizData);
 ---
 
 <Layout

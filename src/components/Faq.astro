@@ -5,6 +5,7 @@
  * content is in the DOM whether or not the disclosure is open.
  */
 import Icon from './Icon.astro';
+import { jsonForScript } from '../utils/json-script';
 
 interface Faq {
   question: string;
@@ -55,7 +56,7 @@ const jsonLd = {
         </details>
       ))}
     </div>
-    {schema && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+    {schema && <script type="application/ld+json" set:html={jsonForScript(jsonLd)} />}
   </section>
 )}
 

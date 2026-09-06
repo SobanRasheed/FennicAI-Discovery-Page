@@ -20,6 +20,8 @@ interface Props {
 
 const { crumbs, schema = true } = Astro.props;
 
+import { jsonForScript } from '../utils/json-script';
+
 const allCrumbs = [{ label: 'Home', href: '/' }, ...crumbs];
 const site = Astro.site!;
 
@@ -49,7 +51,7 @@ const jsonLd = {
   </ol>
 </nav>
 
-{schema && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+{schema && <script type="application/ld+json" set:html={jsonForScript(jsonLd)} />}
 
 <style>
   .crumbs {

@@ -17,6 +17,7 @@ import FactList from '../../components/FactList.astro';
 import RelatedContent from '../../components/RelatedContent.astro';
 import ReferenceList from '../../components/ReferenceList.astro';
 import Icon from '../../components/Icon.astro';
+import { jsonForScript } from '../../utils/json-script';
 import {
   getPublishedArticle,
   getArticleExtras,
@@ -145,8 +146,8 @@ const breadcrumbLd = {
   ]}
   crumbSchema={false}
 >
-  <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
-  <script type="application/ld+json" set:html={JSON.stringify(breadcrumbLd)} />
+  <script type="application/ld+json" set:html={jsonForScript(jsonLd)} />
+  <script type="application/ld+json" set:html={jsonForScript(breadcrumbLd)} />
 
   {/* --- left rail: table of contents plus page actions ----------------- */}
   <Fragment slot="rail">
