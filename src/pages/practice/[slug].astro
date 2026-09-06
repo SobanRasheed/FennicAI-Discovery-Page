@@ -1,112 +1,125 @@
 ---
+/**
+ * /practice/[slug]/ — one published MCQ with its options, the answer, and a
+ * worked explanation. Server-rendered from D1 with edge caching; these pages
+ * are the crawlable surface for practice content (the interactive quiz is
+ * noindex).
+ */
 import Layout from '../../layouts/Layout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import JsonLd from '../../components/JsonLd.astro';
-import { getQuestions } from '../../utils/collections';
-import { render } from 'astro:content';
 import { getCollection } from '../../utils/collections';
+import {
+  getPublishedMcqBySlug,
+  listPublishedMcqs,
+} from '../../utils/content';
 
-export async function getStaticPaths() {
-  const questions = await getQuestions();
-  return questions.map((question) => ({
-    params: { slug: question.slug },
-    props: { question },
-  }));
+export const prerender = false;
+
+const slug = String(Astro.params.slug ?? '');
+const mcq = await getPublishedMcqBySlug(Astro.locals, slug);
+if (!mcq) {
+  return new Response('Not found', { status: 404 });
 }
 
-const { question } = Astro.props;
-const { data } = question;
-const { Content: QuestionBody } = await render(question);
+const [related, levels] = await Promise.all([
+  listPublishedMcqs(Astro.locals, { subjectSlug: mcq.subject_slug }),
+  getCollection('levels'),
+]);
+
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+const level = levels.find((l) => l.slug === mcq.level);
+const answerText = mcq.options.find((o) => o.is_correct === 1)?.text ?? '';
 
 // The meta description leads with the question text so every practice
 // page has a unique, search-relevant description.
 const questionExcerpt =
-  data.question.length > 110
-    ? `${data.question.slice(0, 107).trimEnd()}…`
-    : data.question;
+  mcq.question.length > 110 ? `${mcq.question.slice(0, 107).trimEnd()}…` : mcq.question;
 
-const [subjects, levels] = await Promise.all([
-  getCollection('subjects'),
-  getCollection('levels'),
-]);
-
-const subject = subjects.find((s) => s.slug === data.subject);
-const level = levels.find((l) => l.slug === data.level);
-
-// Related: other questions on the same subject.
-const related = (await getQuestions()).filter(
-  (q) => q.slug !== question.slug && q.data.subject === data.subject,
-);
+// The explanation is stored as plain text; paragraphs split on blank lines.
+const explanationParagraphs = mcq.explanation
+  .split(/\n\s*\n/)
+  .map((p) => p.trim())
+  .filter(Boolean);
 
 const site = Astro.site!;
 
 const quizSchema = {
   '@context': 'https://schema.org',
   '@type': 'Question',
-  name: data.question,
+  name: mcq.question,
   acceptedAnswer: {
     '@type': 'Answer',
-    text: `${data.answer} ${data.explanation}`,
+    text: `${answerText} ${mcq.explanation}`,
   },
-  ...(data.options.length > 0 && {
-    suggestedAnswer: data.options.map((option) => ({ '@type': 'Answer', text: option })),
+  ...(mcq.options.length > 0 && {
+    suggestedAnswer: mcq.options.map((option) => ({ '@type': 'Answer', text: option.text })),
   }),
-  about: subject ? { '@type': 'Thing', name: subject.data.title } : undefined,
-  eduQuestionType: data.type === 'mcq' ? 'Multiple choice' : 'Open question',
+  about: { '@type': 'Thing', name: mcq.subject_title },
+  eduQuestionType: 'Multiple choice',
 };
 ---
 
 <Layout
-  title={`${data.question.slice(0, 70)} | devsyllabus Practice`}
-  description={`${questionExcerpt} ${data.type} practice question with the full answer and explanation.`}
-  path={`/practice/${question.slug}/`}
-  noindex={data.noindex}
+  title={`${mcq.question.slice(0, 70)} | Medical Study Notes Practice`}
+  description={`${questionExcerpt} Multiple choice practice question with the full answer and explanation.`}
+  path={`/practice/${mcq.slug}/`}
 >
   <JsonLd data={quizSchema} />
 
   <Breadcrumbs
     crumbs={[
       { label: 'Practice', href: '/practice/' },
-      { label: subject?.data.title ?? data.subject, href: `/practice/subject/${data.subject}/` },
+      { label: mcq.subject_title, href: `/practice/subject/${mcq.subject_slug}/` },
       { label: 'Question' },
     ]}
   />
 
   <article class="doc question-doc">
-    <h1>{data.question}</h1>
+    <h1>{mcq.question}</h1>
 
     <p class="meta question-meta">
-      {data.type.toUpperCase()} · {data.difficulty}
-      {data.examTag && <span> · {data.examTag}</span>}
-      {level && <span> · <a href={`/levels/${level.slug}/`}>{level.data.title}</a></span>}
+      MCQ · {mcq.difficulty}
+      {mcq.topic_title && <span> · {mcq.topic_title}</span>}
+      {level && (
+        <span>
+          {' '}· <a href={`/practice/level/${level.slug}/`}>{level.data.title}</a>
+        </span>
+      )}
     </p>
 
-    {data.options.length > 0 && (
+    {mcq.options.length > 0 && (
       <section aria-labelledby="options">
         <h2 id="options">Options</h2>
         <ol class="q-options" type="A">
-          {data.options.map((option) => <li>{option}</li>)}
+          {mcq.options.map((option) => (
+            <li class={option.is_correct === 1 ? 'is-correct' : undefined}>{option.text}</li>
+          ))}
         </ol>
       </section>
     )}
 
     <section class="q-answer" aria-labelledby="answer">
       <h2 id="answer">Answer</h2>
-      <p class="q-answer-text">{data.answer}</p>
+      <p class="q-answer-text">{answerText}</p>
     </section>
 
-    <section aria-labelledby="explanation">
-      <h2 id="explanation">Explanation</h2>
-      <div class="prose"><QuestionBody /></div>
-      <p>{data.explanation}</p>
-    </section>
+    {explanationParagraphs.length > 0 && (
+      <section aria-labelledby="explanation">
+        <h2 id="explanation">Explanation</h2>
+        <div class="prose">
+          {explanationParagraphs.map((p) => <p>{p}</p>)}
+        </div>
+      </section>
+    )}
 
-    {related.length > 0 && (
+    {related.filter((q) => q.id !== mcq.id).length > 0 && (
       <section aria-labelledby="more-practice">
         <h2 id="more-practice">More practice on this subject</h2>
         <ul class="chevron-list q-related">
-          {related.slice(0, 5).map((q) => (
-            <li><a href={`/practice/${q.slug}/`}>{q.data.question}</a></li>
+          {related.filter((q) => q.id !== mcq.id).slice(0, 5).map((q) => (
+            <li><a href={`/practice/${q.slug}/`}>{q.question}</a></li>
           ))}
         </ul>
       </section>
@@ -131,6 +144,12 @@ const quizSchema = {
 
   .q-options li + li {
     margin-top: var(--space-2);
+  }
+
+  /* The correct answer is quietly marked so a returning reader can scan it. */
+  .q-options .is-correct {
+    color: var(--ink);
+    font-weight: var(--weight-semibold);
   }
 
   /* The answer gets the summary treatment: a ruled panel the eye lands on. */

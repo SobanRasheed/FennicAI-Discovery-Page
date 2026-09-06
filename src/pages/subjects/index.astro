@@ -5,13 +5,13 @@ import Search from '../../components/Search.astro';
 import Icon from '../../components/Icon.astro';
 import JsonLd from '../../components/JsonLd.astro';
 import Illustration, { illustrationForSubject } from '../../components/Illustration.astro';
-import { getCollection, getNotes, getQuestions } from '../../utils/collections';
+import { listSubjectsWithCounts } from '../../utils/content';
 
-const [subjects, notes, questions] = await Promise.all([
-  getCollection('subjects'),
-  getNotes(),
-  getQuestions(),
-]);
+export const prerender = false;
+
+const subjects = await listSubjectsWithCounts(Astro.locals);
+
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
 
 /** Subjects with a PNG icon in /assets/landing/; the rest fall back to a drawing. */
 const pngSubjects = new Set([
@@ -30,8 +30,8 @@ const subjectIcon = (slug: string) =>
 
 const rows = subjects.map((subject) => ({
   subject,
-  noteCount: notes.filter((n) => n.data.subject === subject.slug).length,
-  mcqCount: questions.filter((q) => q.data.subject === subject.slug).length,
+  noteCount: subject.note_count,
+  mcqCount: subject.mcq_count,
 }));
 
 /** The two curriculum halves from the design. Anything unlisted lands in
@@ -71,7 +71,7 @@ const subjectCounts = (noteCount: number, mcqCount: number) => {
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 
 const jsonLd = {
@@ -87,7 +87,7 @@ const jsonLd = {
     itemListElement: rows.map((r, i) => ({
       '@type': 'ListItem',
       position: i + 1,
-      name: r.subject.data.title,
+      name: r.subject.title,
       url: new URL(`/subjects/${r.subject.slug}/`, Astro.site).href,
     })),
   },
@@ -170,9 +170,9 @@ const jsonLd = {
                   )}
                 </span>
                 <span class="subj-body">
-                  <span class="subj-title">{subject.data.title}</span>
+                  <span class="subj-title">{subject.title}</span>
                   <span class="subj-counts">{subjectCounts(noteCount, mcqCount)}</span>
-                  <span class="subj-desc">{subject.data.description}</span>
+                  <span class="subj-desc">{subject.description}</span>
                 </span>
                 <span class="subj-chev" aria-hidden="true">
                   <Icon name="chevron-right" size={16} />

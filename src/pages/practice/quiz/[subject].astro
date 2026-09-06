@@ -24,66 +24,61 @@ import Breadcrumbs from '../../../components/Breadcrumbs.astro';
 
 import Icon from '../../../components/Icon.astro';
 import Illustration, { illustrationForSubject } from '../../../components/Illustration.astro';
-import { getQuestions, getNotes, getCollection } from '../../../utils/collections';
+import {
+  getSubjectBySlug,
+  listSubjectsWithCounts,
+  listPublishedMcqsWithOptions,
+  listPublishedBySubject,
+} from '../../../utils/content';
 import { jsonForScript } from '../../../utils/json-script';
 
-export async function getStaticPaths() {
-  const [questions, subjects] = await Promise.all([
-    getQuestions(),
-    getCollection('subjects'),
-  ]);
-  return subjects
-    .filter((subject) =>
-      questions.some(
-        (q) => q.data.subject === subject.slug && q.data.options.length > 0,
-      ),
-    )
-    .map((subject) => ({ params: { subject: subject.slug }, props: { subject } }));
+export const prerender = false;
+
+const subjectSlug = String(Astro.params.subject ?? '');
+const subject = await getSubjectBySlug(Astro.locals, subjectSlug);
+if (!subject || !subject.is_active) {
+  return new Response('Not found', { status: 404 });
 }
 
-const { subject } = Astro.props;
-const { data: subjectData } = subject;
-
-const [allQuestions, notes, subjects] = await Promise.all([
-  getQuestions(),
-  getNotes(),
-  getCollection('subjects'),
+const [mcqs, subjects, subjectNotes] = await Promise.all([
+  listPublishedMcqsWithOptions(Astro.locals, subject.slug),
+  listSubjectsWithCounts(Astro.locals),
+  listPublishedBySubject(Astro.locals, subject.id, { articleType: 'study-note', perPage: 3 }),
 ]);
 
-/** Quiz questions: only option-based (MCQ-style) questions are playable. */
-const questions = allQuestions.filter(
-  (q) => q.data.subject === subject.slug && q.data.options.length > 0,
-);
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
 
-const chapterTitle = (slug?: string) =>
-  (slug ? subjectData.chapters.find((c) => c.slug === slug)?.title : undefined) ??
-  'General';
+/** Quiz questions: only MCQs with at least one option are playable. */
+const questions = mcqs.filter((q) => q.options.length > 0);
 
-/** Which option is the answer: matched by text, or by a bare A–D letter. */
+const chapterTitle = (topicTitle: string | null) => topicTitle ?? 'General';
+
+/** Which option is the answer: the flagged row, matched in display order. */
 const answerIndexFor = (q: (typeof questions)[number]) => {
-  const byText = q.data.options.findIndex(
-    (option) => option.trim() === q.data.answer.trim(),
-  );
-  if (byText >= 0) return byText;
-  const letter = q.data.answer.trim().match(/^([A-D])$/i);
-  if (letter) return letter[1].toUpperCase().charCodeAt(0) - 65;
-  return -1;
+  const idx = q.options.findIndex((o) => o.is_correct === 1);
+  if (idx >= 0) return idx;
+  // Legacy fallback: a bare A–D letter label.
+  const letter = q.options.findIndex((o) => /^[A-D]$/i.test(o.label.trim()));
+  return letter;
 };
 
 const quizData = {
-  subject: subjectData.title,
+  subject: subject.title,
   subjectSlug: subject.slug,
   total: questions.length,
-  questions: questions.map((q) => ({
-    question: q.data.question,
-    chapter: chapterTitle(q.data.chapter),
-    options: q.data.options,
-    answerIndex: answerIndexFor(q),
-    answer: q.data.answer,
-    explanation: q.data.explanation,
-    difficulty: q.data.difficulty,
-    url: `/practice/${q.slug}/`,
-  })),
+  questions: questions.map((q) => {
+    const answer = q.options.find((o) => o.is_correct === 1)?.text ?? '';
+    return {
+      question: q.question,
+      chapter: chapterTitle(q.topic_title),
+      options: q.options.map((o) => o.text),
+      answerIndex: answerIndexFor(q),
+      answer,
+      explanation: q.explanation,
+      difficulty: q.difficulty,
+      url: `/practice/${q.slug}/`,
+    };
+  }),
 };
 
 /** Topic nav: chapters in quiz order, with per-chapter counts. */
@@ -100,20 +95,11 @@ const sections = quizData.questions.reduce<{ chapter: string; count: number }[]>
 /** Other playable questions in this subject, for the rail. */
 const relatedQuestions = quizData.questions.slice(0, 4);
 
-/** Recommended notes: this subject's most recently updated. */
-const recommendedNotes = notes
-  .filter((n) => n.data.subject === subject.slug)
-  .sort((a, b) => b.data.updatedDate.valueOf() - a.data.updatedDate.valueOf())
-  .slice(0, 3);
+/** Recommended notes: this subject's most recently published. */
+const recommendedNotes = subjectNotes.rows;
 
-/** Other subjects with a playable quiz, for "Keep going". */
-const keepGoing = subjects.filter(
-  (s) =>
-    s.slug !== subject.slug &&
-    allQuestions.some(
-      (q) => q.data.subject === s.slug && q.data.options.length > 0,
-    ),
-);
+/** Other subjects with MCQs, for "Keep going". */
+const keepGoing = subjects.filter((s) => s.slug !== subject.slug && s.mcq_count > 0);
 
 /** Subjects with a PNG icon in /assets/landing/; the rest fall back to a drawing. */
 const pngSubjects = new Set([
@@ -132,15 +118,15 @@ const subjectIcon = (slug: string) =>
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 
 const quizDataJson = jsonForScript(quizData);
 ---
 
 <Layout
-  title={`${subjectData.title} MCQ Quiz — Interactive Practice | Medical Study Notes`}
-  description={`Take a timed interactive ${subjectData.title} MCQ quiz: answer one question at a time, check each answer, and see your score and performance by topic.`}
+  title={`${subject.title} MCQ Quiz — Interactive Practice | Medical Study Notes`}
+  description={`Take a timed interactive ${subject.title} MCQ quiz: answer one question at a time, check each answer, and see your score and performance by topic.`}
   path={`/practice/quiz/${subject.slug}/`}
   footerSubjects={footerSubjects}
   noindex
@@ -150,7 +136,7 @@ const quizDataJson = jsonForScript(quizData);
     crumbs={[
       { label: 'Home', href: '/' },
       { label: 'MCQs', href: '/practice/' },
-      { label: subjectData.title, href: `/practice/subject/${subject.slug}/` },
+      { label: subject.title, href: `/practice/subject/${subject.slug}/` },
       { label: 'Quiz' },
     ]}
   />
@@ -168,7 +154,7 @@ const quizDataJson = jsonForScript(quizData);
             )}
           </span>
           <span class="quiz-side-meta">
-            <span class="quiz-side-title">{subjectData.title} MCQs</span>
+            <span class="quiz-side-title">{subject.title} MCQs</span>
             <span class="quiz-side-sub">Interactive quiz</span>
             <span class="quiz-side-sub">
               {questions.length} question{questions.length === 1 ? '' : 's'}
@@ -241,7 +227,7 @@ const quizDataJson = jsonForScript(quizData);
                 <p class="kicker">Quiz complete</p>
                 <h1 class="results-title" data-results-heading>Great effort!</h1>
                 <p class="results-sub" data-results-sub>
-                  You’ve completed the {subjectData.title} MCQs.
+                  You’ve completed the {subject.title} MCQs.
                 </p>
                 <p class="results-motto">“Consistent practice leads to real progress.”</p>
               </div>
@@ -396,7 +382,7 @@ const quizDataJson = jsonForScript(quizData);
                   <span class="step-body">
                     <span class="step-title">Practice More</span>
                     <span class="step-desc">
-                      Explore more MCQ sets from {subjectData.title}.
+                      Explore more MCQ sets from {subject.title}.
                     </span>
                   </span>
                   <span class="step-chev" aria-hidden="true">
@@ -419,7 +405,7 @@ const quizDataJson = jsonForScript(quizData);
                     {keepGoing.slice(0, 4).map((s) => (
                       <li>
                         <a href={`/practice/quiz/${s.slug}/`}>
-                          {s.data.title} MCQs
+                          {s.title} MCQs
                           <span class="rail-row-chev" aria-hidden="true">
                             <Icon name="chevron-right" size={16} />
                           </span>
@@ -443,8 +429,8 @@ const quizDataJson = jsonForScript(quizData);
                       <li>
                         <a href={`/notes/${note.slug}/`}>
                           <span class="rail-note-body">
-                            <span class="rail-note-title">{note.data.title}</span>
-                            <span class="rail-note-desc">{note.data.description}</span>
+                            <span class="rail-note-title">{note.title}</span>
+                            <span class="rail-note-desc">{note.excerpt}</span>
                           </span>
                           <span class="rail-row-chev" aria-hidden="true">
                             <Icon name="chevron-right" size={16} />
@@ -497,7 +483,7 @@ const quizDataJson = jsonForScript(quizData);
             <div class="notice notice-info quiz-nojs">
               The interactive quiz needs JavaScript. Every question and answer is
               also available on the
-              <a href={`/practice/subject/${subject.slug}/`}>{subjectData.title} practice page</a>.
+              <a href={`/practice/subject/${subject.slug}/`}>{subject.title} practice page</a>.
             </div>
           </noscript>
         </div>

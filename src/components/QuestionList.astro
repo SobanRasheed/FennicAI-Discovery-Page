@@ -1,47 +1,38 @@
 ---
 /**
- * QuestionList: hairline-separated rows of practice questions, each showing
- * the question text with its type and difficulty as small tags. Shared by the
- * practice index and every practice filter page so all four render identically.
+ * QuestionList: hairline-separated rows of published MCQs, each showing
+ * the question text with its subject and difficulty as small tags. Shared
+ * by the per-subject, per-level and per-type practice pages so all render
+ * identically.
  */
 import Icon from './Icon.astro';
 
-interface Question {
-  slug: string;
-  data: {
-    question: string;
-    type: string;
-    difficulty: string;
-    examTag?: string;
-  };
-}
-
 interface Props {
-  questions: Question[];
+  questions: {
+    slug: string;
+    question: string;
+    difficulty?: string;
+    subject_title?: string;
+  }[];
   /** Shows the difficulty tag. Off on pages already filtered by difficulty. */
   showDifficulty?: boolean;
-  showType?: boolean;
+  /** Shows the subject tag. Off on pages already filtered by subject. */
+  showSubject?: boolean;
 }
 
-const { questions, showDifficulty = true, showType = true } = Astro.props;
-
-const typeLabels: Record<string, string> = {
-  mcq: 'MCQ',
-  short: 'Short',
-  long: 'Long',
-  numerical: 'Numerical',
-};
+const { questions, showDifficulty = true, showSubject = true } = Astro.props;
 ---
+
 
 {questions.length > 0 ? (
   <ul class="qlist">
     {questions.map((q) => (
       <li>
         <a href={`/practice/${q.slug}/`}>
-          <span class="qlist-text">{q.data.question}</span>
+          <span class="qlist-text">{q.question}</span>
           <span class="qlist-tags">
-            {showType && <span class="tag">{typeLabels[q.data.type] ?? q.data.type}</span>}
-            {showDifficulty && <span class="tag">{q.data.difficulty}</span>}
+            {showSubject && q.subject_title && <span class="tag">{q.subject_title}</span>}
+            {showDifficulty && q.difficulty && <span class="tag">{q.difficulty}</span>}
             <Icon name="chevron-right" size={15} />
           </span>
         </a>

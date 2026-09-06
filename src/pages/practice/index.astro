@@ -2,11 +2,11 @@
 /**
  * MCQs hub: the front door to practice.
  *
- * Everything on this page is derived from the real question collection —
+ * Everything on this page is derived from the live MCQ data in D1 —
  * counts are real, subject cards link to the per-subject practice pages,
- * and featured sets are the chapters with the most questions. The design's
- * "latest questions" rows are renamed "try a question" because the
- * collection has no per-question dates to sort by, and the design's
+ * and featured sets are the topics with the most questions. The design's
+ * "latest questions" rows are renamed "try a question" because MCQs have
+ * no meaningful per-question dates to sort by, and the design's
  * "Your progress" counters (342 correct / 128 incorrect) are replaced with
  * the real interactive-quiz links, since an anonymous visitor has no
  * progress data to show.
@@ -18,65 +18,53 @@ import SidebarPanel from '../../components/SidebarPanel.astro';
 import JsonLd from '../../components/JsonLd.astro';
 import Icon from '../../components/Icon.astro';
 import Illustration, { illustrationForSubject } from '../../components/Illustration.astro';
-import { getQuestions, getCollection } from '../../utils/collections';
+import { getCollection } from '../../utils/collections';
+import {
+  listSubjectsWithCounts,
+  listPublishedMcqs,
+} from '../../utils/content';
 
-const [questions, subjects, levels] = await Promise.all([
-  getQuestions(),
-  getCollection('subjects'),
+export const prerender = false;
+
+const [mcqs, subjects, levels] = await Promise.all([
+  listPublishedMcqs(Astro.locals),
+  listSubjectsWithCounts(Astro.locals),
   getCollection('levels'),
 ]);
 
-const typeOptions = [
-  { slug: 'mcq', label: 'Multiple choice' },
-  { slug: 'short', label: 'Short answer' },
-  { slug: 'long', label: 'Long answer' },
-  { slug: 'numerical', label: 'Numerical' },
-];
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
 
-/** Subjects with questions, sorted by how many they carry. */
+/** Subjects with published MCQs, sorted by how many they carry. */
 const rows = subjects
-  .map((subject) => ({
-    subject,
-    count: questions.filter((q) => q.data.subject === subject.slug).length,
-    mcqCount: questions.filter(
-      (q) => q.data.subject === subject.slug && q.data.options.length > 0,
-    ).length,
-    chapters: new Set(
-      questions
-        .filter((q) => q.data.subject === subject.slug && q.data.chapter)
-        .map((q) => q.data.chapter),
-    ).size,
-  }))
+  .map((subject) => ({ subject, count: subject.mcq_count }))
   .filter((row) => row.count > 0)
   .sort((a, b) => b.count - a.count);
 
-/** Chapter-level sets with the most questions — the "featured sets". */
-const sets = subjects
-  .flatMap((subject) =>
-    [...new Set(questions.filter((q) => q.data.subject === subject.slug && q.data.chapter).map((q) => q.data.chapter ?? ''))]
-      .map((chapterSlug) => {
-        const chapter = subject.data.chapters.find((c) => c.slug === chapterSlug);
-        const setQuestions = questions.filter(
-          (q) => q.data.subject === subject.slug && q.data.chapter === chapterSlug,
-        );
-        return {
-          subject,
-          chapter: chapter?.title ?? chapterSlug,
-          count: setQuestions.length,
-        };
-      }),
-  )
-  .filter((set) => set.count > 0)
+/** Topic-level sets with the most questions — the "featured sets". */
+const sets = Object.values(
+  mcqs.reduce<
+    Record<string, { subjectSlug: string; subjectTitle: string; topicTitle: string; count: number }>
+  >((acc, q) => {
+    if (!q.topic_title) return acc;
+    const key = `${q.subject_slug}/${q.topic_title}`;
+    acc[key] ??= {
+      subjectSlug: q.subject_slug,
+      subjectTitle: q.subject_title,
+      topicTitle: q.topic_title,
+      count: 0,
+    };
+    acc[key].count += 1;
+    return acc;
+  }, {}),
+)
   .sort((a, b) => b.count - a.count)
   .slice(0, 4);
 
 /** A handful of MCQs to try straight from the index. */
-const tryQuestions = questions
-  .filter((q) => q.data.options.length > 0)
-  .slice(0, 5);
+const tryQuestions = mcqs.slice(0, 5);
 
-/** Subjects that have an interactive quiz (MCQ-style questions with options). */
-const quizSubjects = rows.filter((row) => row.mcqCount > 0);
+/** Every subject with MCQs has an interactive quiz. */
+const quizSubjects = rows;
 const firstQuizHref =
   quizSubjects.length > 0 ? `/practice/quiz/${quizSubjects[0].subject.slug}/` : '/practice/';
 
@@ -100,7 +88,7 @@ const questionCount = (count: number) =>
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 
 const jsonLd = {
@@ -108,7 +96,7 @@ const jsonLd = {
   '@type': 'CollectionPage',
   name: 'Medical MCQs and practice questions',
   description:
-    'Practice questions with full answers and explanations, filterable by subject, level, and type.',
+    'Practice questions with full answers and explanations, filterable by subject and level.',
   url: new URL('/practice/', Astro.site).href,
   isPartOf: { '@type': 'WebSite', name: 'Medical Study Notes', url: Astro.site!.href },
   mainEntity: {
@@ -116,7 +104,7 @@ const jsonLd = {
     itemListElement: rows.map((row, i) => ({
       '@type': 'ListItem',
       position: i + 1,
-      name: `${row.subject.data.title} practice questions`,
+      name: `${row.subject.title} practice questions`,
       url: new URL(`/practice/subject/${row.subject.slug}/`, Astro.site).href,
     })),
   },
@@ -153,7 +141,7 @@ const jsonLd = {
       <div class="mcq-stat">
         <Icon name="question" size={36} />
         <div>
-          <dt>{questions.length}</dt>
+          <dt>{mcqs.length}</dt>
           <dd>Practice questions</dd>
         </div>
       </div>
@@ -223,9 +211,9 @@ const jsonLd = {
                   )}
                 </span>
                 <span class="mcq-card-body">
-                  <span class="mcq-card-title">{subject.data.title}</span>
+                  <span class="mcq-card-title">{subject.title}</span>
                   <span class="mcq-card-count">{questionCount(count)}</span>
-                  <span class="mcq-card-desc">{subject.data.description}</span>
+                  <span class="mcq-card-desc">{subject.description}</span>
                 </span>
                 <span class="mcq-card-chev" aria-hidden="true">
                   <Icon name="chevron-right" size={16} />
@@ -247,19 +235,19 @@ const jsonLd = {
             </div>
 
             <div class="card-grid">
-              {sets.map(({ subject, chapter, count }) => (
-                <a class="mcq-card mcq-set" href={`/practice/subject/${subject.slug}/`}>
+              {sets.map((set) => (
+                <a class="mcq-card mcq-set" href={`/practice/subject/${set.subjectSlug}/`}>
                   <span class="mcq-card-art" aria-hidden="true">
-                    {subjectIcon(subject.slug) ? (
-                      <img src={subjectIcon(subject.slug)} alt="" loading="lazy" decoding="async" />
+                    {subjectIcon(set.subjectSlug) ? (
+                      <img src={subjectIcon(set.subjectSlug)} alt="" loading="lazy" decoding="async" />
                     ) : (
-                      <Illustration name={illustrationForSubject(subject.slug)} size={32} />
+                      <Illustration name={illustrationForSubject(set.subjectSlug)} size={32} />
                     )}
                   </span>
                   <span class="mcq-card-body">
-                    <span class="mcq-card-kicker">{subject.data.title}</span>
-                    <span class="mcq-card-title">{chapter} MCQs</span>
-                    <span class="mcq-card-count">{questionCount(count)}</span>
+                    <span class="mcq-card-kicker">{set.subjectTitle}</span>
+                    <span class="mcq-card-title">{set.topicTitle} MCQs</span>
+                    <span class="mcq-card-count">{questionCount(set.count)}</span>
                   </span>
                   <span class="mcq-card-chev" aria-hidden="true">
                     <Icon name="chevron-right" size={16} />
@@ -285,10 +273,8 @@ const jsonLd = {
               {tryQuestions.map((q) => (
                 <li>
                   <a class="mcq-row" href={`/practice/${q.slug}/`}>
-                    <span class="mcq-row-tag">
-                      {subjects.find((s) => s.slug === q.data.subject)?.data.title ?? q.data.subject}
-                    </span>
-                    <span class="mcq-row-q">{q.data.question}</span>
+                    <span class="mcq-row-tag">{q.subject_title}</span>
+                    <span class="mcq-row-q">{q.question}</span>
                     <span class="mcq-row-chev" aria-hidden="true">
                       <Icon name="chevron-right" size={14} />
                     </span>
@@ -310,10 +296,10 @@ const jsonLd = {
             </h2>
             <p class="rail-note">Practice consistently to see improvement.</p>
             <ul class="chevron-list rail-quizzes">
-              {quizSubjects.map(({ subject, mcqCount }) => (
+              {quizSubjects.map(({ subject, count }) => (
                 <li>
                   <a href={`/practice/quiz/${subject.slug}/`}>
-                    {subject.data.title} quiz ({mcqCount})
+                    {subject.title} quiz ({count})
                   </a>
                 </li>
               ))}
@@ -354,9 +340,7 @@ const jsonLd = {
 
         <SidebarPanel heading="Browse by type" icon="list">
           <ul class="chevron-list">
-            {typeOptions.map((option) => (
-              <li><a href={`/practice/type/${option.slug}/`}>{option.label}</a></li>
-            ))}
+            <li><a href="/practice/type/mcq/">Multiple choice</a></li>
           </ul>
         </SidebarPanel>
       </aside>

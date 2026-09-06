@@ -701,6 +701,122 @@ export async function listMcqCardsBySubject(
   return rows.results;
 }
 
+/** A published MCQ joined with its subject and topic — practice listings. */
+export interface PublicMcqCard {
+  id: number;
+  slug: string;
+  question: string;
+  explanation: string;
+  difficulty: string;
+  level: string | null;
+  subject_id: number;
+  subject_title: string;
+  subject_slug: string;
+  topic_id: number | null;
+  topic_title: string | null;
+}
+
+export interface PublicMcqOption {
+  label: string;
+  text: string;
+  is_correct: number;
+}
+
+export interface PublicMcq extends PublicMcqCard {
+  options: PublicMcqOption[];
+}
+
+/** Published MCQs, optionally filtered by subject slug and/or level. */
+export async function listPublishedMcqs(
+  locals: App.Locals,
+  opts: { subjectSlug?: string; level?: string; limit?: number } = {},
+): Promise<PublicMcqCard[]> {
+  const where = [`m.status = 'published'`, `m.slug IS NOT NULL`];
+  const binds: (string | number)[] = [];
+  if (opts.subjectSlug) {
+    where.push(`s.slug = ?`);
+    binds.push(opts.subjectSlug);
+  }
+  if (opts.level) {
+    where.push(`m.level = ?`);
+    binds.push(opts.level);
+  }
+  const limit = Math.min(200, Math.max(1, opts.limit ?? 200));
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT m.id, m.slug, m.question, m.explanation, m.difficulty, m.level,
+              s.id AS subject_id, s.title AS subject_title, s.slug AS subject_slug,
+              t.id AS topic_id, t.title AS topic_title
+       FROM mcqs m
+       JOIN subjects s ON s.id = m.subject_id
+       LEFT JOIN topics t ON t.id = m.topic_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY m.id
+       LIMIT ?`,
+    )
+    .bind(...binds, limit)
+    .all<PublicMcqCard>();
+  return rows.results;
+}
+
+/** One published MCQ by slug (no subject scoping), with its options. */
+export async function getPublishedMcqBySlug(
+  locals: App.Locals,
+  slug: string,
+): Promise<PublicMcq | null> {
+  const row = await env(locals)
+    .DB.prepare(
+      `SELECT m.id, m.slug, m.question, m.explanation, m.difficulty, m.level,
+              s.id AS subject_id, s.title AS subject_title, s.slug AS subject_slug,
+              t.id AS topic_id, t.title AS topic_title
+       FROM mcqs m
+       JOIN subjects s ON s.id = m.subject_id
+       LEFT JOIN topics t ON t.id = m.topic_id
+       WHERE m.slug = ? AND m.status = 'published'`,
+    )
+    .bind(slug)
+    .first<PublicMcqCard>();
+  if (!row) return null;
+  const options = await listMcqOptions(locals, [row.id]);
+  return { ...row, options: options.get(row.id) ?? [] };
+}
+
+/** All published MCQs for a subject, with options — the quiz data source. */
+export async function listPublishedMcqsWithOptions(
+  locals: App.Locals,
+  subjectSlug: string,
+): Promise<PublicMcq[]> {
+  const cards = await listPublishedMcqs(locals, { subjectSlug });
+  if (cards.length === 0) return [];
+  const options = await listMcqOptions(
+    locals,
+    cards.map((c) => c.id),
+  );
+  return cards.map((c) => ({ ...c, options: options.get(c.id) ?? [] }));
+}
+
+/** Options for a set of MCQs, grouped by mcq_id in display order. */
+async function listMcqOptions(
+  locals: App.Locals,
+  mcqIds: number[],
+): Promise<Map<number, PublicMcqOption[]>> {
+  const out = new Map<number, PublicMcqOption[]>();
+  if (mcqIds.length === 0) return out;
+  const placeholders = mcqIds.map(() => '?').join(',');
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT mcq_id, label, text, is_correct FROM mcq_options
+       WHERE mcq_id IN (${placeholders}) ORDER BY mcq_id, sort_order`,
+    )
+    .bind(...mcqIds)
+    .all<{ mcq_id: number; label: string; text: string; is_correct: number }>();
+  for (const r of rows.results) {
+    if (!out.has(r.mcq_id)) out.set(r.mcq_id, []);
+    out.get(r.mcq_id)!.push({ label: r.label, text: r.text, is_correct: r.is_correct });
+  }
+  return out;
+}
+
 /** All topics (homepage browse column). */
 export async function listTopics(locals: App.Locals): Promise<TopicRow[]> {
   const rows = await env(locals)

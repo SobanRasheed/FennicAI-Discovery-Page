@@ -1,65 +1,81 @@
 ---
+/**
+ * /practice/subject/[subject]/ — every published MCQ in one subject, laid
+ * out with worked answers on the per-question pages. Server-rendered from
+ * D1 with edge caching; the header links to the subject's interactive quiz
+ * and its study notes hub.
+ */
 import Layout from '../../../layouts/Layout.astro';
 import PageHeader from '../../../components/PageHeader.astro';
 import QuestionList from '../../../components/QuestionList.astro';
-import { getQuestions, getCollection } from '../../../utils/collections';
+import {
+  getSubjectBySlug,
+  listSubjects,
+  listPublishedMcqs,
+  countPublishedMcqsBySubject,
+} from '../../../utils/content';
 
-export async function getStaticPaths() {
-  const [questions, subjects] = await Promise.all([
-    getQuestions(),
-    getCollection('subjects'),
-  ]);
-  return subjects
-    .filter((subject) => questions.some((q) => q.data.subject === subject.slug))
-    .map((subject) => ({ params: { subject: subject.slug }, props: { subject } }));
+export const prerender = false;
+
+const subjectSlug = String(Astro.params.subject ?? '');
+const subject = await getSubjectBySlug(Astro.locals, subjectSlug);
+if (!subject || !subject.is_active) {
+  return new Response('Not found', { status: 404 });
 }
 
-const { subject } = Astro.props;
-const [allQuestions, subjects] = await Promise.all([
-  getQuestions(),
-  getCollection('subjects'),
+const [questions, subjects, mcqCount] = await Promise.all([
+  listPublishedMcqs(Astro.locals, { subjectSlug }),
+  listSubjects(Astro.locals),
+  countPublishedMcqsBySubject(Astro.locals, subject.id),
 ]);
-const questions = allQuestions.filter((q) => q.data.subject === subject.slug);
 
-const byType = ['mcq', 'short', 'long', 'numerical']
-  .map((type) => ({ type, count: questions.filter((q) => q.data.type === type).length }))
-  .filter((group) => group.count > 0);
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
+
+/** Real difficulty split — only groups with questions render. */
+const byDifficulty = ['easy', 'medium', 'hard']
+  .map((d) => ({ d, count: questions.filter((q) => q.difficulty === d).length }))
+  .filter((g) => g.count > 0);
 ---
 
 <Layout
-  title={`${subject.data.title} Practice Questions | Medical Study Notes`}
-  description={`Practice questions for ${subject.data.title} with full answers and explanations, spanning MCQs, short answers, long answers, and numerical problems.`}
+  title={`${subject.title} MCQs — Practice Questions with Explanations | Medical Study Notes`}
+  description={`Practice ${subject.title} MCQs with full answers and worked explanations.`}
   path={`/practice/subject/${subject.slug}/`}
   footerSubjects={footerSubjects}
   wide
 >
   <PageHeader
-    kicker={subject.data.title}
-    title={`${subject.data.title} practice questions`}
-    lead={`${questions.length} question${questions.length === 1 ? '' : 's'} with worked answers.`}
+    kicker={subject.title}
+    title={`${subject.title} practice questions`}
+    lead={`${questions.length} multiple choice question${questions.length === 1 ? '' : 's'} with worked answers.`}
     crumbs={[
       { label: 'Practice', href: '/practice/' },
-      { label: subject.data.title },
+      { label: subject.title },
     ]}
-    stats={byType.map((group) => ({
+    stats={byDifficulty.map((group) => ({
       value: group.count,
-      label: group.type === 'mcq' ? 'MCQs' : `${group.type} answer`,
+      label: group.d === 'easy' ? 'Easy' : group.d === 'medium' ? 'Medium' : 'Hard',
       icon: 'question' as const,
     }))}
   >
     <p class="hub-link">
-      Also see the
-      <a href={`/subjects/${subject.slug}/`}>{subject.data.title} study notes</a>.
+      Also see the <a href={`/subjects/${subject.slug}/`}>{subject.title} study notes</a>
+      {mcqCount > 0 && (
+        <>
+          {' '}or take the{' '}
+          <a href={`/practice/quiz/${subject.slug}/`}>{subject.title} interactive quiz</a>.
+        </>
+      )}
     </p>
   </PageHeader>
 
   <div class="container page-body">
-    <QuestionList {questions} />
+    <QuestionList {questions} showSubject={false} />
   </div>
 </Layout>
 

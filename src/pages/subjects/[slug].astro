@@ -30,7 +30,7 @@ export const prerender = false;
 
 const subjectSlug = String(Astro.params.slug ?? '');
 const subject = await getSubjectBySlug(Astro.locals, subjectSlug);
-if (!subject || !subject.is_active !== true && !subject) {
+if (!subject || !subject.is_active) {
   return new Response('Not found', { status: 404 });
 }
 
@@ -543,9 +543,9 @@ const jsonLd = [
     border-left: 1px solid var(--border);
   }
 
-  .stat:not(:first-child) {
-    /* keep the hairline divider between stats, but the first stat of each
-       wrapped row reads cleaner without a leading rule */
+  .stat:first-child {
+    padding-left: 0;
+    border-left: 0;
   }
 
   .stat-icon {

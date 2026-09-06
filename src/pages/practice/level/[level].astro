@@ -1,29 +1,35 @@
 ---
+/**
+ * /practice/level/[level]/ — every published MCQ matched to one education
+ * level (professional MBBS part). Server-rendered from D1 with edge caching;
+ * the level titles come from the file-based levels collection, which stays
+ * the taxonomy source.
+ */
 import Layout from '../../../layouts/Layout.astro';
 import PageHeader from '../../../components/PageHeader.astro';
 import QuestionList from '../../../components/QuestionList.astro';
-import { getQuestions, getCollection } from '../../../utils/collections';
+import { getCollection } from '../../../utils/collections';
+import { listSubjects, listPublishedMcqs } from '../../../utils/content';
 
-export async function getStaticPaths() {
-  const [questions, levels] = await Promise.all([
-    getQuestions(),
-    getCollection('levels'),
-  ]);
-  return levels
-    .filter((level) => questions.some((q) => q.data.level === level.slug))
-    .map((level) => ({ params: { level: level.slug }, props: { level } }));
+export const prerender = false;
+
+const levelSlug = String(Astro.params.level ?? '');
+const levels = await getCollection('levels');
+const level = levels.find((l) => l.slug === levelSlug);
+if (!level) {
+  return new Response('Not found', { status: 404 });
 }
 
-const { level } = Astro.props;
-const [allQuestions, subjects] = await Promise.all([
-  getQuestions(),
-  getCollection('subjects'),
+const [questions, subjects] = await Promise.all([
+  listPublishedMcqs(Astro.locals, { level: levelSlug }),
+  listSubjects(Astro.locals),
 ]);
-const questions = allQuestions.filter((q) => q.data.level === level.slug);
+
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
-  label: s.data.title,
+  label: s.title,
 }));
 ---
 
@@ -37,15 +43,14 @@ const footerSubjects = subjects.map((s) => ({
   <PageHeader
     kicker="Education level"
     title={`${level.data.title} practice questions`}
-    lead={`${questions.length} question${questions.length === 1 ? '' : 's'} matched to this level, each with a worked answer.`}
+    lead={`${questions.length} multiple choice question${questions.length === 1 ? '' : 's'} matched to this level, each with a worked answer.`}
     crumbs={[
       { label: 'Practice', href: '/practice/' },
       { label: level.data.title },
     ]}
   >
     <p class="hub-link">
-      Also see the
-      <a href={`/levels/${level.slug}/`}>{level.data.title} study notes</a>.
+      {level.data.description?.trim()}
     </p>
   </PageHeader>
 
