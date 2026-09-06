@@ -709,6 +709,17 @@ const jsonLd = [
     padding-block: var(--space-8) var(--space-16);
   }
 
+  /* Sections inside the hub column get even rhythm via margin, not the
+     full-width .section padding (which is designed for page-level bands). */
+  .hub-main > section + section {
+    margin-top: var(--space-10);
+  }
+
+  .hub-main .section {
+    padding-block: 0;
+    border-top: 0;
+  }
+
   .hub-main,
   .hub-side {
     min-width: 0;
