@@ -18,6 +18,12 @@ export const onRequest = defineMiddleware(
   async (context, next): Promise<Response> => {
     const { locals, url, request, redirect } = context;
 
+    // Prerendered pages are static HTML rendered at build time — there is no
+    // real request, session, or D1 to consult. Bailing out early also avoids
+    // reading request headers during prerendering (build warnings) and stops
+    // the admin/API guards from running against build-time render passes.
+    if (context.isPrerendered) return next();
+
     // Expose the request to request-scoped helpers (client IP, user agent).
     locals.request = request;
 

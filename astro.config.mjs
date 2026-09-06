@@ -11,7 +11,7 @@ import cloudflare from '@astrojs/cloudflare';
 // NOTE: the config must be a static object, not a function — Astro 7 does
 // not call a function-form top-level config and silently drops everything.
 export default defineConfig({
-  site: 'https://devsyllabus.com',
+  site: 'https://medicalstudynotes.tech',
   output: 'static',
   adapter: cloudflare({
     imageService: 'compile',

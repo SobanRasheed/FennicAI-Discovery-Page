@@ -263,7 +263,9 @@ if (emptyHrefs.length > 0) {
   for (const h of emptyHrefs) console.error(`  ${h}`);
 }
 
-for (const mustExist of ['robots.txt', 'sitemap-index.xml', 'sitemap-0.xml']) {
+// The sitemap is an SSR route (src/pages/sitemap.xml.ts) that includes D1
+// content, so only static assets are asserted here.
+for (const mustExist of ['robots.txt']) {
   if (!existsSync(join(distDir, mustExist))) {
     failures++;
     console.error(`\nMISSING: dist/${mustExist}`);
