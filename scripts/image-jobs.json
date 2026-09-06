@@ -1,9 +1,0 @@
-[
-  {
-    "id": "example-thumb",
-    "out": "public/assets/images/example-thumb.png",
-    "prompt": "A clean flat-style medical education illustration for a study-notes website thumbnail: an open anatomy textbook with a stethoscope resting on it, soft teal and warm amber palette, minimal white background, gentle shadows, no text, no watermark.",
-    "size": "1024x1024",
-    "alt": "Open anatomy textbook with a stethoscope"
-  }
-]
