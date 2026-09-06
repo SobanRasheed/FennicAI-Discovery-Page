@@ -2,17 +2,14 @@
 /**
  * A subject hub: the central page for one subject.
  *
- * Structure: header with real counts, a tab strip (Study Notes / MCQs /
- * Important topics), then the chapter taxonomy rendered as bordered panels
- * with chevron link lists, and a sidebar of quick links and related subjects.
- * The tabs are anchor links to real sections rather than JS panels, so every
- * section is crawlable and linkable.
+ * Figma Screen 02: a quiet hero band with real counts and a quote card, a
+ * tab strip of real section/page links, chapter cards with hairline note
+ * lists, and a sidebar of quick links, a featured note, and related
+ * subjects. The tabs are anchor links (or page links where the section
+ * lives elsewhere), so every section is crawlable and linkable.
  */
 import Layout from '../../layouts/Layout.astro';
-import PageHeader from '../../components/PageHeader.astro';
-import SubjectCard from '../../components/SubjectCard.astro';
-import SidebarPanel from '../../components/SidebarPanel.astro';
-import RelatedContent from '../../components/RelatedContent.astro';
+import Breadcrumbs from '../../components/Breadcrumbs.astro';
 import Faq from '../../components/Faq.astro';
 import Icon from '../../components/Icon.astro';
 import Illustration, { illustrationForSubject } from '../../components/Illustration.astro';
@@ -32,22 +29,16 @@ export async function getStaticPaths() {
 const { subject } = Astro.props;
 const { data } = subject;
 
-const [grouped, questions, notes, posts, topics, levels, subjects] = await Promise.all([
+const [grouped, questions, notes, posts, topics, subjects] = await Promise.all([
   getNotesBySubject(subject.slug, data.chapters),
   getQuestionsBySubject(subject.slug),
   getNotes(),
   getBlogPosts(),
   getCollection('topics'),
-  getCollection('levels'),
   getCollection('subjects'),
 ]);
 
 const subjectNotes = notes.filter((n) => n.data.subject === subject.slug);
-
-// Levels actually used by this subject's notes.
-const subjectLevels = [...new Set(subjectNotes.map((n) => n.data.level))]
-  .map((slug) => levels.find((l) => l.slug === slug))
-  .filter((l): l is NonNullable<typeof l> => Boolean(l));
 
 // Topic hubs whose slugs appear in this subject's notes.
 const subjectTopicSlugs = [...new Set(subjectNotes.flatMap((n) => n.data.topics))];
@@ -69,12 +60,12 @@ const otherSubjects = subjects
     title: s.data.title,
     context: s.data.description.split('.')[0],
   }))
-  .slice(0, 4);
+  .slice(0, 3);
 
 const groupsWithNotes = grouped.filter((g) => g.notes.length > 0);
 const featuredNote = subjectNotes.find((n) => n.data.popular) ?? subjectNotes[0];
 
-/** The serif line in the hero aside — one per core subject, Osler otherwise. */
+/** The serif line in the hero quote card — one per core subject, Osler otherwise. */
 const subjectQuotes: Record<string, string> = {
   anatomy: 'Structure is the language of the body; learn to read it.',
   physiology: 'To heal the body, first understand how it works.',
@@ -95,17 +86,15 @@ const footerSubjects = subjects.map((s) => ({
   label: s.data.title,
 }));
 
+/** Section tabs: anchors for on-page sections, page links elsewhere. */
 const tabs = [
-  { href: '#study-notes', label: 'Study Notes', icon: 'book' as const },
-  ...(questions.length > 0
-    ? [{ href: '#mcqs', label: 'MCQs', icon: 'question' as const }]
-    : []),
+  { href: '#study-notes', label: 'Study Notes' },
+  ...(questions.length > 0 ? [{ href: '#mcqs', label: 'MCQs' }] : []),
   ...(data.importantConcepts.length > 0
-    ? [{ href: '#important-topics', label: 'Important Topics', icon: 'star' as const }]
+    ? [{ href: '#important-topics', label: 'Important Topics' }]
     : []),
-  ...(relatedPosts.length > 0
-    ? [{ href: '#articles', label: 'Related Articles', icon: 'notes' as const }]
-    : []),
+  { href: '/past-papers/', label: 'Past Papers' },
+  { href: '/resources/', label: 'Recommended Resources' },
 ];
 ---
 
@@ -116,73 +105,81 @@ const tabs = [
   footerSubjects={footerSubjects}
   wide
 >
-  <PageHeader
-    kicker="Subject"
-    title={data.title}
-    lead={data.introduction}
-    crumbs={[{ label: 'Subjects', href: '/subjects/' }, { label: data.title }]}
-    stats={[
-      { value: subjectNotes.length, label: 'Study notes', icon: 'book' },
-      ...(questions.length > 0
-        ? [{ value: questions.length, label: 'MCQs', icon: 'question' as const }]
-        : []),
-      { value: 'Comprehensive', label: 'Coverage', icon: 'layers' as const },
-      { value: 'Exam-focused', label: 'Content', icon: 'target' as const },
-    ]}
-  >
-    {subjectLevels.length > 0 && (
-      <p class="hub-levels">
-        Also organised by level:
-        {subjectLevels.map((level, i) => (
-          <>
-            {i > 0 && <span aria-hidden="true">, </span>}
-            <a href={`/levels/${level.slug}/`}>{level.data.title}</a>
-          </>
+  {/* --- hero band --------------------------------------------------------- */}
+  <section class="hero">
+    <div class="container">
+      <Breadcrumbs crumbs={[{ label: 'Subjects', href: '/subjects/' }, { label: data.title }]} />
+    </div>
+
+    <div class="container hero-inner">
+      <div class="hero-copy">
+        <p class="kicker hero-kicker">Subject</p>
+        <h1 class="hero-title">{data.title}</h1>
+        <p class="hero-lead">{data.introduction}</p>
+
+        <dl class="hero-stats">
+          <div class="stat">
+            <span class="stat-icon" aria-hidden="true"><Icon name="book" size={14} /></span>
+            <div>
+              <dt>{subjectNotes.length}</dt>
+              <dd>Study notes</dd>
+            </div>
+          </div>
+          <div class="stat">
+            <span class="stat-icon" aria-hidden="true"><Icon name="question" size={14} /></span>
+            <div>
+              <dt>{questions.length}</dt>
+              <dd>MCQs</dd>
+            </div>
+          </div>
+          <div class="stat">
+            <span class="stat-icon" aria-hidden="true"><Icon name="target" size={14} /></span>
+            <div>
+              <dt>Comprehensive</dt>
+              <dd>Exam-focused content</dd>
+            </div>
+          </div>
+        </dl>
+      </div>
+
+      <div class="hero-art" aria-hidden="true">
+        <Illustration name={illustrationForSubject(subject.slug)} size={130} />
+      </div>
+
+      <aside class="hero-quote">
+        <span class="hero-quote-mark" aria-hidden="true">“</span>
+        <blockquote>
+          <p>“{heroQuote}”</p>
+        </blockquote>
+        <span class="hero-quote-rule" aria-hidden="true"></span>
+        <p class="hero-quote-attr">
+          {data.title}<br />Builds a healthier tomorrow
+        </p>
+      </aside>
+    </div>
+  </section>
+
+  {/* --- section tabs ------------------------------------------------------- */}
+  <nav class="tabs" aria-label="Sections on this page">
+    <div class="container">
+      <ul>
+        {tabs.map((tab) => (
+          <li><a href={tab.href}>{tab.label}</a></li>
         ))}
-      </p>
-    )}
-
-    <Fragment slot="aside">
-      <div class="hub-art" aria-hidden="true">
-        <Illustration name={illustrationForSubject(subject.slug)} size={140} />
-      </div>
-      <blockquote class="hub-quote">
-        <p>“{heroQuote}”</p>
-      </blockquote>
-      <p class="hub-quote-attr">
-        {data.title}<br />Builds a Healthier Tomorrow
-      </p>
-    </Fragment>
-  </PageHeader>
-
-  {/* Section navigation: real anchors, horizontally scrollable on mobile. */}
-  {tabs.length > 1 && (
-    <nav class="tabs" aria-label="Sections on this page">
-      <div class="container">
-        <ul>
-          {tabs.map((tab) => (
-            <li>
-              <a href={tab.href}>
-                <Icon name={tab.icon} size={16} />
-                {tab.label}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </nav>
-  )}
+      </ul>
+    </div>
+  </nav>
 
   <div class="container">
     <div class="hub">
       <div class="hub-main">
-        {/* --- chapters / topics ------------------------------------------ */}
-        <section class="section section-plain" aria-labelledby="study-notes">
+        {/* --- chapters ---------------------------------------------------- */}
+        <section class="section-plain" aria-labelledby="study-notes">
           <div class="section-head">
             <h2 id="study-notes">Topics in {data.title}</h2>
             <p>
-              Browse study notes by topic. Each section groups the notes for one
-              chapter of the subject.
+              Browse study notes by topic. Each section includes detailed notes,
+              diagrams and key points.
             </p>
           </div>
 
@@ -190,17 +187,31 @@ const tabs = [
             <div class="chapters">
               {groupsWithNotes.map(({ chapter, notes: chapterNotes }) => (
                 <section class="chapter" aria-labelledby={`ch-${chapter.slug}`}>
-                  <h3 id={`ch-${chapter.slug}`} class="chapter-title">{chapter.title}</h3>
-                  {chapter.description && (
-                    <p class="chapter-desc">{chapter.description}</p>
-                  )}
-                  <ul class="chevron-list chapter-notes">
+                  <div class="chapter-head">
+                    <span class="chapter-art" aria-hidden="true">
+                      <Illustration name={illustrationForSubject(subject.slug)} size={32} />
+                    </span>
+                    <div>
+                      <h3 id={`ch-${chapter.slug}`} class="chapter-title">{chapter.title}</h3>
+                      {chapter.description && (
+                        <p class="chapter-desc">{chapter.description}</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <ul class="chapter-notes">
                     {chapterNotes.map((note) => (
-                      <li><a href={`/notes/${note.slug}/`}>{note.data.title}</a></li>
+                      <li>
+                        <a href={`/notes/${note.slug}/`}>
+                          <span aria-hidden="true">›</span>
+                          {note.data.title}
+                        </a>
+                      </li>
                     ))}
                   </ul>
-                  <a class="link-arrow chapter-more" href={`/notes/#subject-${subject.slug}`}>
-                    View all notes
+
+                  <a class="chapter-more" href={`/notes/#subject-${subject.slug}`}>
+                    View all notes <span aria-hidden="true">→</span>
                   </a>
                 </section>
               ))}
@@ -232,7 +243,7 @@ const tabs = [
           )}
         </section>
 
-        {/* --- MCQs ------------------------------------------------------- */}
+        {/* --- MCQs --------------------------------------------------------- */}
         {questions.length > 0 && (
           <section class="section" aria-labelledby="mcqs">
             <div class="section-head-row">
@@ -261,7 +272,7 @@ const tabs = [
           </section>
         )}
 
-        {/* --- important concepts ---------------------------------------- */}
+        {/* --- important concepts -------------------------------------------- */}
         {data.importantConcepts.length > 0 && (
           <section class="section" aria-labelledby="important-topics">
             <div class="section-head">
@@ -274,7 +285,7 @@ const tabs = [
           </section>
         )}
 
-        {/* --- related articles ------------------------------------------ */}
+        {/* --- related articles ----------------------------------------------- */}
         {relatedPosts.length > 0 && (
           <section class="section" aria-labelledby="articles">
             <div class="section-head">
@@ -303,54 +314,97 @@ const tabs = [
         <Faq faqs={data.faqs} />
       </div>
 
-      {/* --- sidebar ---------------------------------------------------- */}
+      {/* --- sidebar -------------------------------------------------------- */}
       <aside class="hub-side" aria-label="Subject links">
         <div class="hub-sticky">
-          <SidebarPanel heading="Quick links" icon="link">
-            <ul class="chevron-list">
-              <li><a href={`/notes/#subject-${subject.slug}`}>All {data.title} notes</a></li>
+          <section class="side-card">
+            <h2>Quick links</h2>
+            <ul>
+              <li>
+                <a href={`/notes/#subject-${subject.slug}`}>All {data.title} notes</a>
+                <span aria-hidden="true">›</span>
+              </li>
               {questions.length > 0 && (
-                <li><a href={`/practice/subject/${subject.slug}/`}>{data.title} MCQs</a></li>
+                <li>
+                  <a href={`/practice/subject/${subject.slug}/`}>{data.title} MCQs</a>
+                  <span aria-hidden="true">›</span>
+                </li>
               )}
               {data.importantConcepts.length > 0 && (
-                <li><a href="#important-topics">Important questions</a></li>
+                <li>
+                  <a href="#important-topics">Important questions</a>
+                  <span aria-hidden="true">›</span>
+                </li>
               )}
-              <li><a href="/past-papers/">Past papers</a></li>
-              <li><a href="/resources/">Recommended books</a></li>
-              <li><a href="/topics/">Topic hubs</a></li>
+              <li>
+                <a href="/past-papers/">Past papers</a>
+                <span aria-hidden="true">›</span>
+              </li>
+              <li>
+                <a href="/resources/">Recommended books</a>
+                <span aria-hidden="true">›</span>
+              </li>
+              <li>
+                <a href="/topics/">Diagrams and images</a>
+                <span aria-hidden="true">›</span>
+              </li>
             </ul>
-          </SidebarPanel>
+          </section>
 
           {featuredNote && (
-            <SidebarPanel heading="Featured note" icon="star" variant="tint">
-              <p class="feat-title">
-                <a href={`/notes/${featuredNote.slug}/`}>{featuredNote.data.title}</a>
-              </p>
-              <p class="feat-desc">{featuredNote.data.description}</p>
-              <a class="link-arrow" href={`/notes/${featuredNote.slug}/`}>Read the note</a>
-            </SidebarPanel>
+            <section class="side-card side-featured">
+              <h2>Featured note</h2>
+              <div class="feat">
+                <div class="feat-copy">
+                  <p class="feat-title">
+                    <a href={`/notes/${featuredNote.slug}/`}>{featuredNote.data.title}</a>
+                  </p>
+                  <p class="feat-desc">{featuredNote.data.description}</p>
+                  <a class="feat-link" href={`/notes/${featuredNote.slug}/`}>
+                    {data.title} <span aria-hidden="true">→</span>
+                  </a>
+                </div>
+                <span class="feat-art" aria-hidden="true">
+                  <Illustration name={illustrationForSubject(subject.slug)} size={38} />
+                </span>
+              </div>
+            </section>
           )}
 
           {subjectTopics.length > 0 && (
-            <SidebarPanel heading="Topics covered" icon="layers">
-              <ul class="chevron-list">
+            <section class="side-card">
+              <h2>Topics covered</h2>
+              <ul>
                 {subjectTopics.map((topic) => (
-                  <li><a href={`/topics/${topic.slug}/`}>{topic.data.title}</a></li>
+                  <li>
+                    <a href={`/topics/${topic.slug}/`}>{topic.data.title}</a>
+                    <span aria-hidden="true">›</span>
+                  </li>
                 ))}
               </ul>
-            </SidebarPanel>
+            </section>
           )}
 
           {otherSubjects.length > 0 && (
-            <SidebarPanel heading="Related subjects" icon="book">
-              <RelatedContent
-                items={otherSubjects}
-                variant="list"
-                heading=""
-                level={3}
-                id="side-subjects"
-              />
-            </SidebarPanel>
+            <section class="side-card">
+              <h2>Related subjects</h2>
+              <ul class="related-subjects">
+                {otherSubjects.map((s) => (
+                  <li>
+                    <a href={s.href}>
+                      <span class="rs-icon" aria-hidden="true">
+                        <Illustration name={illustrationForSubject(s.href.split('/')[2])} size={16} />
+                      </span>
+                      <span class="rs-text">
+                        <span class="rs-title">{s.title}</span>
+                        {s.context && <span class="rs-sub">{s.context}</span>}
+                      </span>
+                      <span class="rs-chev" aria-hidden="true">›</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
         </div>
       </aside>
@@ -359,50 +413,167 @@ const tabs = [
 </Layout>
 
 <style>
-  .hub-levels {
-    margin-top: var(--space-4);
-    color: var(--mute);
-    font-size: var(--text-body-sm);
+  /* --- hero band ---------------------------------------------------------- */
+  .hero {
+    background: var(--band);
   }
 
-  /* The subject's drawing in the header aside — same treatment as the hero
-     panel on the homepage — with the serif quote beneath it. */
-  .hub-art {
+  .hero-inner {
+    display: grid;
+    gap: var(--space-8);
+    align-items: start;
+    padding-block: var(--space-4) var(--space-10);
+  }
+
+  .hero-copy {
+    max-width: 540px;
+  }
+
+  .hero-kicker {
+    margin-top: var(--space-3);
+  }
+
+  .hero-title {
+    margin-top: var(--space-3);
+    font-size: clamp(2.25rem, 1.4rem + 3.5vw, 3rem);
+    line-height: 1.1;
+  }
+
+  .hero-lead {
+    max-width: 510px;
+    margin-top: var(--space-4);
+    color: var(--mute);
+    font-size: 0.9375rem;
+    line-height: 1.55;
+  }
+
+  /* --- stats row: icon boxes, bold green values, hairline dividers -------- */
+  .hero-stats {
     display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4) 0;
+    margin: var(--space-7) 0 0;
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding-inline: var(--space-4);
+    border-left: 1px solid var(--border);
+  }
+
+  .stat:first-child {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .stat-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--primary-border);
+    border-radius: var(--radius-tag);
+    background: var(--surface);
+    color: var(--primary);
+  }
+
+  .hero-stats dt {
+    color: var(--primary);
+    font-family: var(--font-sans);
+    font-size: 1.0625rem;
+    font-weight: var(--weight-bold);
+    line-height: 1.2;
+  }
+
+  .hero-stats dd {
+    margin: 0;
+    color: var(--mute);
+    font-size: 0.6875rem;
+    line-height: 1.4;
+  }
+
+  /* --- hero aside: drawing panel + quote card ------------------------------ */
+  .hero-art {
+    display: none;
     align-items: center;
     justify-content: center;
     padding: var(--space-6);
-    border: 1px solid var(--primary-border);
-    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
     background: var(--primary-surface);
     color: var(--primary);
   }
 
-  .hub-quote {
-    margin: var(--space-5) 0 0;
+  .hero-quote {
+    display: none;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: var(--space-4) var(--space-5) var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--quote-surface);
   }
 
-  .hub-quote p {
+  .hero-quote-mark {
+    color: var(--primary-muted, #8ab8ad);
+    font-family: var(--font-display);
+    font-size: 2.1875rem;
+    font-weight: var(--weight-display);
+    line-height: 0.6;
+  }
+
+  .hero-quote p {
+    margin: var(--space-2) 0 0;
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-display-sm);
-    font-style: italic;
-    font-weight: var(--weight-medium);
-    line-height: 1.35;
-    text-wrap: balance;
+    font-size: 1.0625rem;
+    line-height: 1.5;
   }
 
-  .hub-quote-attr {
-    margin-top: var(--space-3);
+  .hero-quote-rule {
+    width: 34px;
+    height: 3px;
+    margin: var(--space-4) 0 var(--space-3);
+    background: var(--primary);
+  }
+
+  .hero-quote-attr {
+    margin: 0;
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
-    letter-spacing: var(--track-caps);
-    line-height: 1.7;
+    font-family: var(--font-sans);
+    font-size: 0.5625rem;
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.08em;
+    line-height: 1.8;
     text-transform: uppercase;
   }
 
-  /* --- tab strip ------------------------------------------------------- */
+  @media (min-width: 900px) {
+    .hero-inner {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 280px);
+    }
+
+    .hero-art {
+      display: flex;
+    }
+  }
+
+  @media (min-width: 1200px) {
+    .hero-inner {
+      grid-template-columns: minmax(0, 540px) minmax(0, 300px) 200px;
+      gap: var(--space-8);
+    }
+
+    .hero-quote {
+      display: flex;
+    }
+  }
+
+  /* --- tab strip: text-only, active in green with a 3px underline --------- */
   .tabs {
     border-bottom: 1px solid var(--border);
     background: var(--surface);
@@ -423,22 +594,14 @@ const tabs = [
   }
 
   .tabs a {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-4) var(--space-4);
-    border-bottom: 2px solid transparent;
-    color: var(--body);
-    font-size: var(--text-body-sm);
-    font-weight: var(--weight-medium);
+    display: inline-block;
+    padding: var(--space-4) var(--space-3);
+    border-bottom: 3px solid transparent;
+    color: var(--mute);
+    font-size: 0.8125rem;
     text-decoration: none;
     white-space: nowrap;
     transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
-  }
-
-  .tabs a svg {
-    color: var(--faint);
-    transition: color 0.15s var(--ease);
   }
 
   .tabs a:hover {
@@ -446,15 +609,18 @@ const tabs = [
     color: var(--primary);
   }
 
-  .tabs a:hover svg {
+  /* The first tab — Study Notes — is the page the reader is on. */
+  .tabs li:first-child a {
     color: var(--primary);
+    font-weight: var(--weight-bold);
+    border-bottom-color: var(--primary);
   }
 
-  /* --- hub layout ------------------------------------------------------ */
+  /* --- hub layout ---------------------------------------------------------- */
   .hub {
     display: grid;
     gap: var(--space-8);
-    padding-block: 0 var(--space-16);
+    padding-block: var(--space-8) var(--space-16);
   }
 
   .hub-main,
@@ -464,8 +630,8 @@ const tabs = [
 
   @media (min-width: 1024px) {
     .hub {
-      grid-template-columns: minmax(0, 1fr) 20rem;
-      gap: var(--space-12);
+      grid-template-columns: minmax(0, 1fr) 21rem;
+      gap: var(--space-10);
     }
 
     .hub-sticky {
@@ -485,45 +651,98 @@ const tabs = [
     }
   }
 
-  /* --- chapter panels -------------------------------------------------- */
+  /* --- chapter cards -------------------------------------------------------- */
   .chapters {
     display: grid;
-    gap: var(--space-4);
+    gap: var(--space-3);
   }
 
   @media (min-width: 700px) {
     .chapters {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--space-3) var(--space-4);
     }
   }
 
   .chapter {
-    padding: var(--space-6);
+    padding: 18px;
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--surface);
   }
 
+  .chapter-head {
+    display: flex;
+    gap: 15px;
+    align-items: flex-start;
+  }
+
+  .chapter-art {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 66px;
+    height: 66px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
   .chapter-title {
-    font-size: var(--text-display-sm);
+    font-family: var(--font-display);
+    font-size: 1.125rem;
     font-weight: var(--weight-display);
+    line-height: 1.25;
   }
 
   .chapter-desc {
-    margin-top: var(--space-1);
+    margin-top: 4px;
     color: var(--mute);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-normal);
+    font-size: 0.6875rem;
+    line-height: 1.5;
   }
 
   .chapter-notes {
-    margin-top: var(--space-4);
-    padding-top: var(--space-1);
-    border-top: 1px solid var(--border);
+    margin: var(--space-4) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .chapter-notes li {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .chapter-notes a {
+    display: flex;
+    gap: 8px;
+    padding-block: 8px;
+    color: var(--mute);
+    font-size: 0.6875rem;
+    line-height: 1.45;
+    text-decoration: none;
+  }
+
+  .chapter-notes a span {
+    color: var(--faint);
+  }
+
+  .chapter-notes a:hover {
+    color: var(--primary);
   }
 
   .chapter-more {
+    display: inline-block;
     margin-top: var(--space-4);
+    color: var(--primary);
+    font-size: 0.75rem;
+    font-weight: var(--weight-bold);
+    text-decoration: none;
+  }
+
+  .chapter-more:hover {
+    color: var(--primary-hover);
   }
 
   .upcoming {
@@ -532,7 +751,7 @@ const tabs = [
     font-size: var(--text-body-sm);
   }
 
-  /* --- shared list treatments ----------------------------------------- */
+  /* --- shared list treatments ------------------------------------------------ */
   .bordered-list {
     border-top: 1px solid var(--border);
     border-bottom: 1px solid var(--border);
@@ -586,12 +805,87 @@ const tabs = [
     font-size: var(--text-body-sm);
   }
 
-  /* --- sidebar bits ---------------------------------------------------- */
+  /* --- sidebar cards ---------------------------------------------------------- */
+  .side-card {
+    padding: var(--space-5) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+  }
+
+  .side-card + .side-card {
+    margin-top: var(--space-3);
+  }
+
+  .side-card h2 {
+    margin-bottom: var(--space-3);
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    font-weight: var(--weight-display);
+    color: var(--ink);
+  }
+
+  .side-card ul {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .side-card ul li {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .side-card ul li:last-child {
+    border-bottom: 0;
+  }
+
+  .side-card ul a {
+    flex: 1;
+    padding-block: 10px;
+    color: var(--mute);
+    font-size: 0.75rem;
+    text-decoration: none;
+  }
+
+  .side-card ul li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+  }
+
+  .side-card ul li > span {
+    color: var(--primary);
+    font-size: 1.125rem;
+    line-height: 1;
+  }
+
+  .side-card ul a:hover {
+    color: var(--primary);
+  }
+
+  /* --- featured note: the cream card ------------------------------------------ */
+  .side-featured {
+    border-color: var(--border);
+    background: #faf5e5;
+  }
+
+  .feat {
+    display: flex;
+    gap: var(--space-3);
+    align-items: flex-start;
+  }
+
+  .feat-copy {
+    flex: 1;
+    min-width: 0;
+  }
+
   .feat-title {
     font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    font-weight: var(--weight-semibold);
-    line-height: var(--leading-snug);
+    font-size: 1.0625rem;
+    font-weight: var(--weight-display);
+    line-height: 1.3;
   }
 
   .feat-title a {
@@ -604,7 +898,81 @@ const tabs = [
   }
 
   .feat-desc {
-    color: var(--body);
-    font-size: var(--text-body-sm);
+    margin-top: 6px;
+    color: var(--mute);
+    font-size: 0.75rem;
+    line-height: 1.5;
+  }
+
+  .feat-link {
+    display: inline-block;
+    margin-top: var(--space-3);
+    color: var(--primary);
+    font-size: 0.5625rem;
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+
+  .feat-art {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 94px;
+    aspect-ratio: 94 / 84;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  /* --- related subjects: round icon rows ---------------------------------------- */
+  .related-subjects a {
+    display: flex !important;
+    align-items: center;
+    gap: 11px;
+    padding-block: 12px !important;
+  }
+
+  .rs-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .rs-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .rs-title {
+    display: block;
+    color: var(--ink);
+    font-size: 0.8125rem;
+    font-weight: var(--weight-bold);
+    line-height: 1.3;
+  }
+
+  .rs-sub {
+    display: block;
+    margin-top: 2px;
+    color: var(--mute);
+    font-size: 0.625rem;
+    line-height: 1.4;
+  }
+
+  .rs-chev {
+    color: var(--primary);
+    font-size: 1.125rem;
+    line-height: 1;
   }
 </style>

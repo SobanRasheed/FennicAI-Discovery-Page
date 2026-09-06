@@ -3,9 +3,10 @@
  * /notes/ — the study note index.
  *
  * The full note list is rendered as real links (so every note is crawlable
- * from here), with the design's filter bar layered on top as client-side
- * filtering: subject, level, sort, and the hero search field all narrow the
- * list in place. Without JavaScript the hero search still submits to /search/.
+ * from here), with the design's filter rail layered on top as client-side
+ * filtering: subject, topic, level, sort, and the hero search field all
+ * narrow the list in place. Without JavaScript the hero search still
+ * submits to /search/.
  *
  * Subject pages link here as /notes/#subject-{slug}; a matching hash
  * pre-selects that subject in the filter. The rail's per-subject rows carry
@@ -14,9 +15,9 @@
 import Layout from '../../layouts/Layout.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import Search from '../../components/Search.astro';
-import SidebarPanel from '../../components/SidebarPanel.astro';
-import JsonLd from '../../components/JsonLd.astro';
 import Icon from '../../components/Icon.astro';
+import Illustration, { illustrationForSubject } from '../../components/Illustration.astro';
+import JsonLd from '../../components/JsonLd.astro';
 import { getNotes, getCollection, isoDate } from '../../utils/collections';
 
 const [notes, subjects, levels] = await Promise.all([
@@ -28,13 +29,34 @@ const [notes, subjects, levels] = await Promise.all([
 const subjectLabel = (slug: string) =>
   subjects.find((s) => s.slug === slug)?.data.title ?? slug;
 
+/** The chapter title for a note, from its subject's chapter list. */
+const chapterLabel = (subjectSlug: string, chapterSlug: string) =>
+  subjects
+    .find((s) => s.slug === subjectSlug)
+    ?.data.chapters?.find((c) => c.slug === chapterSlug)?.title ?? chapterSlug;
+
 /** Most recent first — the server-rendered order and the JS default sort. */
 const recent = [...notes].sort(
   (a, b) => b.data.updatedDate.valueOf() - a.data.updatedDate.valueOf(),
 );
 
+// The design abbreviates September as "Sep", but en-GB short gives "Sept".
 const fmt = (d: Date) =>
-  d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  d
+    .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    .replace('Sept ', 'Sep ');
+
+/** Filter rail: every topic that has notes, A–Z. */
+const chapterMap = new Map<string, string>();
+for (const note of notes) {
+  const slug = note.data.chapter ?? '';
+  if (slug && !chapterMap.has(slug)) {
+    chapterMap.set(slug, chapterLabel(note.data.subject, slug));
+  }
+}
+const chapterRows = [...chapterMap.entries()].sort((a, b) =>
+  a[1].localeCompare(b[1], 'en'),
+);
 
 /** Rail: every subject that has notes, busiest first, with real counts. */
 const subjectRows = subjects
@@ -44,6 +66,21 @@ const subjectRows = subjects
   }))
   .filter((row) => row.count > 0)
   .sort((a, b) => b.count - a.count);
+
+/** Subjects with a PNG icon in /assets/landing/; the rest fall back to a drawing. */
+const pngSubjects = new Set([
+  'anatomy',
+  'biochemistry',
+  'community-medicine',
+  'forensic-medicine',
+  'microbiology',
+  'pathology',
+  'pharmacology',
+  'physiology',
+]);
+
+const subjectIcon = (slug: string) =>
+  pngSubjects.has(slug) ? `/assets/landing/subject-${slug}.png` : undefined;
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
@@ -84,8 +121,10 @@ const jsonLd = {
     title="All study notes"
     lead="Browse our complete collection of medical study notes. Clear explanations, diagrams and exam-focused content for medical students."
     crumbs={[{ href: '/', label: 'Home' }, { label: 'Study Notes' }]}
+    tone="band"
+    asideWide
   >
-    <div class="notes-hero">
+    <div class="notes-search">
       <Search
         variant="hero"
         id="notes-search"
@@ -95,61 +134,81 @@ const jsonLd = {
     </div>
 
     <Fragment slot="aside">
-      <figure class="notes-quote">
-        <blockquote>
-          <p>The more you learn, the more you realize how much there is to learn.</p>
-        </blockquote>
-        <figcaption>Sir William Osler</figcaption>
-      </figure>
+      <div class="notes-aside">
+        <figure class="notes-quote">
+          <blockquote>
+            <p>The more you learn, the more you realize how much there is to learn.</p>
+          </blockquote>
+          <span class="quote-rule" aria-hidden="true"></span>
+          <figcaption>Sir William Osler</figcaption>
+        </figure>
+
+        <img
+          class="notes-art"
+          src="/assets/images/hero-heart.png"
+          alt=""
+          width="201"
+          height="294"
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
     </Fragment>
   </PageHeader>
 
   <div class="container page-body">
     <div class="notes-layout">
-      <div class="notes-main">
-        {/* --- filter bar -------------------------------------------------- */}
-        <section class="panel panel-pad filter-panel" aria-labelledby="filter-title">
-          <h2 id="filter-title" class="filter-title">
-            <Icon name="filter" size={15} />
-            Filter notes
-          </h2>
-          <div class="filter-grid">
-            <div class="field">
-              <label for="notes-subject">Subject</label>
-              <select id="notes-subject">
-                <option value="">All Subjects</option>
-                {subjectRows.map(({ subject }) => (
-                  <option value={subject.slug}>{subject.data.title}</option>
-                ))}
-              </select>
-            </div>
-            <div class="field">
-              <label for="notes-level">Level</label>
-              <select id="notes-level">
-                <option value="">All Levels</option>
-                {levels.map((level) => (
-                  <option value={level.slug}>{level.data.title}</option>
-                ))}
-              </select>
-            </div>
-            <div class="field">
-              <label for="notes-sort">Sort by</label>
-              <select id="notes-sort">
-                <option value="recent">Most Recent</option>
-                <option value="oldest">Oldest First</option>
-                <option value="title">Title A–Z</option>
-              </select>
-            </div>
-            <div class="field filter-reset">
-              <button class="btn btn-secondary" id="notes-reset" type="button">
-                <Icon name="refresh" size={15} />
-                Reset filters
-              </button>
-            </div>
+      {/* --- filter rail --------------------------------------------------- */}
+      <aside class="notes-filters" aria-label="Filter study notes">
+        <h2 class="filters-title">
+          <Icon name="filter" size={18} />
+          Filter notes
+        </h2>
+        <div class="filters-body">
+          <div class="field">
+            <label for="notes-subject">Subject</label>
+            <select id="notes-subject">
+              <option value="">All Subjects</option>
+              {subjectRows.map(({ subject }) => (
+                <option value={subject.slug}>{subject.data.title}</option>
+              ))}
+            </select>
           </div>
-        </section>
+          <div class="field">
+            <label for="notes-topic">Topic</label>
+            <select id="notes-topic">
+              <option value="">All Topics</option>
+              {chapterRows.map(([slug, label]) => (
+                <option value={slug}>{label}</option>
+              ))}
+            </select>
+          </div>
+          <div class="field">
+            <label for="notes-level">Level</label>
+            <select id="notes-level">
+              <option value="">All Levels</option>
+              {levels.map((level) => (
+                <option value={level.slug}>{level.data.title}</option>
+              ))}
+            </select>
+          </div>
+          <div class="field">
+            <label for="notes-sort">Sort by</label>
+            <select id="notes-sort">
+              <option value="recent">Most Recent</option>
+              <option value="oldest">Oldest First</option>
+              <option value="title">Title A–Z</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary filters-reset" id="notes-reset" type="button">
+            <Icon name="refresh" size={14} />
+            Reset filters
+          </button>
+        </div>
+      </aside>
 
-        {/* --- toolbar + list ---------------------------------------------- */}
+      {/* --- toolbar + list ------------------------------------------------ */}
+      <div class="notes-main">
         <div class="notes-results" id="notes-results">
           <div class="notes-toolbar">
             <p class="notes-count" id="notes-count" aria-live="polite">
@@ -157,9 +216,11 @@ const jsonLd = {
             </p>
             <div class="view-toggle" role="group" aria-label="Choose a view">
               <button class="view-btn" type="button" data-view="list" aria-pressed="true">
+                <Icon name="list" size={16} />
                 List view
               </button>
               <button class="view-btn" type="button" data-view="grid" aria-pressed="false">
+                <Icon name="grid" size={16} />
                 Grid view
               </button>
             </div>
@@ -170,6 +231,7 @@ const jsonLd = {
               <li
                 class="note-row"
                 data-subject={note.data.subject}
+                data-chapter={note.data.chapter ?? ''}
                 data-level={note.data.level}
                 data-date={isoDate(note.data.updatedDate)}
                 data-title={note.data.title.toLowerCase()}
@@ -177,6 +239,18 @@ const jsonLd = {
                   .toLowerCase()}
               >
                 <a href={`/notes/${note.slug}/`}>
+                  <span class="row-thumb" aria-hidden="true">
+                    {subjectIcon(note.data.subject) ? (
+                      <img
+                        src={subjectIcon(note.data.subject)}
+                        alt=""
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    ) : (
+                      <Illustration name={illustrationForSubject(note.data.subject)} size={28} />
+                    )}
+                  </span>
                   <span class="row-main">
                     <span class="row-kicker">{subjectLabel(note.data.subject)}</span>
                     <span class="row-title">{note.data.title}</span>
@@ -185,6 +259,9 @@ const jsonLd = {
                   <time class="row-date" datetime={isoDate(note.data.updatedDate)}>
                     {fmt(note.data.updatedDate)}
                   </time>
+                  <span class="row-chev" aria-hidden="true">
+                    <Icon name="chevron-right" size={16} />
+                  </span>
                 </a>
               </li>
             ))}
@@ -200,70 +277,80 @@ const jsonLd = {
         </div>
       </div>
 
-      {/* --- rail ---------------------------------------------------------- */}
-      <aside class="notes-side" aria-label="Study notes links">
-        <SidebarPanel heading="Popular subjects" icon="book">
+      {/* --- rail ------------------------------------------------------------ */}
+      <aside class="notes-rail" aria-label="Study notes links">
+        <section class="rail-card">
+          <h2 class="rail-heading">
+            <Icon name="grid" size={18} />
+            Popular subjects
+          </h2>
           <ul class="rail-subjects">
             {subjectRows.map(({ subject, count }) => (
               <li id={`subject-${subject.slug}`}>
                 <a href={`/subjects/${subject.slug}/`}>
-                  <span>{subject.data.title}</span>
-                  <span class="rail-count">{count} note{count === 1 ? '' : 's'}</span>
+                  <span class="rail-art" aria-hidden="true">
+                    {subjectIcon(subject.slug) ? (
+                      <img src={subjectIcon(subject.slug)} alt="" loading="lazy" decoding="async" />
+                    ) : (
+                      <Illustration name={illustrationForSubject(subject.slug)} size={22} />
+                    )}
+                  </span>
+                  <span class="rail-names">
+                    <span class="rail-name">{subject.data.title}</span>
+                    <span class="rail-count">{count} note{count === 1 ? '' : 's'}</span>
+                  </span>
                 </a>
               </li>
             ))}
           </ul>
-          <a class="link-arrow" href="/subjects/">View all subjects</a>
-        </SidebarPanel>
+          <a class="link-arrow rail-all" href="/subjects/">View all subjects</a>
+        </section>
 
-        <SidebarPanel variant="tint" heading="Study tip" icon="bulb">
+        <section class="rail-card">
+          <h2 class="rail-heading">
+            <Icon name="bulb" size={18} />
+            Study tip
+          </h2>
           <blockquote class="rail-quote">
             <p>“Active recall and spaced repetition are more effective than passive reading.”</p>
           </blockquote>
-          <p class="rail-quote-attr">Study Smarter<br />Remember Longer</p>
-        </SidebarPanel>
+          <p class="rail-caps">Study smarter<br />Remember longer</p>
+        </section>
 
-        <SidebarPanel heading="Need something specific?" icon="search">
+        <section class="rail-card">
+          <h2 class="rail-heading">
+            <Icon name="search" size={20} />
+            Need something specific?
+          </h2>
           <p class="rail-help">Use search to quickly find notes on any topic.</p>
-          <a class="btn btn-secondary rail-help-btn" href="/search/">Search study notes</a>
-        </SidebarPanel>
+          <a class="btn btn-primary rail-search-btn" href="/search/">Search study notes</a>
+        </section>
       </aside>
     </div>
-
-    {/* --- levels ---------------------------------------------------------- */}
-    <section class="section" aria-labelledby="by-level">
-      <div class="section-head">
-        <h2 id="by-level">Browse by education level</h2>
-      </div>
-      <ul class="index-grid">
-        {levels.map((level) => (
-          <li>
-            <a href={`/levels/${level.slug}/`}>
-              <span>{level.data.title}</span>
-              <span class="count">
-                {notes.filter((n) => n.data.level === level.slug).length}
-              </span>
-            </a>
-          </li>
-        ))}
-      </ul>
-    </section>
   </div>
 </Layout>
 
 <style>
-  .notes-hero {
+  /* --- header aside: quote panel beside the hero image ------------------- */
+  .notes-search {
     margin-top: var(--space-6);
-    max-width: 36rem;
+    max-width: 42.625rem;
   }
 
-  /* The Osler pull-quote in the header aside. */
+  .notes-aside {
+    display: grid;
+    gap: var(--space-4);
+    align-items: start;
+  }
+
+  /* The Osler pull-quote on its pearl panel, as in the design. */
   .notes-quote {
+    display: flex;
+    flex-direction: column;
     margin: 0;
     padding: var(--space-6);
-    border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    background: var(--surface-sunken);
+    background: var(--quote-surface);
   }
 
   .notes-quote blockquote {
@@ -273,85 +360,132 @@ const jsonLd = {
   .notes-quote p {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-display-sm);
+    font-size: 1.125rem;
     font-style: italic;
     font-weight: var(--weight-medium);
-    line-height: 1.35;
+    line-height: 1.55;
     text-wrap: balance;
   }
 
+  .quote-rule {
+    width: 26px;
+    height: 2px;
+    margin: var(--space-5) 0 var(--space-3);
+    background: var(--primary);
+  }
+
   .notes-quote figcaption {
-    margin-top: var(--space-3);
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    letter-spacing: var(--track-caps);
+    font-family: var(--font-sans);
+    font-size: 0.6563rem;
+    font-weight: var(--weight-medium);
+    letter-spacing: 0.14em;
     text-transform: uppercase;
   }
 
-  .page-body {
-    padding-block: var(--space-12) var(--space-16);
+  /* The heart illustration joins the quote from the wide-aside breakpoint. */
+  .notes-art {
+    display: none;
+    width: 100%;
+    aspect-ratio: 201 / 294;
+    object-fit: cover;
+    border-radius: var(--radius-md);
   }
 
-  /* --- main + rail layout ---------------------------------------------- */
+  @media (min-width: 1024px) {
+    .notes-aside {
+      grid-template-columns: minmax(0, 15.1875rem) minmax(0, 1fr);
+      gap: var(--space-4);
+    }
+
+    .notes-art {
+      display: block;
+    }
+  }
+
+  .page-body {
+    padding-block: var(--space-10) var(--space-16);
+  }
+
+  /* --- three-column layout: filter rail | list | links rail --------------- */
   .notes-layout {
     display: grid;
     gap: var(--space-8);
   }
 
   .notes-main,
-  .notes-side {
+  .notes-rail {
     min-width: 0;
   }
 
   @media (min-width: 1024px) {
     .notes-layout {
-      grid-template-columns: minmax(0, 1fr) 20rem;
-      gap: var(--space-12);
+      grid-template-columns: 15rem minmax(0, 1fr);
+      gap: var(--space-8);
+      align-items: start;
+    }
+
+    /* Below the wide breakpoint the links rail drops under everything and
+       spreads its cards out in a row. */
+    .notes-rail {
+      grid-column: 1 / -1;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
 
-  /* --- filter bar ------------------------------------------------------- */
-  .filter-title {
+  @media (min-width: 1280px) {
+    .notes-layout {
+      grid-template-columns: 15rem minmax(0, 1fr) 17.5rem;
+    }
+
+    .notes-rail {
+      grid-column: auto;
+      grid-template-columns: none;
+    }
+  }
+
+  /* --- filter rail --------------------------------------------------------- */
+  .notes-filters {
+    padding: var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .filters-title {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     color: var(--ink);
-    font-size: var(--text-body-lg);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: var(--weight-semibold);
   }
 
-  .filter-title svg {
+  .filters-title svg {
     color: var(--primary);
   }
 
-  .filter-grid {
+  .filters-body {
     display: grid;
     gap: var(--space-4);
     margin-top: var(--space-5);
   }
 
-  @media (min-width: 700px) {
-    .filter-grid {
-      grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
-      align-items: end;
-    }
+  /* The design's field labels are a touch smaller than the form default. */
+  .filters-body .field > label {
+    font-size: 0.7813rem;
   }
 
-  .filter-reset {
-    justify-self: start;
+  .filters-reset {
+    width: 100%;
+    height: 42px;
+    color: var(--primary);
+    font-size: 0.8125rem;
+    font-weight: var(--weight-semibold);
   }
 
-  @media (min-width: 700px) {
-    .filter-reset {
-      justify-self: end;
-    }
-  }
-
-  /* --- toolbar ---------------------------------------------------------- */
-  .notes-results {
-    margin-top: var(--space-8);
-  }
-
+  /* --- toolbar -------------------------------------------------------------- */
   .notes-toolbar {
     display: flex;
     flex-wrap: wrap;
@@ -362,42 +496,55 @@ const jsonLd = {
 
   .notes-count {
     color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
+    font-family: var(--font-sans);
+    font-size: 1.375rem;
     font-weight: var(--weight-semibold);
     font-variant-numeric: tabular-nums;
   }
 
   .view-toggle {
-    display: inline-flex;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    overflow: hidden;
+    display: flex;
+    gap: var(--space-2);
   }
 
   .view-btn {
-    padding: var(--space-2) var(--space-4);
-    border: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    height: 37px;
+    padding-inline: var(--space-4);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
     background: var(--surface);
-    color: var(--mute);
-    font-size: var(--text-body-sm);
-    font-weight: var(--weight-medium);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 0.7813rem;
+    font-weight: var(--weight-semibold);
     cursor: pointer;
-    transition: background-color 0.15s var(--ease), color 0.15s var(--ease);
+    transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease),
+      color 0.15s var(--ease);
+  }
+
+  .view-btn svg {
+    flex-shrink: 0;
   }
 
   .view-btn[aria-pressed='true'] {
-    background: var(--primary-surface);
-    color: var(--primary);
+    border-color: var(--primary);
+    background: var(--primary);
+    color: var(--on-primary);
   }
 
-  /* --- note rows -------------------------------------------------------- */
+  /* --- note rows: hairline-separated list, not cards ------------------------- */
   .note-list {
     display: grid;
-    gap: var(--space-3);
     margin: var(--space-5) 0 0;
     padding: 0;
     list-style: none;
+  }
+
+  .note-row + .note-row {
+    border-top: 1px solid var(--border);
   }
 
   .note-row[hidden] {
@@ -406,41 +553,60 @@ const jsonLd = {
 
   .note-row a {
     display: flex;
-    justify-content: space-between;
-    gap: var(--space-6);
-    padding: var(--space-5) var(--space-6);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface);
+    align-items: center;
+    gap: var(--space-5);
+    padding-block: var(--space-3);
+    color: inherit;
     text-decoration: none;
-    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
   }
 
-  .note-row a:hover {
-    border-color: var(--primary-border);
-    background: var(--primary-surface);
+  .row-thumb {
+    display: flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 123px;
+    aspect-ratio: 123 / 61;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    color: var(--primary);
+  }
+
+  .row-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  @media (max-width: 479px) {
+    .row-thumb {
+      width: 96px;
+    }
   }
 
   .row-main {
-    display: grid;
-    gap: var(--space-1);
+    flex: 1;
     min-width: 0;
+    display: grid;
+    gap: 3px;
   }
 
   .row-kicker {
     color: var(--primary);
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
-    letter-spacing: var(--track-caps);
+    font-family: var(--font-sans);
+    font-size: 0.625rem;
+    font-weight: var(--weight-display);
+    letter-spacing: 0.0625em;
     text-transform: uppercase;
   }
 
   .row-title {
     color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
     font-weight: var(--weight-semibold);
-    line-height: var(--leading-snug);
+    line-height: 1.35;
     transition: color 0.15s var(--ease);
   }
 
@@ -450,35 +616,64 @@ const jsonLd = {
 
   .row-desc {
     color: var(--mute);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-normal);
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
+    line-height: 1.45;
   }
 
   .row-date {
     flex-shrink: 0;
-    padding-top: 0.3em;
     color: var(--faint);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
 
-  /* Grid view: the same rows, stacked vertically as tiles. */
+  .row-chev {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--faint);
+    transition: color 0.15s var(--ease), transform 0.15s var(--ease-out);
+  }
+
+  .note-row a:hover .row-chev {
+    color: var(--primary);
+    transform: translateX(2px);
+  }
+
+  /* Grid view: the same rows as tiles. */
   @media (min-width: 640px) {
     .note-list.view-grid {
-      grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
       gap: var(--space-4);
     }
   }
 
-  .note-list.view-grid .note-row a {
-    flex-direction: column;
-    gap: var(--space-3);
+  .note-list.view-grid .note-row + .note-row {
+    border-top: 0;
   }
 
-  .note-list.view-grid .row-date {
-    padding-top: 0;
+  .note-list.view-grid .note-row {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .note-list.view-grid .note-row a {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-3);
+    padding: var(--space-3);
+  }
+
+  .note-list.view-grid .row-thumb {
+    width: 100%;
+    aspect-ratio: 167 / 94;
+  }
+
+  .note-list.view-grid .row-chev {
+    display: none;
   }
 
   #notes-empty {
@@ -489,73 +684,133 @@ const jsonLd = {
     margin-top: var(--space-4);
   }
 
-  /* --- rail -------------------------------------------------------------- */
-  .rail-subjects {
+  /* --- links rail ----------------------------------------------------------- */
+  .notes-rail {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .rail-card {
+    padding: var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .rail-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
     margin: 0;
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: var(--weight-semibold);
+  }
+
+  .rail-heading svg {
+    flex-shrink: 0;
+    color: var(--primary);
+  }
+
+  .rail-subjects {
+    margin: var(--space-3) 0 0;
     padding: 0;
     list-style: none;
   }
 
-  .rail-subjects li + li {
-    border-top: 1px solid var(--border);
-  }
-
   .rail-subjects a {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
+    align-items: center;
     gap: var(--space-3);
-    padding: var(--space-3) 0;
-    color: var(--ink);
-    font-size: var(--text-body-sm);
-    font-weight: var(--weight-medium);
+    padding: var(--space-2) 0;
+    color: inherit;
     text-decoration: none;
   }
 
-  .rail-subjects a:hover {
+  .rail-art {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 37px;
+    height: 37px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--surface-sunken);
+    color: var(--primary);
+  }
+
+  .rail-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .rail-names {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .rail-name {
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: var(--weight-semibold);
+    transition: color 0.15s var(--ease);
+  }
+
+  .rail-subjects a:hover .rail-name {
     color: var(--primary);
   }
 
   .rail-count {
-    flex-shrink: 0;
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    font-variant-numeric: tabular-nums;
-    font-weight: var(--weight-body);
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
+  }
+
+  .rail-all {
+    margin-top: var(--space-3);
+    font-size: 0.7813rem;
   }
 
   .rail-quote {
-    margin: 0;
+    margin: var(--space-3) 0 0;
   }
 
   .rail-quote p {
     color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    font-style: italic;
-    font-weight: var(--weight-medium);
-    line-height: 1.4;
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    line-height: 1.45;
     text-wrap: balance;
   }
 
-  .rail-quote-attr {
-    margin-top: var(--space-3);
+  .rail-caps {
+    margin: var(--space-3) 0 0;
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
-    letter-spacing: var(--track-caps);
+    font-family: var(--font-sans);
+    font-size: 0.625rem;
+    font-weight: var(--weight-display);
+    letter-spacing: 0.0625em;
     line-height: 1.7;
     text-transform: uppercase;
   }
 
   .rail-help {
-    color: var(--body);
-    font-size: var(--text-body-sm);
+    margin: var(--space-3) 0 0;
+    color: var(--mute);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
   }
 
-  .rail-help-btn {
+  .rail-search-btn {
+    width: 100%;
+    height: 37px;
     margin-top: var(--space-4);
+    font-size: 0.8125rem;
   }
 </style>
 
@@ -563,16 +818,17 @@ const jsonLd = {
   // Client-side filtering over the prerendered list. Everything still works
   // without this script: the full list is server-rendered and the hero search
   // submits to /search/ as a plain GET form.
-  const heroForm = document.querySelector<HTMLFormElement>('.notes-hero form');
+  const heroForm = document.querySelector<HTMLFormElement>('.notes-search form');
   const queryInput = heroForm?.querySelector<HTMLInputElement>('input[name="q"]') ?? null;
   const subjectSel = document.getElementById('notes-subject') as HTMLSelectElement;
+  const topicSel = document.getElementById('notes-topic') as HTMLSelectElement;
   const levelSel = document.getElementById('notes-level') as HTMLSelectElement;
   const sortSel = document.getElementById('notes-sort') as HTMLSelectElement;
   const countEl = document.getElementById('notes-count');
   const emptyEl = document.getElementById('notes-empty');
   const list = document.getElementById('note-list');
 
-  if (list && subjectSel && levelSel && sortSel && countEl && emptyEl) {
+  if (list && subjectSel && topicSel && levelSel && sortSel && countEl && emptyEl) {
     const rows = Array.from(list.querySelectorAll<HTMLElement>('.note-row'));
 
     const comparators: Record<string, (a: HTMLElement, b: HTMLElement) => number> = {
@@ -584,6 +840,7 @@ const jsonLd = {
     function apply() {
       const q = (queryInput?.value ?? '').trim().toLowerCase();
       const subject = subjectSel.value;
+      const topic = topicSel.value;
       const level = levelSel.value;
 
       let visible = 0;
@@ -591,6 +848,7 @@ const jsonLd = {
         const matches =
           (!q || row.dataset.search!.includes(q)) &&
           (!subject || row.dataset.subject === subject) &&
+          (!topic || row.dataset.chapter === topic) &&
           (!level || row.dataset.level === level);
         row.hidden = !matches;
         if (matches) visible++;
@@ -606,12 +864,14 @@ const jsonLd = {
     function reset() {
       if (queryInput) queryInput.value = '';
       subjectSel.value = '';
+      topicSel.value = '';
       levelSel.value = '';
       sortSel.value = 'recent';
       apply();
     }
 
     subjectSel.addEventListener('change', apply);
+    topicSel.addEventListener('change', apply);
     levelSel.addEventListener('change', apply);
     sortSel.addEventListener('change', apply);
     queryInput?.addEventListener('input', apply);

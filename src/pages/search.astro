@@ -2,23 +2,19 @@
 /**
  * Site search.
  *
- * The index ships inside the page, so filtering is instant and needs no
- * backend. The form is a real GET to /search/, which means a shared
- * /search/?q=... URL reproduces the result and the page still works with
- * JavaScript disabled — in that case the full index renders as a browsable
- * list, which is a usable fallback rather than a dead end.
+ * Every indexed entry renders server-side as a real result row, so the page
+ * is a browsable index without JavaScript. The client script then filters,
+ * sorts and counts those rows in place — no JSON payload to rebuild markup
+ * from, which keeps the thumbs (subject art, drawings) as real components.
  *
- * The filter panel narrows by content type (radios) and subject (select);
- * results carry a trailing meta line ("Microbiology · Updated 4 Sep 2026")
- * like the design's typed result rows.
+ * The form is still a genuine GET to /search/, so a shared /search/?q=...
+ * URL reproduces the result.
  */
 import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
-import Search from '../components/Search.astro';
-import SidebarPanel from '../components/SidebarPanel.astro';
 import Icon from '../components/Icon.astro';
+import Illustration, { illustrationForSubject } from '../components/Illustration.astro';
 import { getNotes, getBlogPosts, getQuestions, getCollection } from '../utils/collections';
-import { jsonForScript } from '../utils/json-script';
 
 const [notes, posts, questions, subjects, topics, levels] = await Promise.all([
   getNotes(),
@@ -32,8 +28,11 @@ const [notes, posts, questions, subjects, topics, levels] = await Promise.all([
 const subjectLabel = (slug: string) =>
   subjects.find((s) => s.slug === slug)?.data.title ?? slug;
 
+/** The design abbreviates September as "Sep", but en-GB short gives "Sept". */
 const fmt = (d: Date) =>
-  d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  d
+    .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    .replace('Sept ', 'Sep ');
 
 type Kind = 'note' | 'article' | 'mcq' | 'subject' | 'topic' | 'level';
 
@@ -44,10 +43,12 @@ interface Entry {
   kind: Kind;
   label: string;
   keywords: string;
-  /** Subject slug, for the subject filter. */
+  /** Subject slug, for the subject filter and the row's thumb. */
   subject: string;
   /** Trailing meta line, e.g. "Microbiology · Updated 4 Sep 2026". */
   meta: string;
+  /** Timestamp for the date sort; entries without a date sort last. */
+  date: number;
 }
 
 const searchIndex: Entry[] = [
@@ -61,6 +62,7 @@ const searchIndex: Entry[] = [
       `${note.data.title} ${note.data.description} ${note.data.overview} ${note.data.summary} ${note.data.keyTerms.map((t) => t.term).join(' ')}`.toLowerCase(),
     subject: note.data.subject,
     meta: `${subjectLabel(note.data.subject)} · Updated ${fmt(note.data.updatedDate)}`,
+    date: note.data.updatedDate.valueOf(),
   })),
   ...posts.map((post) => ({
     title: post.data.title,
@@ -71,6 +73,7 @@ const searchIndex: Entry[] = [
     keywords: `${post.data.title} ${post.data.description} ${post.data.category}`.toLowerCase(),
     subject: '',
     meta: `${post.data.category} · ${fmt(post.data.publishedDate)}`,
+    date: post.data.publishedDate.valueOf(),
   })),
   ...questions.map((q) => ({
     title: q.data.question,
@@ -81,6 +84,7 @@ const searchIndex: Entry[] = [
     keywords: `${q.data.question} ${q.data.answer} ${q.data.explanation}`.toLowerCase(),
     subject: q.data.subject,
     meta: subjectLabel(q.data.subject),
+    date: 0,
   })),
   ...subjects.map((subject) => ({
     title: `${subject.data.title} study notes`,
@@ -92,6 +96,7 @@ const searchIndex: Entry[] = [
       `${subject.data.title} ${subject.data.description} ${subject.data.chapters.map((c) => c.title).join(' ')}`.toLowerCase(),
     subject: subject.slug,
     meta: 'Subject hub',
+    date: 0,
   })),
   ...topics.map((topic) => ({
     title: topic.data.title,
@@ -103,6 +108,7 @@ const searchIndex: Entry[] = [
       `${topic.data.title} ${topic.data.description} ${topic.data.beginnerExplanation}`.toLowerCase(),
     subject: '',
     meta: 'Topic hub',
+    date: 0,
   })),
   ...levels.map((level) => ({
     title: level.data.title,
@@ -113,17 +119,18 @@ const searchIndex: Entry[] = [
     keywords: `${level.data.title} ${level.data.description}`.toLowerCase(),
     subject: '',
     meta: 'Level overview',
+    date: 0,
   })),
 ];
 
-/** Filter labels with real counts from the index. */
-const filters = (['note', 'article', 'mcq', 'subject', 'topic'] as const).map((kind) => ({
+/** Content-type filters with real counts from the index. */
+const filters = (['note', 'mcq', 'article', 'subject', 'topic'] as const).map((kind) => ({
   value: kind,
   label:
     {
       note: 'Study Notes',
-      article: 'Articles',
       mcq: 'MCQs',
+      article: 'Articles',
       subject: 'Subjects',
       topic: 'Topics',
     }[kind],
@@ -142,7 +149,35 @@ const railSubjects = subjects
     noteCount: notes.filter((n) => n.data.subject === subject.slug).length,
     mcqCount: questions.filter((q) => q.data.subject === subject.slug).length,
   }))
+  .filter((row) => row.noteCount > 0 || row.mcqCount > 0)
   .sort((a, b) => b.noteCount - a.noteCount);
+
+const railCounts = (noteCount: number, mcqCount: number) => {
+  const parts = [
+    noteCount > 0 ? `${noteCount} ${noteCount === 1 ? 'note' : 'notes'}` : null,
+    mcqCount > 0 ? `${mcqCount} MCQs` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : 'Study subject';
+};
+
+/** Subjects with a PNG icon in /assets/landing/; the rest fall back to a drawing. */
+const pngSubjects = new Set([
+  'anatomy',
+  'biochemistry',
+  'community-medicine',
+  'forensic-medicine',
+  'microbiology',
+  'pathology',
+  'pharmacology',
+  'physiology',
+]);
+
+const subjectIcon = (slug: string) =>
+  pngSubjects.has(slug) ? `/assets/landing/subject-${slug}.png` : undefined;
+
+/** The row thumb: subject art when the entry has a subject, a drawing otherwise. */
+const thumbIllustration = (entry: Entry) =>
+  entry.subject ? illustrationForSubject(entry.subject) : 'open-book';
 
 const initialQuery = Astro.url.searchParams.get('q') ?? '';
 
@@ -165,82 +200,135 @@ const footerSubjects = subjects.map((s) => ({
     title="Search Medical Study Notes"
     lead="Find study notes, MCQs, articles and more."
     crumbs={[{ href: '/', label: 'Home' }, { label: 'Search' }]}
+    tone="band"
+    asideWide
   >
-    <div class="srch-wrap">
-      <Search
-        variant="hero"
+    <form class="search-field" role="search" action="/search/" method="get">
+      <label class="visually-hidden" for="search-input">Search Medical Study Notes</label>
+      <span class="sf-icon" aria-hidden="true"><Icon name="search" size={18} /></span>
+      <input
         id="search-input"
+        type="search"
+        name="q"
         value={initialQuery}
         placeholder="Search study notes, MCQs, articles…"
-        label="Search Medical Study Notes"
-        autofocus
+        autocomplete="off"
       />
-    </div>
+      <button class="sf-clear" type="button" data-clear aria-label="Clear search" hidden>
+        <Icon name="close" size={16} />
+      </button>
+      <button class="sf-submit" type="submit">Search</button>
+    </form>
 
     <Fragment slot="aside">
-      <figure class="search-quote">
-        <blockquote>
-          <p>In the fields of observation, chance favors only the prepared mind.</p>
-        </blockquote>
-        <figcaption>
-          Louis Pasteur<br />French Microbiologist
-        </figcaption>
-      </figure>
+      <div class="search-side">
+        <img
+          class="search-art"
+          src="/assets/images/hero-heart.png"
+          alt=""
+          width="246"
+          height="241"
+          loading="lazy"
+          decoding="async"
+        />
+        <figure class="search-quote">
+          <blockquote>
+            <p>In the fields of observation, chance favors only the prepared mind.</p>
+          </blockquote>
+          <span class="quote-rule" aria-hidden="true"></span>
+          <figcaption>
+            Louis Pasteur<br />French Microbiologist
+          </figcaption>
+        </figure>
+      </div>
     </Fragment>
   </PageHeader>
 
   <div class="container results-wrap">
     <div class="results-layout">
-      <div class="results-main">
-        {/* --- filter panel ------------------------------------------------ */}
-        <section class="panel panel-pad filter-panel" aria-labelledby="filter-title">
-          <h2 id="filter-title" class="filter-title">
-            <Icon name="filter" size={15} />
-            Filter results
-          </h2>
+      <aside class="results-filters" aria-label="Filter results">
+        <h2 class="filters-title">
+          <Icon name="filter" size={18} />
+          Filter results
+        </h2>
 
-          <fieldset class="filter-kind">
-            <legend>Content type</legend>
-            <input type="radio" name="kind" id="kind-all" value="all" checked hidden />
+        <div class="filters-body">
+          <p class="filters-label">Content type</p>
+          <div class="kind-checks">
+            <input type="checkbox" id="kind-all" value="all" checked />
             <label for="kind-all">All types ({searchIndex.length})</label>
+
             {filters.map((filter) => (
               <>
-                <input
-                  type="radio"
-                  name="kind"
-                  id={`kind-${filter.value}`}
-                  value={filter.value}
-                  hidden
-                />
+                <input type="checkbox" id={`kind-${filter.value}`} value={filter.value} />
                 <label for={`kind-${filter.value}`}>
                   {filter.label} ({filter.count})
                 </label>
               </>
             ))}
-          </fieldset>
-
-          <div class="filter-row">
-            <div class="field">
-              <label for="search-subject">Subject</label>
-              <select id="search-subject">
-                <option value="">All Subjects</option>
-                {filterSubjects.map((subject) => (
-                  <option value={subject.slug}>{subject.data.title}</option>
-                ))}
-              </select>
-            </div>
-            <div class="field filter-reset">
-              <button class="btn btn-secondary" id="search-reset" type="button">
-                <Icon name="refresh" size={15} />
-                Reset filters
-              </button>
-            </div>
           </div>
-        </section>
 
-        <p class="results-status" data-status aria-live="polite"></p>
+          <div class="field">
+            <label for="search-subject">Subject</label>
+            <select id="search-subject">
+              <option value="">All Subjects</option>
+              {filterSubjects.map((subject) => (
+                <option value={subject.slug}>{subject.data.title}</option>
+              ))}
+            </select>
+          </div>
 
-        <ul class="entry-list results" data-results></ul>
+          <button class="btn btn-secondary filters-reset" id="search-reset" type="button">
+            <Icon name="refresh" size={14} />
+            Reset filters
+          </button>
+        </div>
+      </aside>
+
+      <div class="results-main">
+        <div class="results-toolbar">
+          <p class="results-count" data-status aria-live="polite"></p>
+          <div class="field sort-field">
+            <label for="search-sort">Sort by</label>
+            <select id="search-sort">
+              <option value="relevant">Most relevant</option>
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="title">Title A–Z</option>
+            </select>
+          </div>
+        </div>
+
+        <ol class="result-list" data-results>
+          {searchIndex.map((entry) => (
+            <li
+              data-kind={entry.kind}
+              data-subject={entry.subject}
+              data-keywords={entry.keywords}
+              data-date={entry.date}
+              data-title={entry.title.toLowerCase()}
+            >
+              <a class="result-row" href={entry.url}>
+                <span class="row-thumb" aria-hidden="true">
+                  {subjectIcon(entry.subject) ? (
+                    <img src={subjectIcon(entry.subject)} alt="" loading="lazy" decoding="async" />
+                  ) : (
+                    <Illustration name={thumbIllustration(entry)} size={28} />
+                  )}
+                </span>
+                <span class="row-main">
+                  <span class="row-kicker">{entry.label}</span>
+                  <span class="row-title">{entry.title}</span>
+                  {entry.excerpt && <span class="row-desc">{entry.excerpt}</span>}
+                  {entry.meta && <span class="row-meta">{entry.meta}</span>}
+                </span>
+                <span class="row-chev" aria-hidden="true">
+                  <Icon name="chevron-right" size={16} />
+                </span>
+              </a>
+            </li>
+          ))}
+        </ol>
 
         <div class="results-empty" data-empty hidden>
           <div class="empty-state">
@@ -254,177 +342,275 @@ const footerSubjects = subjects.map((s) => ({
           </div>
         </div>
 
-        {/* Without JS the whole index renders as a real, browsable list. */}
         <noscript>
-          <div class="notice notice-info nojs-notice">
-            Live filtering needs JavaScript. The complete index is listed below.
-          </div>
-          <ul class="entry-list">
-            {searchIndex.map((entry) => (
-              <li>
-                <a class="entry entry-cols" href={entry.url}>
-                  <span class="kicker">{entry.label}</span>
-                  <span>
-                    <span class="entry-title">{entry.title}</span>
-                    <span class="entry-excerpt">{entry.excerpt}</span>
-                  </span>
-                  {entry.meta && <span class="entry-meta">{entry.meta}</span>}
-                </a>
-              </li>
-            ))}
-          </ul>
+          <p class="nojs-note">
+            Live filtering needs JavaScript — the complete index is listed above.
+          </p>
         </noscript>
       </div>
 
-      {/* --- rail ---------------------------------------------------------- */}
-      <aside class="results-side" aria-label="Search links">
-        <SidebarPanel heading="Related subjects" icon="book">
+      <aside class="results-rail" aria-label="Search links">
+        <section class="rail-card">
+          <h2 class="rail-heading">
+            <Icon name="grid" size={18} />
+            Related subjects
+          </h2>
           <ul class="rail-subjects">
             {railSubjects.map(({ subject, noteCount, mcqCount }) => (
               <li>
                 <a href={`/subjects/${subject.slug}/`}>
-                  <span>{subject.data.title}</span>
-                  <span class="rail-count">
-                    {noteCount > 0 ? `${noteCount} note${noteCount === 1 ? '' : 's'}` : 'Notes'}
-                    {mcqCount > 0 ? ` · ${mcqCount} MCQs` : ''}
+                  <span class="rail-art" aria-hidden="true">
+                    {subjectIcon(subject.slug) ? (
+                      <img src={subjectIcon(subject.slug)} alt="" loading="lazy" decoding="async" />
+                    ) : (
+                      <Illustration name={illustrationForSubject(subject.slug)} size={22} />
+                    )}
+                  </span>
+                  <span class="rail-names">
+                    <span class="rail-name">{subject.data.title}</span>
+                    <span class="rail-count">{railCounts(noteCount, mcqCount)}</span>
                   </span>
                 </a>
               </li>
             ))}
           </ul>
-          <a class="link-arrow" href="/subjects/">View all subjects</a>
-        </SidebarPanel>
+          {/* The link-arrow class renders its own trailing arrow. */}
+          <a class="link-arrow rail-all" href="/subjects/">View all subjects</a>
+        </section>
 
-        <SidebarPanel variant="tint" heading="Study tip" icon="bulb">
+        <section class="rail-card rail-card-tint">
+          <h2 class="rail-heading">
+            <Icon name="bulb" size={18} />
+            Study tip
+          </h2>
           <blockquote class="rail-quote">
             <p>“Review your notes regularly. Consistent revision improves long-term retention.”</p>
           </blockquote>
-          <p class="rail-quote-attr">Study Smarter<br />Remember Longer</p>
-        </SidebarPanel>
+          <p class="rail-caps">
+            Study smarter<br />Remember longer
+          </p>
+        </section>
 
-        <SidebarPanel heading="Can’t find what you’re looking for?" icon="search">
+        <section class="rail-card">
+          <h2 class="rail-help-heading">
+            <Icon name="search" size={18} />
+            Can’t find what you’re looking for?
+          </h2>
           <p class="rail-help">Try different keywords or browse our subjects.</p>
-          <a class="btn btn-secondary rail-help-btn" href="/subjects/">Browse all subjects</a>
-        </SidebarPanel>
+          <a class="btn btn-primary rail-help-btn" href="/subjects/">Browse all subjects</a>
+        </section>
       </aside>
     </div>
   </div>
-
-  <script type="application/json" id="search-data" set:html={jsonForScript(searchIndex)} is:inline />
-
-  <script>
-    interface Entry {
-      title: string;
-      url: string;
-      excerpt: string;
-      kind: string;
-      label: string;
-      keywords: string;
-      subject: string;
-      meta: string;
-    }
-
-    const dataEl = document.getElementById('search-data');
-    const input = document.getElementById('search-input') as HTMLInputElement | null;
-    const results = document.querySelector<HTMLElement>('[data-results]');
-    const status = document.querySelector<HTMLElement>('[data-status]');
-    const empty = document.querySelector<HTMLElement>('[data-empty]');
-    const subjectSel = document.getElementById('search-subject') as HTMLSelectElement | null;
-
-    if (dataEl && input && results && status && empty) {
-      const index: Entry[] = JSON.parse(dataEl.textContent ?? '[]');
-      let kind = 'all';
-
-      const escape = (value: string) =>
-        value.replace(/[&<>"']/g, (ch) =>
-          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!,
-        );
-
-      function render() {
-        const query = input!.value.trim().toLowerCase();
-        const words = query ? query.split(/\s+/) : [];
-        const subject = subjectSel?.value ?? '';
-
-        const matches = index.filter((entry) => {
-          if (kind !== 'all' && entry.kind !== kind) return false;
-          if (subject && entry.subject !== subject) return false;
-          return words.every((word) => entry.keywords.includes(word));
-        });
-
-        const shown = matches.slice(0, 40);
-
-        results!.innerHTML = shown
-          .map(
-            (entry) => `
-              <li>
-                <a class="entry entry-cols" href="${entry.url}">
-                  <span class="kicker">${escape(entry.label)}</span>
-                  <span>
-                    <span class="entry-title">${escape(entry.title)}</span>
-                    <span class="entry-excerpt">${escape(entry.excerpt)}</span>
-                  </span>
-                  ${entry.meta ? `<span class="entry-meta">${escape(entry.meta)}</span>` : ''}
-                </a>
-              </li>`,
-          )
-          .join('');
-
-        const noMatches = matches.length === 0;
-        empty!.hidden = !noMatches || !query;
-        results!.hidden = noMatches;
-
-        if (!query) {
-          status!.textContent = `${matches.length} page${matches.length === 1 ? '' : 's'} indexed. Type to search.`;
-        } else {
-          status!.textContent = `${matches.length} result${matches.length === 1 ? '' : 's'} for “${input!.value.trim()}”${
-            matches.length > shown.length ? `, showing the first ${shown.length}` : ''
-          }`;
-        }
-      }
-
-      function reset() {
-        input!.value = '';
-        if (subjectSel) subjectSel.value = '';
-        const all = document.getElementById('kind-all') as HTMLInputElement | null;
-        if (all) all.checked = true;
-        kind = 'all';
-        render();
-      }
-
-      input.addEventListener('input', render);
-      subjectSel?.addEventListener('change', render);
-      document.getElementById('search-reset')?.addEventListener('click', reset);
-
-      document.addEventListener('change', (event) => {
-        const target = event.target as HTMLInputElement;
-        if (target.name === 'kind') {
-          kind = target.value;
-          render();
-        }
-      });
-
-      // Support /search/?q=term URLs, used by the SearchAction schema and the
-      // header form.
-      const initial = new URLSearchParams(location.search).get('q');
-      if (initial && !input.value) input.value = initial;
-      render();
-    }
-  </script>
 </Layout>
 
+<script>
+  const input = document.getElementById('search-input') as HTMLInputElement | null;
+  const clearBtn = document.querySelector<HTMLButtonElement>('[data-clear]');
+  const form = document.querySelector<HTMLFormElement>('.search-field');
+  const list = document.querySelector<HTMLElement>('[data-results]');
+  const status = document.querySelector<HTMLElement>('[data-status]');
+  const empty = document.querySelector<HTMLElement>('[data-empty]');
+  const subjectSel = document.getElementById('search-subject') as HTMLSelectElement | null;
+  const sortSel = document.getElementById('search-sort') as HTMLSelectElement | null;
+  const allCheck = document.getElementById('kind-all') as HTMLInputElement | null;
+  const kindChecks = Array.from(
+    document.querySelectorAll<HTMLInputElement>('.kind-checks input[value]:not([value="all"])'),
+  );
+
+  if (input && list && status && empty) {
+    const rows = Array.from(list.children) as HTMLElement[];
+
+    /** Selected kinds; an empty selection or "All types" means no filter. */
+    const activeKinds = () => {
+      if (!allCheck || allCheck.checked) return null;
+      const set = kindChecks.filter((c) => c.checked).map((c) => c.value);
+      return set.length > 0 ? set : null;
+    };
+
+    function apply() {
+      const query = input.value.trim().toLowerCase();
+      const words = query ? query.split(/\s+/) : [];
+      const subject = subjectSel?.value ?? '';
+      const kinds = activeKinds();
+
+      const matches = rows.filter((row) => {
+        if (kinds && !kinds.includes(row.dataset.kind!)) return false;
+        if (subject && row.dataset.subject !== subject) return false;
+        const keywords = row.dataset.keywords ?? '';
+        return words.every((word) => keywords.includes(word));
+      });
+
+      // The requested order, as a document order pass over the matched rows.
+      const ordered = [...matches];
+      const mode = sortSel?.value ?? 'relevant';
+      if (mode === 'newest') ordered.sort((a, b) => Number(b.dataset.date) - Number(a.dataset.date));
+      if (mode === 'oldest') ordered.sort((a, b) => Number(a.dataset.date) - Number(b.dataset.date));
+      if (mode === 'title')
+        ordered.sort((a, b) => (a.dataset.title ?? '').localeCompare(b.dataset.title ?? '', 'en'));
+      for (const row of ordered) list.appendChild(row);
+
+      const noMatches = matches.length === 0 && words.length > 0;
+      empty.hidden = !noMatches;
+      list.hidden = noMatches;
+
+      status.textContent = words.length
+        ? `${matches.length} result${matches.length === 1 ? '' : 's'} for “${input.value.trim()}”`
+        : `${matches.length} page${matches.length === 1 ? '' : 's'} indexed. Type to search.`;
+
+      if (clearBtn) clearBtn.hidden = !input.value;
+    }
+
+    function reset() {
+      input.value = '';
+      if (subjectSel) subjectSel.value = '';
+      if (allCheck) {
+        allCheck.checked = true;
+        for (const check of kindChecks) check.checked = false;
+      }
+      apply();
+    }
+
+    input.addEventListener('input', apply);
+    subjectSel?.addEventListener('change', apply);
+    sortSel?.addEventListener('change', apply);
+    document.getElementById('search-reset')?.addEventListener('click', reset);
+
+    clearBtn?.addEventListener('click', () => {
+      input.value = '';
+      apply();
+      input.focus();
+    });
+
+    // "All types" and the individual kinds are mutually exclusive masters.
+    allCheck?.addEventListener('change', () => {
+      if (allCheck.checked) for (const check of kindChecks) check.checked = false;
+      apply();
+    });
+    for (const check of kindChecks) {
+      check.addEventListener('change', () => {
+        if (check.checked && allCheck) allCheck.checked = false;
+        apply();
+      });
+    }
+
+    // Filter in place rather than reloading; the GET action stays as the
+    // no-JS path and keeps ?q=... URLs shareable.
+    form?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      apply();
+      const url = new URL(location.href);
+      if (input.value.trim()) url.searchParams.set('q', input.value.trim());
+      else url.searchParams.delete('q');
+      history.replaceState(null, '', url);
+    });
+
+    // Support /search/?q=term URLs, used by the SearchAction schema and the
+    // header form. The page is prerendered, so the server cannot see the
+    // query string — it is read here, client-side.
+    const initial = new URLSearchParams(location.search).get('q');
+    if (initial && !input.value) input.value = initial;
+
+    apply();
+  }
+</script>
+
 <style>
-  .srch-wrap {
+  /* --- hero search field -------------------------------------------------- */
+  .search-field {
+    display: flex;
+    align-items: stretch;
     margin-top: var(--space-6);
-    max-width: 36rem;
+    max-width: 43.875rem; /* 702px, the field width from the design */
+    height: 48px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
   }
 
-  /* The Pasteur pull-quote in the header aside. */
+  .search-field:focus-within {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 16%, transparent);
+  }
+
+  .sf-icon {
+    display: inline-flex;
+    align-items: center;
+    padding-left: var(--space-4);
+    color: var(--mute);
+    pointer-events: none;
+  }
+
+  .search-field input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: none;
+    color: var(--ink);
+    font-size: 0.8125rem;
+    font-weight: var(--weight-semibold);
+  }
+
+  .search-field input:focus {
+    outline: none;
+  }
+
+  .sf-clear {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    border: 0;
+    background: none;
+    color: var(--mute);
+    cursor: pointer;
+  }
+
+  .sf-clear:hover {
+    color: var(--ink);
+  }
+
+  .sf-submit {
+    flex-shrink: 0;
+    width: 7.9375rem;
+    border: 0;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    background: var(--primary);
+    color: var(--on-primary);
+    font-size: 0.875rem;
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    transition: background-color 0.15s var(--ease);
+  }
+
+  .sf-submit:hover {
+    background: var(--primary-strong, var(--primary));
+    filter: brightness(1.08);
+  }
+
+  /* --- header aside: hero image beside the Pasteur quote ------------------ */
+  .search-side {
+    display: grid;
+    gap: var(--space-4);
+    align-items: start;
+  }
+
+  .search-art {
+    display: none;
+    width: 100%;
+    aspect-ratio: 246 / 241;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+  }
+
   .search-quote {
+    display: flex;
+    flex-direction: column;
     margin: 0;
     padding: var(--space-6);
-    border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    background: var(--surface-sunken);
+    background: var(--quote-surface);
   }
 
   .search-quote blockquote {
@@ -434,68 +620,195 @@ const footerSubjects = subjects.map((s) => ({
   .search-quote p {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-display-sm);
+    font-size: 1.125rem;
     font-style: italic;
     font-weight: var(--weight-medium);
-    line-height: 1.35;
+    line-height: 1.55;
     text-wrap: balance;
   }
 
+  .quote-rule {
+    width: 26px;
+    height: 2px;
+    margin: var(--space-5) 0 var(--space-3);
+    background: var(--primary);
+  }
+
   .search-quote figcaption {
-    margin-top: var(--space-3);
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
-    letter-spacing: var(--track-caps);
+    font-family: var(--font-sans);
+    font-size: 0.6563rem;
+    font-weight: var(--weight-medium);
+    letter-spacing: 0.14em;
     line-height: 1.7;
     text-transform: uppercase;
   }
 
+  @media (min-width: 1024px) {
+    .search-side {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 14.5rem);
+      gap: var(--space-4);
+    }
+
+    .search-art {
+      display: block;
+    }
+  }
+
+  /* --- body layout --------------------------------------------------------- */
   .results-wrap {
     padding-block: var(--space-12) var(--space-16);
   }
 
-  /* --- main + rail layout ----------------------------------------------- */
   .results-layout {
     display: grid;
     gap: var(--space-8);
   }
 
   .results-main,
-  .results-side {
+  .results-filters,
+  .results-rail {
     min-width: 0;
   }
 
+  /* Two columns first (filters + main, rail below), three from 1280. */
   @media (min-width: 1024px) {
     .results-layout {
-      grid-template-columns: minmax(0, 1fr) 20rem;
-      gap: var(--space-12);
+      grid-template-columns: 15rem minmax(0, 1fr);
+      gap: var(--space-10);
+    }
+
+    .results-rail {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-4);
+      align-items: start;
     }
   }
 
-  /* --- filter panel ------------------------------------------------------ */
-  .filter-title {
+  @media (min-width: 1280px) {
+    .results-layout {
+      grid-template-columns: 15rem minmax(0, 1fr) 17.5rem;
+    }
+
+    .results-rail {
+      grid-column: auto;
+      grid-template-columns: none;
+    }
+  }
+
+  /* --- filter sidebar ------------------------------------------------------ */
+  .results-filters {
+    padding: var(--space-4);
+    border-radius: var(--radius-md);
+    background: var(--quote-surface);
+    align-self: start;
+  }
+
+  .filters-title {
     display: flex;
     align-items: center;
     gap: var(--space-2);
     color: var(--ink);
-    font-size: var(--text-body-lg);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: var(--weight-semibold);
   }
 
-  .filter-title svg {
+  .filters-title svg {
     color: var(--primary);
   }
 
-  .filter-kind {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-1);
-    margin: var(--space-5) 0 0;
-    padding: 0;
-    border: 0;
+  .filters-body {
+    margin-top: var(--space-4);
+    display: grid;
+    gap: var(--space-4);
   }
 
-  .filter-kind legend {
+  .filters-body .field > label {
+    font-size: 0.7813rem;
+  }
+
+  .filters-label {
+    color: var(--ink);
+    font-size: 0.7813rem;
+    font-weight: var(--weight-medium);
+  }
+
+  /* Checkboxes on the tinted panel, as in the design. */
+  .kind-checks {
+    display: grid;
+    gap: 0.5rem;
+  }
+
+  .kind-checks input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+
+  .kind-checks label {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--ink);
+    font-size: 0.8125rem;
+    cursor: pointer;
+  }
+
+  .kind-checks label::before {
+    content: '';
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: var(--surface);
+    transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease);
+  }
+
+  .kind-checks input:checked + label::before {
+    border-color: var(--primary);
+    background: var(--primary);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6L9 17l-5-5'/%3E%3C/svg%3E");
+    background-size: 12px;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  .kind-checks input:focus-visible + label {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .filters-reset {
+    width: 100%;
+    height: 42px;
+    background: var(--surface);
+  }
+
+  /* --- toolbar ------------------------------------------------------------- */
+  .results-toolbar {
+    display: grid;
+    gap: var(--space-4);
+    align-items: end;
+    margin-bottom: var(--space-6);
+  }
+
+  .results-count {
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 1.375rem;
+    font-weight: var(--weight-semibold);
+  }
+
+  .sort-field {
+    min-width: 11.375rem;
+  }
+
+  .sort-field label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -504,76 +817,162 @@ const footerSubjects = subjects.map((s) => ({
     white-space: nowrap;
   }
 
-  .filter-kind label {
-    display: inline-flex;
-    align-items: center;
-    height: 34px;
-    padding-inline: var(--space-3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
-    color: var(--body);
-    font-size: var(--text-body-sm);
-    font-weight: var(--weight-medium);
-    cursor: pointer;
-    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease),
-      color 0.15s var(--ease);
-  }
-
-  .filter-kind label:hover {
-    border-color: var(--border-strong);
-    color: var(--ink);
-  }
-
-  .filter-kind input:checked + label {
-    border-color: var(--primary-border);
-    background: var(--primary-surface);
-    color: var(--primary);
-  }
-
-  .filter-kind input:focus-visible + label {
-    outline: 2px solid var(--focus-ring);
-    outline-offset: 2px;
-  }
-
-  .filter-row {
-    display: grid;
-    gap: var(--space-4);
-    margin-top: var(--space-5);
-  }
-
   @media (min-width: 700px) {
-    .filter-row {
-      grid-template-columns: minmax(0, 16rem) auto;
-      align-items: end;
-      justify-content: space-between;
+    .results-toolbar {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
     }
   }
 
-  /* --- results ----------------------------------------------------------- */
-  .results-status {
-    margin-block: var(--space-6) var(--space-4);
-    color: var(--mute);
-    font-size: var(--text-body-sm);
+  /* --- result rows --------------------------------------------------------- */
+  .result-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: var(--space-3);
   }
 
-  .results:empty {
-    display: none;
+  .result-row {
+    display: flex;
+    align-items: center;
+    gap: 1.5625rem;
+    padding: var(--space-2) var(--space-2);
+    border-radius: var(--radius-sm);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .result-row:hover {
+    background: var(--band);
+  }
+
+  .row-thumb {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 119px;
+    aspect-ratio: 119 / 75;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    color: var(--primary);
+  }
+
+  .row-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  @media (max-width: 480px) {
+    .row-thumb {
+      width: 96px;
+    }
+  }
+
+  .row-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .row-kicker {
+    color: var(--primary);
+    font-size: 0.625rem;
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.0625em;
+    text-transform: uppercase;
+  }
+
+  .row-title {
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
+    font-weight: var(--weight-semibold);
+    line-height: 1.3;
+    transition: color 0.15s var(--ease);
+  }
+
+  .result-row:hover .row-title {
+    color: var(--primary);
+  }
+
+  .row-desc {
+    color: var(--mute);
+    font-size: 0.6875rem;
+    line-height: 1.45;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .row-meta {
+    color: var(--mute);
+    font-size: 0.6875rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .row-chev {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--faint);
+    transition: color 0.15s var(--ease), transform 0.15s var(--ease-out);
+  }
+
+  .result-row:hover .row-chev {
+    color: var(--primary);
+    transform: translateX(2px);
   }
 
   .results-empty {
     margin-top: var(--space-4);
   }
 
-  .nojs-notice {
-    margin-block: var(--space-4);
+  .nojs-note {
+    margin-top: var(--space-4);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
   }
 
-  /* --- rail --------------------------------------------------------------- */
+  /* --- rail ------------------------------------------------------------------ */
+  .rail-card {
+    padding: var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .rail-card-tint {
+    border-color: transparent;
+    background: var(--quote-surface);
+  }
+
+  .rail-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: var(--weight-semibold);
+  }
+
+  .rail-heading svg {
+    color: var(--primary);
+  }
+
   .rail-subjects {
-    margin: 0;
+    margin: var(--space-4) 0 0;
     padding: 0;
     list-style: none;
+    display: grid;
   }
 
   .rail-subjects li + li {
@@ -582,59 +981,107 @@ const footerSubjects = subjects.map((s) => ({
 
   .rail-subjects a {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-3);
+    align-items: center;
+    gap: 0.8125rem;
     padding: var(--space-3) 0;
-    color: var(--ink);
-    font-size: var(--text-body-sm);
-    font-weight: var(--weight-medium);
+    color: inherit;
     text-decoration: none;
   }
 
-  .rail-subjects a:hover {
+  .rail-art {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 37px;
+    height: 37px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--surface-sunken);
+    color: var(--primary);
+  }
+
+  .rail-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .rail-names {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .rail-name {
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: var(--weight-semibold);
+    transition: color 0.15s var(--ease);
+  }
+
+  .rail-subjects a:hover .rail-name {
     color: var(--primary);
   }
 
   .rail-count {
-    flex-shrink: 0;
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    font-variant-numeric: tabular-nums;
-    font-weight: var(--weight-body);
+    font-size: 0.6875rem;
+  }
+
+  .rail-all {
+    display: inline-block;
+    margin-top: var(--space-4);
   }
 
   .rail-quote {
-    margin: 0;
+    margin: var(--space-4) 0 0;
   }
 
   .rail-quote p {
     color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    font-style: italic;
-    font-weight: var(--weight-medium);
+    font-size: 0.9375rem;
     line-height: 1.4;
-    text-wrap: balance;
   }
 
-  .rail-quote-attr {
-    margin-top: var(--space-3);
+  .rail-caps {
+    margin-top: var(--space-4);
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
-    letter-spacing: var(--track-caps);
+    font-size: 0.625rem;
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.0625em;
     line-height: 1.7;
     text-transform: uppercase;
   }
 
+  .rail-help-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    font-weight: var(--weight-semibold);
+    line-height: 1.35;
+  }
+
+  .rail-help-heading svg {
+    flex-shrink: 0;
+    color: var(--primary);
+  }
+
   .rail-help {
-    color: var(--body);
-    font-size: var(--text-body-sm);
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-size: 0.75rem;
   }
 
   .rail-help-btn {
     margin-top: var(--space-4);
+    width: 100%;
+    height: 33px;
+    font-size: 0.7813rem;
   }
 </style>

@@ -3,13 +3,15 @@
  * About: mission, method, and the site's editorial stance.
  *
  * The Figma stats (100,000+ students, 1,500+ MCQs) are placeholder
- * marketing numbers — the stat row below reports the real content counts
+ * marketing numbers — the stats bar below reports the real content counts
  * instead, and every claim in the copy matches what the site actually does.
+ *
+ * Structure follows the design: a band hero with the books illustration and
+ * the pull quote, a story column beside mission/vision cards, a stats bar,
+ * the why-choose cards, a divider-separated values row, and the community CTA.
  */
 import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
-import StatCards from '../components/StatCards.astro';
-import SidebarPanel from '../components/SidebarPanel.astro';
 import Icon from '../components/Icon.astro';
 import JsonLd from '../components/JsonLd.astro';
 import { getNotes, getQuestions, getBlogPosts, getCollection } from '../utils/collections';
@@ -25,17 +27,17 @@ const pillars = [
   {
     icon: 'book-open',
     title: 'Learn',
-    text: 'Clear explanations, structured the way revision works.',
+    text: 'Clear explanations',
   },
   {
     icon: 'target',
     title: 'Study',
-    text: 'Exam-focused content with worked practice questions.',
+    text: 'Exam-focused content',
   },
   {
     icon: 'star',
     title: 'Succeed',
-    text: 'Build a stronger understanding, not just a score.',
+    text: 'Build a brighter future',
   },
 ] as const;
 
@@ -62,11 +64,21 @@ const choices = [
   },
 ] as const;
 
+/** Values row. Handshake and leaf glyphs are not in Icon.astro, so they use
+    the icon assets exported from the design. */
 const values = [
-  { icon: 'star', title: 'Excellence', text: 'Strive for the highest quality in our content.' },
-  { icon: 'globe', title: 'Accessibility', text: 'Keep every resource free and available to all.' },
-  { icon: 'shield', title: 'Integrity', text: 'Provide honest and reliable information.' },
-  { icon: 'heart', title: 'Community', text: 'Support and grow with our learner community.' },
+  { icon: 'bulb', title: 'Excellence', text: 'Strive for the highest quality in our content.' },
+  { icon: 'users', title: 'Accessibility', text: 'Keep every resource free and available to all.' },
+  { icon: '', title: 'Integrity', text: 'Provide honest and reliable information.', img: '/assets/icons/handshake.svg' },
+  { icon: '', title: 'Community', text: 'Support and grow with our learner community.', img: '/assets/icons/leaf.svg' },
+] as const;
+
+/** The stats bar: real content counts, not the design's placeholder numbers. */
+const stats = [
+  { value: notes.length, label: 'Study notes', icon: 'file' },
+  { value: questions.length, label: 'Practice questions', icon: 'question' },
+  { value: subjects.length, label: 'Subjects', icon: 'book-open' },
+  { value: posts.length, label: 'Articles', icon: 'chart' },
 ] as const;
 
 const footerSubjects = subjects.map((s) => ({
@@ -74,21 +86,21 @@ const footerSubjects = subjects.map((s) => ({
   label: s.data.title,
 }));
 
-const site = Astro.site!;
+const siteHref = Astro.site?.href ?? '';
 
 const aboutSchema = {
   '@context': 'https://schema.org',
   '@type': 'AboutPage',
   name: 'About Medical Study Notes',
-  url: new URL('/about/', site).href,
+  url: new URL('/about/', Astro.site).href,
   mainEntity: {
     '@type': 'Organization',
     name: 'Medical Study Notes',
-    url: site.href,
+    url: siteHref,
     description:
       'Study notes, practice questions, and articles for the subjects we cover, structured for efficient revision.',
   },
-  isPartOf: { '@type': 'WebSite', name: 'Medical Study Notes', url: site.href },
+  isPartOf: { '@type': 'WebSite', name: 'Medical Study Notes', url: siteHref },
 };
 ---
 <Layout
@@ -105,40 +117,51 @@ const aboutSchema = {
     title="Our Mission is to Support Your Study Journey"
     lead="A student-focused platform providing high-quality study notes, practice questions, and educational resources — free, structured for revision, and organized the way courses actually run."
     crumbs={[{ label: 'Home', href: '/' }, { label: 'About' }]}
+    tone="band"
+    asideWide
   >
+    <ul class="about-features">
+      {pillars.map((pillar) => (
+        <li>
+          <Icon name={pillar.icon} size={27} />
+          <div>
+            <strong>{pillar.title}</strong>
+            <span>{pillar.text}</span>
+          </div>
+        </li>
+      ))}
+    </ul>
+
     <Fragment slot="aside">
-      <figure class="about-quote">
-        <blockquote>
-          <p>Education is the most powerful weapon which you can use to change the world.</p>
-        </blockquote>
-        <figcaption>Nelson Mandela</figcaption>
-      </figure>
+      <div class="about-hero-side">
+        <img
+          class="about-hero-art"
+          src="/assets/icons/blog-hero-books.png"
+          alt="A stack of study books and notes"
+          width="808"
+          height="641"
+          loading="eager"
+          decoding="async"
+        />
+
+        <figure class="about-quote">
+          <span class="quote-mark" aria-hidden="true">“</span>
+          <blockquote>
+            <p>Education is the most powerful weapon which you can use to change the world.</p>
+          </blockquote>
+          <span class="quote-rule" aria-hidden="true"></span>
+          <figcaption>Nelson Mandela</figcaption>
+        </figure>
+      </div>
     </Fragment>
   </PageHeader>
 
   <div class="container page-body">
-    {/* --- learn · study · succeed ---------------------------------------- */}
-    <section class="section" aria-label="Learn, study, succeed">
-      <div class="grid grid-3 pillar-grid">
-        {pillars.map((pillar) => (
-          <div class="pillar-card">
-            <span class="pillar-icon" aria-hidden="true"><Icon name={pillar.icon} size={22} /></span>
-            <h2 class="pillar-title">{pillar.title}</h2>
-            <p class="pillar-text">{pillar.text}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-
     {/* --- story / mission / vision ----------------------------------------- */}
-    <section class="section" aria-labelledby="story-mission-vision">
-      <div class="section-head">
-        <h2 id="story-mission-vision">Our story, mission, and vision</h2>
-      </div>
-
-      <div class="grid grid-3 smv-grid">
-        <div class="smv-card">
-          <h3>Our Story</h3>
+    <section class="section" aria-labelledby="our-story">
+      <div class="story-grid">
+        <div class="story-copy">
+          <h2 id="our-story">Our Story</h2>
           <p>
             This site was created with a simple idea — to make high-quality,
             reliable, and easy-to-understand study material accessible to
@@ -148,44 +171,59 @@ const aboutSchema = {
             the way revision actually works: objectives first, then explanation,
             then self-test.
           </p>
-        </div>
-        <div class="smv-card">
-          <h3>Our Mission</h3>
           <p>
-            To empower students with accurate, high-quality, and accessible
-            study resources — notes, worked practice questions, and practical
-            guides, all free to read.
+            Every page is written by a named author and reviewed before
+            publication — read the full
+            <a href="/editorial-policy/">editorial policy</a> and the
+            <a href="/corrections/">corrections policy</a> for how content is
+            written, reviewed, and corrected.
           </p>
         </div>
-        <div class="smv-card">
-          <h3>Our Vision</h3>
-          <p>
-            To become a trusted and comprehensive platform for the subjects we
-            cover, helping students build lasting understanding rather than
-            last-minute recall.
-          </p>
+
+        <div class="story-cards">
+          <div class="smv-card">
+            <span class="smv-icon" aria-hidden="true"><Icon name="target" size={26} /></span>
+            <div>
+              <h3>Our Mission</h3>
+              <p>
+                To empower students with accurate, high-quality, and accessible
+                study resources — notes, worked practice questions, and practical
+                guides, all free to read.
+              </p>
+            </div>
+          </div>
+          <div class="smv-card">
+            <span class="smv-icon" aria-hidden="true"><Icon name="eye" size={26} /></span>
+            <div>
+              <h3>Our Vision</h3>
+              <p>
+                To become a trusted and comprehensive platform for the subjects
+                we cover, helping students build lasting understanding rather
+                than last-minute recall.
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </section>
 
     {/* --- real content counts ------------------------------------------------ */}
-    <section class="section" aria-labelledby="what-we-publish">
-      <div class="section-head">
-        <h2 id="what-we-publish">What we publish today</h2>
-        <p>Everything below is live on the site right now.</p>
+    <section class="section" aria-label="What we publish today">
+      <div class="stats-bar">
+        {stats.map((stat) => (
+          <div class="stat">
+            <Icon name={stat.icon} size={25} />
+            <div>
+              <p class="stat-value">{stat.value}</p>
+              <p class="stat-label">{stat.label}</p>
+            </div>
+          </div>
+        ))}
       </div>
 
-      <StatCards
-        stats={[
-          { value: notes.length, label: 'Study notes', icon: 'notes' },
-          { value: questions.length, label: 'Practice questions', icon: 'question' },
-          { value: subjects.length, label: 'Subjects', icon: 'book' },
-          { value: posts.length, label: 'Articles', icon: 'notes' },
-        ]}
-      />
-
       <p class="publish-note">
-        Browse the <a href="/notes/">study notes</a>, try the
+        Everything above is live on the site right now. Browse the
+        <a href="/notes/">study notes</a>, try the
         <a href="/practice/">practice questions</a>, or read the
         <a href="/blog/">articles</a>.
       </p>
@@ -201,9 +239,11 @@ const aboutSchema = {
       <div class="grid grid-4 why-grid">
         {choices.map((choice) => (
           <div class="why-card">
-            <span class="why-icon" aria-hidden="true"><Icon name={choice.icon} size={20} /></span>
-            <h3>{choice.title}</h3>
-            <p>{choice.text}</p>
+            <span class="why-icon" aria-hidden="true"><Icon name={choice.icon} size={27} /></span>
+            <div>
+              <h3>{choice.title}</h3>
+              <p>{choice.text}</p>
+            </div>
           </div>
         ))}
       </div>
@@ -216,79 +256,119 @@ const aboutSchema = {
         <p>The principles that guide everything we do.</p>
       </div>
 
-      <div class="grid grid-4 value-grid">
+      <ul class="values-row">
         {values.map((value) => (
-          <div class="value-card">
-            <span class="value-icon" aria-hidden="true"><Icon name={value.icon} size={20} /></span>
-            <h3>{value.title}</h3>
-            <p>{value.text}</p>
-          </div>
+          <li class="value">
+            {value.img ? (
+              <img class="value-img" src={value.img} alt="" width="30" height="30" loading="lazy" decoding="async" />
+            ) : (
+              <span class="value-icon" aria-hidden="true"><Icon name={value.icon} size={30} /></span>
+            )}
+            <div>
+              <h3>{value.title}</h3>
+              <p>{value.text}</p>
+            </div>
+          </li>
         ))}
-      </div>
-    </section>
-
-    {/* --- editorial standards --------------------------------------------------------- */}
-    <section class="section" aria-labelledby="editorial-standards">
-      <div class="section-head">
-        <h2 id="editorial-standards">Editorial standards</h2>
-      </div>
-
-      <div class="editorial-grid">
-        <div class="prose">
-          <p>
-            Every page is written by a named author whose credentials appear on
-            their <a href="/authors/">profile page</a>, and reviewed before
-            publication. Technical claims are checked against primary sources,
-            which are listed in each note's references section. When material
-            becomes outdated we update it and the page shows both its published
-            and last-updated dates.
-          </p>
-          <p>
-            Read the full <a href="/editorial-policy/">editorial policy</a> for
-            how we write, review, and correct content, and the
-            <a href="/corrections/">corrections policy</a> for how error reports
-            are handled.
-          </p>
-        </div>
-
-        <SidebarPanel heading="Explore the site" icon="link">
-          <ul class="chevron-list">
-            <li><a href="/subjects/">Subjects</a></li>
-            <li><a href="/notes/">Study notes</a></li>
-            <li><a href="/practice/">Practice questions</a></li>
-            <li><a href="/past-papers/">Past papers</a></li>
-            <li><a href="/blog/">Blog</a></li>
-            <li><a href="/topics/">Topic hubs</a></li>
-          </ul>
-        </SidebarPanel>
-      </div>
+      </ul>
     </section>
 
     {/* --- CTA --------------------------------------------------------------------------- */}
-    <section class="cta panel panel-pad" aria-labelledby="start-learning">
-      <div>
-        <h2 id="start-learning">Start Learning Today</h2>
-        <p>
-          Be part of a community of students learning, sharing, and succeeding
-          together. Everything on the site is free to read, with no account
-          required.
-        </p>
+    <section class="cta-band" aria-labelledby="join-community">
+      <div class="cta-copy">
+        <span class="cta-icon" aria-hidden="true"><Icon name="users" size={27} /></span>
+        <div>
+          <h2 id="join-community">Join Our Growing Community</h2>
+          <p>
+            Be part of a community of students learning, sharing, and succeeding
+            together. Everything on the site is free to read, with no account
+            required.
+          </p>
+        </div>
       </div>
-      <div class="cta-actions">
-        <a class="btn btn-primary" href="/subjects/">Browse subjects</a>
-        <a class="btn btn-secondary" href="/notes/">Read the notes</a>
-      </div>
+      <a class="btn btn-primary" href="/subjects/">
+        Start Learning Today
+        <Icon name="arrow-right" size={16} />
+      </a>
     </section>
   </div>
 </Layout>
 
 <style>
+  /* --- hero feature cells --------------------------------------------------- */
+  .about-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5) var(--space-6);
+    margin: var(--space-8) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .about-features li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .about-features svg {
+    flex-shrink: 0;
+    color: var(--primary);
+  }
+
+  .about-features strong {
+    display: block;
+    color: var(--primary);
+    font-family: var(--font-display);
+    font-size: 0.9375rem;
+    font-weight: var(--weight-semibold);
+    line-height: 1.3;
+  }
+
+  .about-features span {
+    display: block;
+    color: var(--mute);
+    font-size: var(--text-caption);
+  }
+
+  @media (min-width: 760px) {
+    .about-features li + li {
+      padding-left: var(--space-6);
+      border-left: 1px solid #d9e2d6;
+    }
+  }
+
+  /* --- header aside: books illustration beside the quote panel --------------- */
+  .about-hero-side {
+    display: grid;
+    gap: var(--space-4);
+    align-items: center;
+  }
+
+  .about-hero-art {
+    display: none;
+    width: 100%;
+    aspect-ratio: 404 / 320;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+  }
+
   .about-quote {
+    display: flex;
+    flex-direction: column;
     margin: 0;
     padding: var(--space-6);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
+    border-radius: 6px;
+    background: var(--quote-surface);
+  }
+
+  .quote-mark {
+    color: var(--primary);
+    font-family: var(--font-display);
+    font-size: 2.5rem;
+    font-weight: var(--weight-semibold);
+    line-height: 0.5;
+    margin-bottom: var(--space-4);
   }
 
   .about-quote blockquote {
@@ -298,205 +378,319 @@ const aboutSchema = {
   .about-quote p {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-display-sm);
+    font-size: 1.0625rem;
     font-style: italic;
     font-weight: var(--weight-medium);
-    line-height: 1.35;
+    line-height: 1.5;
     text-wrap: balance;
   }
 
+  .quote-rule {
+    width: 26px;
+    height: 2px;
+    margin: var(--space-5) 0 var(--space-3);
+    background: var(--primary);
+  }
+
   .about-quote figcaption {
-    margin-top: var(--space-3);
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    letter-spacing: var(--track-caps);
+    font-family: var(--font-sans);
+    font-size: 0.6563rem;
+    font-weight: var(--weight-medium);
+    letter-spacing: 0.14em;
     text-transform: uppercase;
   }
 
+  @media (min-width: 1024px) {
+    .about-hero-art {
+      display: block;
+    }
+  }
+
+  /* --- page ------------------------------------------------------------------ */
   .page-body {
     padding-block: var(--space-12) var(--space-16);
   }
 
-  /* --- learn · study · succeed ------------------------------------------ */
-  .pillar-grid {
-    gap: var(--space-4);
-  }
-
-  .pillar-card {
+  /* --- story / mission / vision ------------------------------------------------ */
+  .story-grid {
     display: grid;
-    gap: var(--space-2);
-    justify-items: center;
-    padding: var(--space-8) var(--space-6);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface);
-    text-align: center;
+    gap: var(--space-8);
   }
 
-  .pillar-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 48px;
-    height: 48px;
-    border-radius: var(--radius-sm);
-    background: var(--primary-surface);
-    color: var(--primary);
+  @media (min-width: 1024px) {
+    .story-grid {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 34rem);
+      gap: var(--space-12);
+      align-items: start;
+    }
   }
 
-  .pillar-title {
+  .story-copy h2 {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-display-sm);
-    font-weight: var(--weight-semibold);
+    font-size: 1.75rem;
+    font-weight: var(--weight-display);
+    line-height: 1.25;
   }
 
-  .pillar-text {
+  .story-copy p {
+    margin-top: var(--space-4);
     color: var(--body);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-normal);
+    font-size: var(--text-body);
+    line-height: var(--leading-prose);
   }
 
-  /* --- story / mission / vision ------------------------------------------ */
-  .smv-grid {
+  .story-copy a {
+    color: var(--primary);
+    font-weight: var(--weight-medium);
+  }
+
+  .story-cards {
+    display: grid;
     gap: var(--space-4);
+  }
+
+  @media (min-width: 640px) {
+    .story-cards {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   .smv-card {
-    padding: var(--space-6) var(--space-7);
-    border: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-5);
     border-radius: var(--radius-md);
-    background: var(--surface);
+    background: var(--primary-surface);
+  }
+
+  .smv-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--primary);
   }
 
   .smv-card h3 {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-body-lg);
+    font-size: 1rem;
     font-weight: var(--weight-semibold);
-  }
-
-  .smv-card h3::after {
-    display: block;
-    width: 2.5rem;
-    height: 2px;
-    margin-top: var(--space-3);
-    margin-bottom: var(--space-4);
-    background: var(--primary);
-    content: '';
+    line-height: 1.3;
   }
 
   .smv-card p {
+    margin-top: var(--space-2);
     color: var(--body);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-prose);
+    font-size: var(--text-caption);
+    line-height: 1.68;
   }
 
-  /* --- counts --------------------------------------------------------------- */
+  /* --- stats bar -------------------------------------------------------------------- */
+  .stats-bar {
+    display: grid;
+    gap: var(--space-4) var(--space-6);
+    padding: var(--space-5) var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--band);
+  }
+
+  @media (min-width: 640px) {
+    .stats-bar {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 900px) {
+    .stats-bar {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .stat + .stat {
+      padding-left: var(--space-6);
+      border-left: 1px solid var(--border);
+    }
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .stat svg {
+    flex-shrink: 0;
+    color: var(--primary);
+  }
+
+  .stat-value {
+    margin: 0;
+    color: var(--primary);
+    font-family: var(--font-display);
+    font-size: 1.125rem;
+    font-weight: var(--weight-display);
+    line-height: 1.25;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-label {
+    margin: 0;
+    color: var(--mute);
+    font-size: var(--text-caption);
+    line-height: 1.5;
+  }
+
   .publish-note {
-    margin-top: var(--space-5);
+    margin: var(--space-5) 0 0;
     color: var(--body);
     font-size: var(--text-body-sm);
   }
 
-  /* --- why choose / values ---------------------------------------------------- */
-  .why-grid,
-  .value-grid {
+  .publish-note a {
+    color: var(--primary);
+    font-weight: var(--weight-medium);
+  }
+
+  /* --- why choose ----------------------------------------------------------------------- */
+  .why-grid {
     gap: var(--space-4);
   }
 
-  .why-card,
-  .value-card {
-    display: grid;
-    gap: var(--space-2);
-    align-content: start;
-    padding: var(--space-5) var(--space-6);
+  .why-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    padding: var(--space-5);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--surface);
   }
 
-  .why-icon,
-  .value-icon {
+  .why-icon {
     display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    border-radius: var(--radius-sm);
-    background: var(--primary-surface);
+    flex-shrink: 0;
     color: var(--primary);
   }
 
-  .why-card h3,
-  .value-card h3 {
+  .why-card h3 {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-body);
+    font-size: 1rem;
     font-weight: var(--weight-semibold);
+    line-height: 1.3;
   }
 
-  .why-card p,
-  .value-card p {
+  .why-card p {
+    margin-top: var(--space-2);
     color: var(--body);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-normal);
+    font-size: var(--text-caption);
+    line-height: 1.68;
   }
 
-  .value-card {
-    border-color: var(--primary-border);
-    background: var(--primary-surface);
-  }
-
-  /* --- editorial standards -------------------------------------------------------- */
-  .editorial-grid {
+  /* --- values row ------------------------------------------------------------------------- */
+  .values-row {
     display: grid;
-    gap: var(--space-8);
-    align-items: start;
+    gap: var(--space-6);
+    margin: 0;
+    padding: 0;
+    list-style: none;
   }
 
-  @media (min-width: 900px) {
-    .editorial-grid {
-      grid-template-columns: minmax(0, 1fr) 20rem;
-      gap: var(--space-12);
+  @media (min-width: 640px) {
+    .values-row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
-  .editorial-grid .prose p {
-    color: var(--body);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-prose);
+  @media (min-width: 900px) {
+    .values-row {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+
+    .value + .value {
+      padding-left: var(--space-6);
+      border-left: 1px solid var(--border);
+    }
   }
 
-  /* --- CTA ------------------------------------------------------------------------------ */
-  .cta {
-    display: grid;
-    gap: var(--space-6);
-    margin-top: var(--space-8);
-    text-align: center;
-    justify-items: center;
+  .value {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
   }
 
-  .cta h2 {
+  .value-icon,
+  .value-img {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--primary);
+  }
+
+  .value-img {
+    width: 30px;
+    height: 30px;
+    object-fit: contain;
+  }
+
+  .value h3 {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-display-md);
+    font-size: 1rem;
     font-weight: var(--weight-semibold);
-    text-wrap: balance;
+    line-height: 1.3;
   }
 
-  .cta p {
-    max-width: 52ch;
+  .value p {
+    margin-top: var(--space-2);
     color: var(--body);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-normal);
+    font-size: var(--text-caption);
+    line-height: 1.68;
   }
 
-  .cta-actions {
+  /* --- CTA band ------------------------------------------------------------------------------- */
+  .cta-band {
     display: flex;
     flex-wrap: wrap;
-    justify-content: center;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-5);
+    margin-top: var(--space-8);
+    padding: var(--space-5) var(--space-6);
+    border-radius: var(--radius-md);
+    background: var(--primary-surface);
+  }
+
+  .cta-copy {
+    display: flex;
+    align-items: center;
     gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .cta-icon {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--primary);
+  }
+
+  .cta-copy h2 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 1.0625rem;
+    font-weight: var(--weight-display);
+    line-height: 1.3;
+  }
+
+  .cta-copy p {
+    margin-top: var(--space-1);
+    color: var(--mute);
+    font-size: var(--text-caption);
+    line-height: 1.55;
+  }
+
+  .cta-band .btn {
+    flex-shrink: 0;
   }
 </style>

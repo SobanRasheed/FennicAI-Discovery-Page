@@ -44,7 +44,7 @@ const jsonLd = {
 
 {faqs.length > 0 && (
   <section class="section faq" aria-labelledby={id}>
-    <Heading id={id} class="faq-heading">{heading}</Heading>
+    {heading && <Heading id={id} class="faq-heading">{heading}</Heading>}
     <div class="faq-list">
       {faqs.map((faq) => (
         <details class="faq-item">

@@ -4,18 +4,18 @@
  * of Use, and the Medical Disclaimer. All three have the same anatomy in the
  * designs, so they share one layout rather than three near-copies:
  *
- *   breadcrumb → kicker → H1 → standfirst → updated/read-time meta
- *   two columns: numbered <section>s | sticky "On this page" rail
- *   a closing quote band and a "Have questions?" contact card
+ *   band hero: crumbs → kicker → H1 → standfirst → meta/features,
+ *              books illustration + pull-quote aside
+ *   two columns: numbered <section>s | "On this page" rail with the
+ *              quote card and the "Have questions?" contact card
  *
  * Sections are passed as data so the table of contents and the body cannot
  * drift apart — the rail is generated from the same array that renders the
  * headings, and each id is derived once.
  */
 import Layout from './Layout.astro';
-import Breadcrumbs from '../components/Breadcrumbs.astro';
+import PageHeader from '../components/PageHeader.astro';
 import JsonLd from '../components/JsonLd.astro';
-import QuoteBand from '../components/QuoteBand.astro';
 import Icon from '../components/Icon.astro';
 
 export interface LegalSection {
@@ -26,16 +26,24 @@ export interface LegalSection {
 }
 
 interface Props {
+  /** Document title (the <title> tag). */
   title: string;
+  /** Display heading — the H1 and the breadcrumb label. */
+  heading: string;
   description: string;
   path: string;
   kicker?: string;
   standfirst: string;
-  updated: Date;
+  updated?: Date;
   readingTime?: string;
+  /** Optional hero feature cells (the disclaimer's three pull-out points). */
+  features?: { icon: string; label: string }[];
   sections: LegalSection[];
+  /** The pull quote in the hero aside. */
+  heroQuote: string;
+  heroQuoteAttribution?: string;
+  /** The quote card under the table of contents. */
   quote: string;
-  quoteAttribution?: string;
   /** Text of the closing card, e.g. "Need clarification about these Terms?" */
   contactPrompt?: string;
   footerSubjects?: { href: string; label: string }[];
@@ -43,15 +51,18 @@ interface Props {
 
 const {
   title,
+  heading,
   description,
   path,
   kicker = 'Legal',
   standfirst,
   updated,
   readingTime,
+  features = [],
   sections,
+  heroQuote,
+  heroQuoteAttribution,
   quote,
-  quoteAttribution,
   contactPrompt = 'Contact us if anything here needs clarifying.',
   footerSubjects = [],
 } = Astro.props;
@@ -66,25 +77,27 @@ export const legalSectionId = (heading: string) =>
 
 const toc = sections.map((s) => ({ ...s, id: s.id ?? legalSectionId(s.heading) }));
 
-const updatedISO = updated.toISOString();
-const updatedLabel = updated.toLocaleDateString('en-GB', {
+const updatedISO = updated?.toISOString();
+const updatedLabel = updated?.toLocaleDateString('en-GB', {
   day: 'numeric',
   month: 'long',
   year: 'numeric',
 });
 
+const siteHref = Astro.site?.href ?? '';
+
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebPage',
-  name: title,
+  name: heading,
   description,
   url: new URL(path, Astro.site).href,
-  dateModified: updatedISO,
+  ...(updatedISO ? { dateModified: updatedISO } : {}),
   inLanguage: 'en',
   isPartOf: {
     '@type': 'WebSite',
     name: 'Medical Study Notes',
-    url: Astro.site!.href,
+    url: siteHref,
   },
 };
 ---
@@ -92,24 +105,68 @@ const jsonLd = {
 <Layout {title} {description} {path} {footerSubjects} wide>
   <JsonLd data={jsonLd} />
 
-  <div class="legal-hero">
-    <div class="container">
-      <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: title }]} />
-      <p class="kicker legal-kicker">{kicker}</p>
-      <h1>{title}</h1>
-      <p class="lead legal-standfirst">{standfirst}</p>
+  <PageHeader
+    kicker={kicker}
+    title={heading}
+    lead={standfirst}
+    crumbs={[{ href: '/', label: 'Home' }, { label: heading }]}
+    tone="band"
+    asideWide
+  >
+    {(updatedLabel || readingTime) && (
       <p class="legal-meta">
-        <span class="meta-item">
-          <Icon name="calendar" size={14} />
-          Last updated:{' '}
-          <time datetime={updatedISO}>{updatedLabel}</time>
-        </span>
+        {updatedLabel && (
+          <span class="meta-item">
+            <Icon name="calendar" size={14} />
+            Last updated: <time datetime={updatedISO}>{updatedLabel}</time>
+          </span>
+        )}
         {readingTime && (
           <span class="meta-item"><Icon name="clock" size={14} />{readingTime}</span>
         )}
       </p>
-    </div>
-  </div>
+    )}
+
+    {features.length > 0 && (
+      <ul class="legal-features">
+        {features.map((feature) => (
+          <li>
+            <Icon name={feature.icon} size={27} />
+            <div>
+              <strong>{feature.label}</strong>
+            </div>
+          </li>
+        ))}
+      </ul>
+    )}
+
+    <Fragment slot="aside">
+      <div class="legal-hero-side">
+        <img
+          class="legal-hero-art"
+          src="/assets/icons/blog-hero-books.png"
+          alt="A stack of study books and notes"
+          width="808"
+          height="641"
+          loading="eager"
+          decoding="async"
+        />
+
+        <figure class="legal-quote">
+          <span class="quote-mark" aria-hidden="true">“</span>
+          <blockquote>
+            <p>{heroQuote}</p>
+          </blockquote>
+          {heroQuoteAttribution && (
+            <>
+              <span class="quote-rule" aria-hidden="true"></span>
+              <figcaption>{heroQuoteAttribution}</figcaption>
+            </>
+          )}
+        </figure>
+      </div>
+    </Fragment>
+  </PageHeader>
 
   <div class="container legal-body">
     <div class="legal-doc doc">
@@ -126,58 +183,45 @@ const jsonLd = {
         </ol>
         <p class="legal-print">
           <button class="link-arrow legal-print-btn" type="button" data-print>
-            <Icon name="print" size={14} />Print this page
+            <Icon name="print" size={14} />Print / Save as PDF
           </button>
         </p>
       </nav>
-    </aside>
-  </div>
 
-  <QuoteBand {quote} attribution={quoteAttribution} icon="shield" />
+      <figure class="rail-quote">
+        <blockquote>
+          <p>{quote}</p>
+        </blockquote>
+      </figure>
 
-  <div class="container legal-foot">
-    <div class="panel panel-pad legal-contact">
-      <div>
+      <div class="panel panel-pad legal-contact">
         <h2 class="legal-contact-head">Have questions?</h2>
         <p class="legal-contact-body">{contactPrompt}</p>
+        <a class="btn btn-secondary legal-contact-btn" href="/contact/">
+          Contact us
+          <Icon name="arrow-right" size={14} />
+        </a>
       </div>
-      <a class="btn btn-secondary" href="/contact/">Contact us</a>
-    </div>
+    </aside>
   </div>
 </Layout>
 
 <script>
   // Progressive enhancement: the print control only appears useful with JS, so
-  // it stays a button and does nothing without it.
+  // it stays a button and does nothing without it. Every modern browser's
+  // print dialog can save the page as a PDF, which is why the label says so.
   document
     .querySelector<HTMLButtonElement>('[data-print]')
     ?.addEventListener('click', () => window.print());
 </script>
 
 <style>
-  .legal-hero {
-    padding-block: var(--space-4) var(--space-12);
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
-  }
-
-  .legal-kicker {
-    margin-top: var(--space-4);
-  }
-
-  .legal-hero h1 {
-    margin-top: var(--space-2);
-  }
-
-  .legal-standfirst {
-    margin-top: var(--space-4);
-  }
-
+  /* --- hero meta row / feature cells -------------------------------------- */
   .legal-meta {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-2) var(--space-6);
-    margin-top: var(--space-6);
+    margin: var(--space-8) 0 0;
     color: var(--mute);
     font-size: var(--text-body-sm);
   }
@@ -188,17 +232,125 @@ const jsonLd = {
     gap: var(--space-2);
   }
 
+  .legal-meta svg {
+    color: var(--primary);
+  }
+
+  .legal-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-5) var(--space-6);
+    margin: var(--space-8) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .legal-features li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .legal-features svg {
+    flex-shrink: 0;
+    color: var(--primary);
+  }
+
+  .legal-features strong {
+    display: block;
+    color: var(--primary);
+    font-family: var(--font-display);
+    font-size: 0.9375rem;
+    font-weight: var(--weight-semibold);
+    line-height: 1.3;
+  }
+
+  @media (min-width: 760px) {
+    .legal-features li + li {
+      padding-left: var(--space-6);
+      border-left: 1px solid #d9e2d6;
+    }
+  }
+
+  /* --- hero aside: books illustration beside the quote panel ---------------- */
+  .legal-hero-side {
+    display: grid;
+    gap: var(--space-4);
+    align-items: center;
+  }
+
+  @media (min-width: 640px) {
+    .legal-hero-side {
+      grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+    }
+  }
+
+  .legal-hero-art {
+    width: 100%;
+    aspect-ratio: 335 / 250;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+  }
+
+  .legal-quote {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: var(--space-6);
+    border-radius: 6px;
+    background: var(--quote-surface);
+  }
+
+  .quote-mark {
+    color: var(--primary);
+    font-family: var(--font-display);
+    font-size: 2.5rem;
+    font-weight: var(--weight-semibold);
+    line-height: 0.5;
+    margin-bottom: var(--space-4);
+  }
+
+  .legal-quote blockquote {
+    margin: 0;
+  }
+
+  .legal-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 1.0625rem;
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.5;
+    text-wrap: balance;
+  }
+
+  .quote-rule {
+    width: 26px;
+    height: 2px;
+    margin: var(--space-5) 0 var(--space-3);
+    background: var(--primary);
+  }
+
+  .legal-quote figcaption {
+    color: var(--mute);
+    font-family: var(--font-sans);
+    font-size: 0.6563rem;
+    font-weight: var(--weight-medium);
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
   /* --- body + rail ----------------------------------------------------- */
   .legal-body {
     display: grid;
-    gap: var(--space-12);
-    padding-block: var(--space-12);
+    gap: var(--space-10);
+    padding-block: var(--space-12) var(--space-16);
   }
 
   @media (min-width: 1024px) {
     .legal-body {
-      grid-template-columns: minmax(0, 1fr) 17rem;
-      gap: var(--space-16);
+      grid-template-columns: minmax(0, 1fr) 19rem;
+      gap: var(--space-12);
       align-items: start;
     }
   }
@@ -225,14 +377,9 @@ const jsonLd = {
   }
 
   .legal-rail {
+    display: grid;
+    gap: var(--space-4);
     min-width: 0;
-  }
-
-  @media (min-width: 1024px) {
-    .legal-toc {
-      position: sticky;
-      top: calc(var(--header-height) + var(--space-6));
-    }
   }
 
   .legal-toc-head {
@@ -286,19 +433,29 @@ const jsonLd = {
     content: none;
   }
 
-  /* --- closing contact card -------------------------------------------- */
-  .legal-foot {
-    padding-block: var(--space-12) var(--space-16);
+  /* --- rail quote card --------------------------------------------------- */
+  .rail-quote {
+    margin: 0;
+    padding: var(--space-5);
+    border-radius: var(--radius-md);
+    background: var(--quote-surface);
   }
 
-  .legal-contact {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-4) var(--space-8);
-    align-items: center;
-    justify-content: space-between;
+  .rail-quote blockquote {
+    margin: 0;
   }
 
+  .rail-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 0.9375rem;
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.55;
+    text-wrap: balance;
+  }
+
+  /* --- rail contact card -------------------------------------------------- */
   .legal-contact-head {
     font-size: var(--text-display-sm);
   }
@@ -307,11 +464,18 @@ const jsonLd = {
     margin-top: var(--space-1);
     color: var(--mute);
     font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .legal-contact-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-4);
   }
 
   @media print {
-    .legal-rail,
-    .legal-foot {
+    .legal-rail {
       display: none;
     }
   }

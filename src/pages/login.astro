@@ -3,6 +3,10 @@
  * /login/ — the public "Welcome back" screen. The form is presentational for
  * now: student accounts aren't provisioned yet, so it posts nowhere and the
  * page is noindexed. Admins sign in at /admin/login/.
+ *
+ * The card's shared styling (title, fields, OR divider, social buttons,
+ * switch line, security note) lives in AuthLayout; only the password row's
+ * label/"Forgot password?" split is specific to this page.
  */
 import AuthLayout from '../layouts/AuthLayout.astro';
 import Icon from '../components/Icon.astro';
@@ -15,6 +19,7 @@ const social = ['Google', 'Apple', 'Microsoft'];
   description="Log in to Medical Study Notes to access your saved notes, track your progress, attempt MCQs, and explore personalized recommendations."
   path="/login/"
   kicker="Welcome back"
+  crumb="Login"
   headingLines={['Continue', 'Your Learning', 'Journey']}
   lead="Log in to access your saved notes, track your progress, attempt MCQs, and explore personalized recommendations."
 >
@@ -53,47 +58,17 @@ const social = ['Google', 'Apple', 'Microsoft'];
   </div>
 
   <p class="auth-secure">
-    <Icon name="shield" size={14} />
-    <span><strong>Your data is secure</strong> — we use industry-standard encryption to keep your information safe and private.</span>
+    <Icon name="shield" size={22} />
+    <span><strong>Your data is secure</strong>We use industry-standard encryption to keep your information safe and private.</span>
   </p>
 </AuthLayout>
 
 <style>
-  .auth-card {
-    padding: var(--space-8);
-  }
-
-  .auth-card-title {
-    font-size: var(--text-display-sm);
-  }
-
-  .auth-card-sub {
-    margin-top: var(--space-2);
-    color: var(--mute);
-    font-size: var(--text-body-sm);
-  }
-
-  .auth-form {
-    display: grid;
-    gap: var(--space-5);
-    margin-top: var(--space-6);
-  }
-
   .field-label-row {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     gap: var(--space-3);
-  }
-
-  .field-label-row label {
-    color: var(--ink);
-    font-size: var(--text-body-sm);
-    font-weight: var(--weight-medium);
-  }
-
-  .field-label-row label span {
-    color: var(--danger);
   }
 
   .auth-forgot {
@@ -104,81 +79,5 @@ const social = ['Google', 'Apple', 'Microsoft'];
 
   .auth-forgot:hover {
     text-decoration: underline;
-  }
-
-  .auth-form .field > label span {
-    color: var(--danger);
-  }
-
-  .auth-submit {
-    width: 100%;
-    margin-top: var(--space-1);
-  }
-
-  .auth-or {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    margin: var(--space-6) 0;
-    color: var(--faint);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    text-align: center;
-  }
-
-  .auth-or::before,
-  .auth-or::after {
-    content: '';
-    flex: 1;
-    border-top: 1px solid var(--border);
-  }
-
-  .auth-social {
-    display: grid;
-    gap: var(--space-3);
-  }
-
-  .auth-social-btn {
-    width: 100%;
-  }
-
-  .auth-switch {
-    margin: var(--space-6) 0 0;
-    color: var(--mute);
-    font-size: var(--text-body-sm);
-    text-align: center;
-  }
-
-  .auth-switch a {
-    color: var(--primary);
-    font-weight: var(--weight-medium);
-    text-decoration: none;
-  }
-
-  .auth-switch a:hover {
-    text-decoration: underline;
-  }
-
-  .auth-secure {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-2);
-    margin-top: var(--space-5);
-    padding: var(--space-4);
-    border: 1px solid var(--primary-border);
-    border-radius: var(--radius-md);
-    background: var(--primary-surface);
-    color: var(--mute);
-    font-size: var(--text-caption);
-  }
-
-  .auth-secure svg {
-    flex-shrink: 0;
-    margin-top: 0.15em;
-    color: var(--primary);
-  }
-
-  .auth-secure strong {
-    color: var(--ink);
   }
 </style>

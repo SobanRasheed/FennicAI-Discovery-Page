@@ -1,28 +1,27 @@
 /*
  * Medical Study Notes — design system.
  *
- * The visual model is a premium medical reference: a warm paper canvas, white
- * content surfaces, hairline borders instead of shadows, one deep medical green
- * used sparingly for links and actions, and typography tuned for long reading.
+ * Values are sourced from the Figma design file (Screen 01 + Foundations):
+ * a paper canvas, white content surfaces, hairline borders instead of
+ * shadows, one deep medical green used sparingly for links and actions, and
+ * a compact editorial type scale — serif display headings with Inter for UI
+ * and small caps labels.
  *
  * Rules this file enforces:
  *   - Borders carry structure. Shadows are reserved for overlays only.
- *   - Radii stay between 4px and 10px. Nothing is a pill except small tags.
+ *   - Radii stay between 4px and 8px.
  *   - Green is an accent, never a surface at scale.
  *   - Spacing comes from the 4px scale below; no ad-hoc values.
- *   - Reading measure is capped at ~760px with 17-19px body text.
- *
- * Light values live on bare :root. Dark mode redefines colour tokens only, so
- * every structural rule is written once.
+ *   - Reading measure is capped at ~760px with 17-19px prose.
  */
 
 :root {
-  color-scheme: light dark;
+  color-scheme: light;
 
   /* --- type ------------------------------------------------------------- */
   /* Serif display type is the biggest differentiator from a generic product
-     site: it reads as a textbook. Inter carries body and UI, JetBrains Mono
-     carries eyebrows, kickers, and metadata. */
+     site: it reads as a textbook. Inter carries body, UI, and the small
+     caps eyebrows/kickers. JetBrains Mono is reserved for code. */
   --font-display: 'Source Serif 4 Variable', 'Source Serif 4', Georgia,
     'Times New Roman', serif;
   --font-sans: 'Inter Variable', Inter, system-ui, -apple-system, 'Segoe UI',
@@ -32,16 +31,17 @@
 
   /* Display sizes are deliberately restrained: a heading anchors a section,
      it does not fill the viewport. */
-  --text-display-xl: 3rem;      /* 48px — page h1 ceiling */
-  --text-display-lg: 2rem;      /* 32px — section h2 */
-  --text-display-md: 1.5rem;    /* 24px — h3 */
-  --text-display-sm: 1.1875rem; /* 19px — h4 / card titles */
-  --text-body-lg: 1.0625rem;    /* 17px — UI lead text */
-  --text-body: 1rem;            /* 16px */
-  --text-body-sm: 0.875rem;     /* 14px */
-  --text-caption: 0.75rem;      /* 12px */
-  --text-micro: 0.6875rem;      /* 11px — eyebrow / kicker */
-  --text-code: 0.8125rem;       /* 13px */
+  --text-display-xl: 3.5rem;     /* 56px — page h1 ceiling */
+  --text-display-lg: 1.75rem;    /* 28px — section h2 */
+  --text-display-md: 1.375rem;   /* 22px — h3 */
+  --text-display-sm: 1.0938rem;  /* 17.5px — h4 / card titles */
+  --text-body-lg: 1rem;          /* 16px — UI lead text */
+  --text-body: 0.9375rem;        /* 15px */
+  --text-body-sm: 0.875rem;      /* 14px — nav, buttons */
+  --text-caption: 0.8125rem;     /* 13px — card sub-lines */
+  --text-micro: 0.71875rem;      /* 11.5px — eyebrow */
+  --text-kicker: 0.625rem;       /* 10px — row kicker */
+  --text-code: 0.8125rem;        /* 13px */
 
   /* Reading sizes for article prose, larger than UI text. */
   --text-prose: 1.0625rem;      /* 17px mobile */
@@ -77,42 +77,43 @@
   --space-20: 5rem;     /* 80 */
 
   /* --- shape ------------------------------------------------------------ */
-  --radius-xs: 4px;   /* tags, tiny chips */
-  --radius-sm: 6px;   /* inputs, buttons, list rows */
+  --radius-xs: 4px;   /* tiny chips, thumbnails */
+  --radius-sm: 8px;   /* inputs, buttons, list rows */
   --radius-md: 8px;   /* cards, callouts, panels */
   --radius-lg: 10px;  /* the ceiling — nothing rounder */
-  --radius-tag: 3px;
+  --radius-tag: 4px;
 
   /* --- layout ----------------------------------------------------------- */
-  --page-width: 1240px;
+  --page-width: 1360px;
   --prose-width: 47rem;    /* ~752px reading measure */
-  --header-height: 68px;
+  --header-height: 66px;
 
   /* --- colour: light ---------------------------------------------------- */
-  --ink: #17211f;            /* primary text */
-  --body: #47534f;           /* secondary body copy */
-  --mute: #5f6b68;           /* metadata, captions */
-  --faint: #8b9693;          /* de-emphasised */
+  --ink: #141f2e;            /* primary text */
+  --body: #4c5b56;           /* secondary body copy */
+  --mute: #5c6e69;           /* metadata, captions, excerpts */
+  --faint: #8b9a95;          /* de-emphasised */
 
-  --border: #e4e8e5;         /* the default hairline */
-  --border-strong: #ced6d2;  /* inputs, emphasis rules */
+  --border: #e1e7e1;         /* the default hairline */
+  --border-strong: #d8e0d9;  /* inputs, emphasis rules */
 
   --canvas: #fafaf8;         /* page background (warm paper) */
   --surface: #ffffff;        /* content surfaces */
   --surface-sunken: #f4f5f2; /* table headers, inset areas */
   --band: #f8f9f6;           /* hero bands — one step warmer than canvas */
+  --quote-surface: #f0f2ee;  /* pull-quote panels */
 
   --primary: #145c52;        /* deep medical green */
   --primary-hover: #0e463e;
   --primary-active: #0a352f;
-  --primary-surface: #eef6f3; /* pale green tint */
+  --primary-surface: #edf6f2; /* pale green tint */
   --primary-border: #c7ded6;
   --on-primary: #ffffff;
 
   /* Semantic hues for medical blocks. Muted on purpose — a callout should
      read as a printed sidebar, not a notification. */
   --key-point: #145c52;
-  --key-point-surface: #eef6f3;
+  --key-point-surface: #edf6f2;
   --key-point-border: #a9cfc4;
 
   --pearl: #3c4a7a;
@@ -142,60 +143,6 @@
 
   --ease: cubic-bezier(0.2, 0, 0.13, 1);
   --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
-}
-
-/* Dark mode: the same restrained system on a near-black clinical ground. Only
-   colour tokens change. Guarded so an explicit light choice still wins. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    --ink: #eaeeec;
-    --body: #b3bcb8;
-    --mute: #939d99;
-    --faint: #737d79;
-
-    --border: #262d2b;
-    --border-strong: #37403d;
-
-    --canvas: #0e1211;
-    --surface: #151a19;
-    --surface-sunken: #1b2120;
-    --band: #131715;
-
-    --primary: #58b39f;
-    --primary-hover: #74c4b2;
-    --primary-active: #8fd2c2;
-    --primary-surface: #14251f;
-    --primary-border: #24473d;
-    --on-primary: #06120f;
-
-    --key-point: #58b39f;
-    --key-point-surface: #14251f;
-    --key-point-border: #25473e;
-
-    --pearl: #96a4d6;
-    --pearl-surface: #191d2c;
-    --pearl-border: #2f3653;
-
-    --important: #e09a7c;
-    --important-surface: #2a1b15;
-    --important-border: #4d3225;
-
-    --caution: #ddba72;
-    --caution-surface: #262013;
-    --caution-border: #473a1f;
-
-    --definition: #b4aac6;
-    --definition-surface: #1f1c26;
-    --definition-border: #3a3447;
-
-    --danger: #e08278;
-    --success: #6cbd94;
-
-    --focus-ring: #58b39f;
-
-    --shadow-overlay: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -6px rgb(0 0 0 / 0.6);
-    --shadow-raise: 0 1px 2px rgb(0 0 0 / 0.3);
-  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -269,11 +216,11 @@ h1 {
   letter-spacing: var(--track-display-xl);
 }
 h2 {
-  font-size: clamp(1.5rem, 1.28rem + 0.9vw, var(--text-display-lg));
+  font-size: clamp(1.375rem, 1.2rem + 0.9vw, var(--text-display-lg));
   letter-spacing: var(--track-display-lg);
 }
 h3 {
-  font-size: clamp(1.25rem, 1.15rem + 0.4vw, var(--text-display-md));
+  font-size: clamp(1.125rem, 1.05rem + 0.4vw, var(--text-display-md));
   letter-spacing: var(--track-display-md);
 }
 h4 {
@@ -371,15 +318,13 @@ table {
    --------------------------------------------------------------------------- */
 
 .container {
-  width: 100%;
-  max-width: var(--page-width);
+  width: min(100% - 40px, var(--page-width));
   margin-inline: auto;
-  padding-inline: var(--space-4);
 }
 
 @media (min-width: 768px) {
   .container {
-    padding-inline: var(--space-8);
+    width: min(100% - 64px, var(--page-width));
   }
 }
 
@@ -431,7 +376,7 @@ table {
   line-height: var(--leading-normal);
 }
 
-/* Kicker: a short mono label with a leading rule, used above section
+/* Eyebrow: a short Inter caps label with a leading rule, used above section
    headings. Rationed — one per section at most. */
 .eyebrow {
   display: flex;
@@ -439,7 +384,7 @@ table {
   gap: var(--space-3);
   margin-bottom: var(--space-3);
   color: var(--primary);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-micro);
   font-weight: var(--weight-medium);
   text-transform: uppercase;
@@ -448,7 +393,7 @@ table {
 
 .eyebrow::before {
   content: '';
-  width: 1.5rem;
+  width: 1.375rem;
   height: 2px;
   background: var(--primary);
 }
@@ -546,8 +491,8 @@ table {
 .kicker {
   display: inline-block;
   color: var(--primary);
-  font-family: var(--font-mono);
-  font-size: var(--text-micro);
+  font-family: var(--font-sans);
+  font-size: var(--text-kicker);
   font-weight: var(--weight-medium);
   text-transform: uppercase;
   letter-spacing: var(--track-caps);
@@ -603,7 +548,7 @@ a.kicker:hover {
   border-radius: var(--radius-sm);
   font-family: var(--font-sans);
   font-size: var(--text-body-sm);
-  font-weight: var(--weight-medium);
+  font-weight: var(--weight-semibold);
   line-height: 1;
   white-space: nowrap;
   text-decoration: none;
@@ -762,7 +707,7 @@ a.kicker:hover {
   border-radius: var(--radius-tag);
   background: var(--surface-sunken);
   color: var(--mute);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-micro);
   font-weight: var(--weight-medium);
   line-height: 1.5;
@@ -772,7 +717,7 @@ a.kicker:hover {
 }
 
 .tag-primary {
-  border-color: var(--primary-border);
+  border-color: transparent;
   background: var(--primary-surface);
   color: var(--primary);
 }
@@ -812,7 +757,7 @@ a.kicker:hover {
 .entry-title {
   color: var(--ink);
   font-family: var(--font-display);
-  font-size: var(--text-body-lg);
+  font-size: var(--text-display-sm);
   font-weight: var(--weight-semibold);
   line-height: var(--leading-snug);
   transition: color 0.15s var(--ease);
@@ -824,13 +769,13 @@ a.kicker:hover {
 
 .entry-excerpt {
   color: var(--mute);
-  font-size: var(--text-body-sm);
+  font-size: var(--text-caption);
   line-height: var(--leading-normal);
 }
 
 .entry-meta {
   color: var(--faint);
-  font-size: var(--text-body-sm);
+  font-size: var(--text-caption);
   white-space: nowrap;
 }
 
@@ -1126,7 +1071,7 @@ a.kicker:hover {
 }
 
 /* ---------------------------------------------------------------------------
-   Medical callouts. A hairline panel, a coloured left rule, a mono label.
+   Medical callouts. A hairline panel, a coloured left rule, a caps label.
    Five variants read as one system rather than five coloured boxes.
    --------------------------------------------------------------------------- */
 
@@ -1155,7 +1100,7 @@ a.kicker:hover {
   align-items: center;
   gap: var(--space-2);
   color: var(--mute);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-micro);
   font-weight: var(--weight-semibold);
   text-transform: uppercase;
@@ -1241,7 +1186,7 @@ a.kicker:hover {
 .msn-block-label {
   margin: 0 0 var(--space-2);
   color: var(--mute);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-size: var(--text-micro);
   font-weight: var(--weight-semibold);
   text-transform: uppercase;

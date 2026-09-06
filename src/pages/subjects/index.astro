@@ -2,6 +2,7 @@
 import Layout from '../../layouts/Layout.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import Search from '../../components/Search.astro';
+import Icon from '../../components/Icon.astro';
 import JsonLd from '../../components/JsonLd.astro';
 import Illustration, { illustrationForSubject } from '../../components/Illustration.astro';
 import { getCollection, getNotes, getQuestions } from '../../utils/collections';
@@ -59,6 +60,15 @@ const groups = [
   },
 ].filter((g) => g.rows.length > 0);
 
+/** The card sub-line: real counts, never invented ones. */
+const subjectCounts = (noteCount: number, mcqCount: number) => {
+  const parts = [
+    noteCount > 0 ? `${noteCount} ${noteCount === 1 ? 'note' : 'notes'}` : null,
+    mcqCount > 0 ? `${mcqCount} MCQs` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : 'Study subject';
+};
+
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
   label: s.data.title,
@@ -98,6 +108,8 @@ const jsonLd = {
     title="Explore all medical subjects"
     lead="Find study notes, MCQs and educational resources organized by subject."
     crumbs={[{ href: '/', label: 'Home' }, { label: 'Subjects' }]}
+    tone="band"
+    asideWide
   >
     <div class="subjects-search">
       <Search
@@ -109,63 +121,92 @@ const jsonLd = {
     </div>
 
     <Fragment slot="aside">
-      <figure class="subjects-quote">
-        <blockquote>
-          <p>Medicine is a science of uncertainty and an art of probability.</p>
-        </blockquote>
-        <figcaption>Sir William Osler</figcaption>
-      </figure>
+      <div class="subjects-side">
+        <figure class="subjects-quote">
+          <blockquote>
+            <p>Medicine is a science of uncertainty and an art of probability.</p>
+          </blockquote>
+          <span class="quote-rule" aria-hidden="true"></span>
+          <figcaption>Sir William Osler</figcaption>
+        </figure>
+
+        <img
+          class="subjects-art"
+          src="/assets/images/hero-heart.png"
+          alt=""
+          width="284"
+          height="242"
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
     </Fragment>
   </PageHeader>
 
   <div class="container page-body">
-    {groups.map((group) => (
-      <section class="section section-plain" aria-labelledby={`group-${group.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
-        <div class="section-head-row">
-          <div>
-            <h2 id={`group-${group.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>{group.title}</h2>
-            <p>{group.blurb}</p>
-          </div>
-          <a class="link-arrow" href="/notes/">View all</a>
-        </div>
-
-        <div class="grid grid-3 subject-grid">
-          {group.rows.map(({ subject, noteCount, mcqCount }) => (
-            <a class="subj-card" href={`/subjects/${subject.slug}/`}>
-              <span class="subj-art" aria-hidden="true">
-                {subjectIcon(subject.slug) ? (
-                  <img src={subjectIcon(subject.slug)} alt="" loading="lazy" decoding="async" />
-                ) : (
-                  <Illustration name={illustrationForSubject(subject.slug)} size={40} />
-                )}
-              </span>
-              <span class="subj-title">{subject.data.title}</span>
-              <span class="subj-counts">
-                {noteCount > 0 ? `${noteCount} notes` : 'Study notes'}
-                {mcqCount > 0 ? ` · ${mcqCount} MCQs` : ''}
-              </span>
-              <span class="subj-desc">{subject.data.description}</span>
+    {groups.map((group) => {
+      const groupId = `group-${group.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+      return (
+        <section class="section section-plain" aria-labelledby={groupId}>
+          <div class="section-head-row">
+            <div>
+              <h2 id={groupId}>{group.title}</h2>
+              <p>{group.blurb}</p>
+            </div>
+            {/* The link-arrow class renders its own trailing arrow. */}
+            <a class="link-arrow" href="/notes/">
+              View all
             </a>
-          ))}
-        </div>
-      </section>
-    ))}
+          </div>
+
+          <div class="subject-grid">
+            {group.rows.map(({ subject, noteCount, mcqCount }) => (
+              <a class="subj-card" href={`/subjects/${subject.slug}/`}>
+                <span class="subj-art" aria-hidden="true">
+                  {subjectIcon(subject.slug) ? (
+                    <img src={subjectIcon(subject.slug)} alt="" loading="lazy" decoding="async" />
+                  ) : (
+                    <Illustration name={illustrationForSubject(subject.slug)} size={30} />
+                  )}
+                </span>
+                <span class="subj-body">
+                  <span class="subj-title">{subject.data.title}</span>
+                  <span class="subj-counts">{subjectCounts(noteCount, mcqCount)}</span>
+                  <span class="subj-desc">{subject.data.description}</span>
+                </span>
+                <span class="subj-chev" aria-hidden="true">
+                  <Icon name="chevron-right" size={16} />
+                </span>
+              </a>
+            ))}
+          </div>
+        </section>
+      );
+    })}
   </div>
 </Layout>
 
 <style>
   .subjects-search {
     margin-top: var(--space-6);
-    max-width: 36rem;
+    max-width: 38.75rem;
   }
 
-  /* The Osler pull-quote in the header aside. */
+  /* --- header aside: quote panel beside the hero image ------------------- */
+  .subjects-side {
+    display: grid;
+    gap: var(--space-4);
+    align-items: start;
+  }
+
+  /* The Osler pull-quote on its pearl panel, as in the design. */
   .subjects-quote {
+    display: flex;
+    flex-direction: column;
     margin: 0;
     padding: var(--space-6);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
+    border-radius: 6px;
+    background: var(--quote-surface);
   }
 
   .subjects-quote blockquote {
@@ -175,79 +216,129 @@ const jsonLd = {
   .subjects-quote p {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-display-sm);
+    font-size: 1.125rem;
     font-style: italic;
     font-weight: var(--weight-medium);
-    line-height: 1.35;
+    line-height: 1.55;
     text-wrap: balance;
   }
 
+  .quote-rule {
+    width: 26px;
+    height: 2px;
+    margin: var(--space-5) 0 var(--space-3);
+    background: var(--primary);
+  }
+
   .subjects-quote figcaption {
-    margin-top: var(--space-3);
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    letter-spacing: var(--track-caps);
+    font-family: var(--font-sans);
+    font-size: 0.6563rem;
+    font-weight: var(--weight-medium);
+    letter-spacing: 0.14em;
     text-transform: uppercase;
+  }
+
+  /* The heart illustration joins the quote from the wide-aside breakpoint. */
+  .subjects-art {
+    display: none;
+    width: 100%;
+    aspect-ratio: 284 / 242;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+  }
+
+  @media (min-width: 1024px) {
+    .subjects-side {
+      grid-template-columns: minmax(0, 17rem) minmax(0, 1fr);
+      gap: var(--space-4);
+    }
+
+    .subjects-art {
+      display: block;
+    }
   }
 
   .page-body {
     padding-block: var(--space-12) var(--space-16);
   }
 
+  /* --- subject grid -------------------------------------------------------- */
   .subject-grid {
+    display: grid;
+    grid-template-columns: 1fr;
     gap: var(--space-4);
   }
 
-  /* One bordered tile per subject: art well, title, counts, description. */
+  @media (min-width: 640px) {
+    .subject-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .subject-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .subject-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  /* A horizontal tile: icon well, title/counts/description stack, chevron. */
   .subj-card {
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-6);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-3) var(--space-3) 14px;
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--surface);
     color: inherit;
     text-decoration: none;
-    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+    transition: border-color 0.15s var(--ease);
   }
 
   .subj-card:hover {
-    border-color: var(--primary-border);
-    background: var(--primary-surface);
+    border-color: var(--border-strong);
   }
 
   .subj-art {
     display: inline-flex;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
-    width: 4.5rem;
-    height: 4.5rem;
-    margin-bottom: var(--space-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    width: 56px;
+    height: 56px;
+    overflow: hidden;
+    border-radius: 50%;
     background: var(--surface-sunken);
     color: var(--primary);
-    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
-  }
-
-  .subj-card:hover .subj-art {
-    border-color: var(--primary-border);
-    background: var(--surface);
   }
 
   .subj-art img {
-    width: 2.75rem;
-    height: 2.75rem;
-    object-fit: contain;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .subj-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
   }
 
   .subj-title {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    font-weight: var(--weight-semibold);
-    line-height: var(--leading-snug);
+    font-size: 1rem;
+    font-weight: var(--weight-display);
+    line-height: 1.25;
     transition: color 0.15s var(--ease);
   }
 
@@ -256,15 +347,32 @@ const jsonLd = {
   }
 
   .subj-counts {
-    color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    font-variant-numeric: tabular-nums;
+    color: var(--primary);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: var(--weight-semibold);
   }
 
   .subj-desc {
-    color: var(--mute);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-normal);
+    color: var(--faint);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .subj-chev {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-self: center;
+    color: var(--faint);
+    transition: color 0.15s var(--ease), transform 0.15s var(--ease-out);
+  }
+
+  .subj-card:hover .subj-chev {
+    color: var(--primary);
+    transform: translateX(2px);
   }
 </style>

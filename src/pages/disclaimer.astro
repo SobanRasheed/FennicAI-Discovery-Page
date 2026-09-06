@@ -21,9 +21,9 @@ const sections = [
 
 const id = (n: number) => legalSectionId(sections[n - 1].heading);
 
-/** The three points the design pulls out of the body into the hero. */
-const pillars = [
-  { icon: 'book' as const, label: 'Educational Purpose Only' },
+/** The three points the design pulls out into the hero feature cells. */
+const features = [
+  { icon: 'book-open' as const, label: 'Educational Purpose Only' },
   { icon: 'alert' as const, label: 'Use at Your Own Risk' },
   { icon: 'stethoscope' as const, label: 'Consult a Professional' },
 ];
@@ -31,6 +31,7 @@ const pillars = [
 
 <LegalLayout
   title="Medical Disclaimer | Medical Study Notes"
+  heading="Medical Disclaimer"
   description="Content on Medical Study Notes is educational only and is not a substitute for professional medical advice, diagnosis, or treatment. Always consult a qualified clinician."
   path="/disclaimer/"
   kicker="Important"
@@ -38,20 +39,12 @@ const pillars = [
   updated={new Date('2026-09-04')}
   readingTime="4 min read"
   {sections}
-  quote="Information educates; professionals diagnose and heal."
-  quoteAttribution="Better knowledge, better questions, better care"
+  {features}
+  heroQuote="Information educates, professionals diagnose and heal."
+  quote="Better knowledge leads to better questions, and better questions lead to better care."
   contactPrompt="Need clarification about this disclaimer?"
   {footerSubjects}
 >
-  <ul class="pillars">
-    {pillars.map((p) => (
-      <li class="pillar">
-        <Icon name={p.icon} size={18} />
-        {p.label}
-      </li>
-    ))}
-  </ul>
-
   <section>
     <h2 id={id(1)}>{sections[0].heading}</h2>
     <p>
@@ -126,38 +119,6 @@ const pillars = [
 </LegalLayout>
 
 <style>
-  /* The three pull-out points: a compact tinted row above the clauses. */
-  .pillars {
-    display: grid;
-    gap: var(--space-2);
-    margin: 0 0 var(--space-8);
-    padding: 0;
-    list-style: none;
-  }
-
-  @media (min-width: 640px) {
-    .pillars {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
-
-  .pillar {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--primary-border);
-    border-radius: var(--radius-md);
-    background: var(--primary-surface);
-    color: var(--ink);
-    font-size: var(--text-body-sm);
-    font-weight: var(--weight-medium);
-  }
-
-  .pillar svg {
-    color: var(--primary);
-  }
-
   .ack {
     margin-top: var(--space-6);
   }

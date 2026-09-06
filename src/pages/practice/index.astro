@@ -6,7 +6,10 @@
  * counts are real, subject cards link to the per-subject practice pages,
  * and featured sets are the chapters with the most questions. The design's
  * "latest questions" rows are renamed "try a question" because the
- * collection has no per-question dates to sort by.
+ * collection has no per-question dates to sort by, and the design's
+ * "Your progress" counters (342 correct / 128 incorrect) are replaced with
+ * the real interactive-quiz links, since an anonymous visitor has no
+ * progress data to show.
  */
 import Layout from '../../layouts/Layout.astro';
 import PageHeader from '../../components/PageHeader.astro';
@@ -14,6 +17,7 @@ import Search from '../../components/Search.astro';
 import SidebarPanel from '../../components/SidebarPanel.astro';
 import JsonLd from '../../components/JsonLd.astro';
 import Icon from '../../components/Icon.astro';
+import Illustration, { illustrationForSubject } from '../../components/Illustration.astro';
 import { getQuestions, getCollection } from '../../utils/collections';
 
 const [questions, subjects, levels] = await Promise.all([
@@ -49,7 +53,7 @@ const rows = subjects
 /** Chapter-level sets with the most questions — the "featured sets". */
 const sets = subjects
   .flatMap((subject) =>
-    [...new Set(questions.filter((q) => q.data.subject === subject.slug && q.data.chapter).map((q) => q.data.chapter!))]
+    [...new Set(questions.filter((q) => q.data.subject === subject.slug && q.data.chapter).map((q) => q.data.chapter ?? ''))]
       .map((chapterSlug) => {
         const chapter = subject.data.chapters.find((c) => c.slug === chapterSlug);
         const setQuestions = questions.filter(
@@ -73,6 +77,26 @@ const tryQuestions = questions
 
 /** Subjects that have an interactive quiz (MCQ-style questions with options). */
 const quizSubjects = rows.filter((row) => row.mcqCount > 0);
+const firstQuizHref =
+  quizSubjects.length > 0 ? `/practice/quiz/${quizSubjects[0].subject.slug}/` : '/practice/';
+
+/** Subjects with a PNG icon in /assets/landing/; the rest fall back to a drawing. */
+const pngSubjects = new Set([
+  'anatomy',
+  'biochemistry',
+  'community-medicine',
+  'forensic-medicine',
+  'microbiology',
+  'pathology',
+  'pharmacology',
+  'physiology',
+]);
+
+const subjectIcon = (slug: string) =>
+  pngSubjects.has(slug) ? `/assets/landing/subject-${slug}.png` : undefined;
+
+const questionCount = (count: number) =>
+  `${count} question${count === 1 ? '' : 's'}`;
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
@@ -109,15 +133,12 @@ const jsonLd = {
   <JsonLd data={jsonLd} />
 
   <PageHeader
-    kicker="Practice &amp; Learn"
+    kicker="Practice & Learn"
     title="Medical MCQs"
     lead="Test your knowledge with high-yield multiple choice questions organized by subject. Improve your understanding with detailed explanations."
     crumbs={[{ label: 'Home', href: '/' }, { label: 'MCQs' }]}
-    stats={[
-      { value: questions.length, label: 'Practice questions', icon: 'question' },
-      { value: rows.length, label: 'Subjects covered', icon: 'book' },
-      { value: 'Every question', label: 'Answered and explained', icon: 'check' },
-    ]}
+    tone="band"
+    asideWide
   >
     <div class="mcqs-search">
       <Search
@@ -128,13 +149,50 @@ const jsonLd = {
       />
     </div>
 
+    <dl class="mcq-stats">
+      <div class="mcq-stat">
+        <Icon name="question" size={36} />
+        <div>
+          <dt>{questions.length}</dt>
+          <dd>Practice questions</dd>
+        </div>
+      </div>
+      <div class="mcq-stat">
+        <Icon name="globe" size={36} />
+        <div>
+          <dt>All subjects</dt>
+          <dd>Organized by topic</dd>
+        </div>
+      </div>
+      <div class="mcq-stat">
+        <Icon name="chart" size={36} />
+        <div>
+          <dt>Track progress</dt>
+          <dd>Learn and improve</dd>
+        </div>
+      </div>
+    </dl>
+
     <Fragment slot="aside">
-      <figure class="mcqs-quote">
-        <blockquote>
-          <p>Practice is the bridge between knowing and doing.</p>
-        </blockquote>
-        <figcaption>Sir William Osler</figcaption>
-      </figure>
+      <div class="mcqs-side">
+        <img
+          class="mcqs-art"
+          src="/assets/images/hero-brain.jpg"
+          alt=""
+          width="303"
+          height="238"
+          loading="lazy"
+          decoding="async"
+        />
+
+        <figure class="mcqs-quote">
+          <blockquote>
+            <p>Practice is the bridge between knowing and doing.</p>
+          </blockquote>
+          <span class="quote-rule" aria-hidden="true"></span>
+          <figcaption>A Better You<br />A Brighter Tomorrow</figcaption>
+        </figure>
+      </div>
     </Fragment>
   </PageHeader>
 
@@ -154,15 +212,24 @@ const jsonLd = {
             <a class="link-arrow" href="/subjects/">View all subjects</a>
           </div>
 
-          <div class="grid grid-3 subject-grid">
+          <div class="card-grid">
             {rows.map(({ subject, count }) => (
-              <a class="set-card" href={`/practice/subject/${subject.slug}/`}>
-                <span class="set-kicker">{subject.data.title}</span>
-                <span class="set-title">{subject.data.title} MCQs</span>
-                <span class="set-meta">
-                  {count} question{count === 1 ? '' : 's'}
+              <a class="mcq-card" href={`/practice/subject/${subject.slug}/`}>
+                <span class="mcq-card-art" aria-hidden="true">
+                  {subjectIcon(subject.slug) ? (
+                    <img src={subjectIcon(subject.slug)} alt="" loading="lazy" decoding="async" />
+                  ) : (
+                    <Illustration name={illustrationForSubject(subject.slug)} size={32} />
+                  )}
                 </span>
-                <span class="set-desc">{subject.data.description}</span>
+                <span class="mcq-card-body">
+                  <span class="mcq-card-title">{subject.data.title}</span>
+                  <span class="mcq-card-count">{questionCount(count)}</span>
+                  <span class="mcq-card-desc">{subject.data.description}</span>
+                </span>
+                <span class="mcq-card-chev" aria-hidden="true">
+                  <Icon name="chevron-right" size={16} />
+                </span>
               </a>
             ))}
           </div>
@@ -179,40 +246,26 @@ const jsonLd = {
               <a class="link-arrow" href="#by-subject">View all MCQs</a>
             </div>
 
-            <div class="grid grid-4 set-grid">
+            <div class="card-grid">
               {sets.map(({ subject, chapter, count }) => (
-                <a class="set-card" href={`/practice/subject/${subject.slug}/`}>
-                  <span class="set-kicker">{subject.data.title}</span>
-                  <span class="set-title">{chapter} MCQs</span>
-                  <span class="set-meta">
-                    {count} question{count === 1 ? '' : 's'}
+                <a class="mcq-card mcq-set" href={`/practice/subject/${subject.slug}/`}>
+                  <span class="mcq-card-art" aria-hidden="true">
+                    {subjectIcon(subject.slug) ? (
+                      <img src={subjectIcon(subject.slug)} alt="" loading="lazy" decoding="async" />
+                    ) : (
+                      <Illustration name={illustrationForSubject(subject.slug)} size={32} />
+                    )}
+                  </span>
+                  <span class="mcq-card-body">
+                    <span class="mcq-card-kicker">{subject.data.title}</span>
+                    <span class="mcq-card-title">{chapter} MCQs</span>
+                    <span class="mcq-card-count">{questionCount(count)}</span>
+                  </span>
+                  <span class="mcq-card-chev" aria-hidden="true">
+                    <Icon name="chevron-right" size={16} />
                   </span>
                 </a>
               ))}
-            </div>
-          </section>
-        )}
-
-        {/* --- interactive quiz mode ---------------------------------------- */}
-        {quizSubjects.length > 0 && (
-          <section class="section" aria-labelledby="quiz-mode">
-            <div class="quiz-cta panel panel-pad">
-              <div class="quiz-cta-head">
-                <Icon name="clipboard-check" size={20} />
-                <h2 id="quiz-mode">Prefer an interactive quiz?</h2>
-              </div>
-              <p>
-                Take a timed quiz for a subject: answer one question at a time,
-                check each answer, and see your score, time, and performance by
-                topic at the end.
-              </p>
-              <div class="quiz-cta-actions">
-                {quizSubjects.map(({ subject, mcqCount }) => (
-                  <a class="btn btn-sm btn-secondary" href={`/practice/quiz/${subject.slug}/`}>
-                    {subject.data.title} quiz ({mcqCount})
-                  </a>
-                ))}
-              </div>
             </div>
           </section>
         )}
@@ -228,14 +281,17 @@ const jsonLd = {
               <a class="link-arrow" href="#by-subject">View all MCQs</a>
             </div>
 
-            <ul class="entry-list try-list">
+            <ul class="mcq-rows">
               {tryQuestions.map((q) => (
                 <li>
-                  <a class="entry entry-cols" href={`/practice/${q.slug}/`}>
-                    <span class="kicker">
+                  <a class="mcq-row" href={`/practice/${q.slug}/`}>
+                    <span class="mcq-row-tag">
                       {subjects.find((s) => s.slug === q.data.subject)?.data.title ?? q.data.subject}
                     </span>
-                    <span class="entry-title try-title">{q.data.question}</span>
+                    <span class="mcq-row-q">{q.data.question}</span>
+                    <span class="mcq-row-chev" aria-hidden="true">
+                      <Icon name="chevron-right" size={14} />
+                    </span>
                   </a>
                 </li>
               ))}
@@ -245,13 +301,48 @@ const jsonLd = {
       </div>
 
       {/* --- rail ---------------------------------------------------------- */}
-      <aside class="mcqs-side" aria-label="Practice links">
-        <SidebarPanel heading="Study tip" icon="bulb" variant="tint">
+      <aside class="mcqs-rail" aria-label="Practice links">
+        {quizSubjects.length > 0 && (
+          <section class="rail-card">
+            <h2 class="rail-heading">
+              <Icon name="target" size={22} />
+              Your progress
+            </h2>
+            <p class="rail-note">Practice consistently to see improvement.</p>
+            <ul class="chevron-list rail-quizzes">
+              {quizSubjects.map(({ subject, mcqCount }) => (
+                <li>
+                  <a href={`/practice/quiz/${subject.slug}/`}>
+                    {subject.data.title} quiz ({mcqCount})
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <a class="btn btn-primary rail-btn" href={firstQuizHref}>Start a quiz</a>
+          </section>
+        )}
+
+        <section class="rail-card rail-card-tint">
+          <h2 class="rail-heading">
+            <Icon name="bulb" size={22} />
+            Study tip
+          </h2>
           <blockquote class="rail-quote">
             <p>“Don’t just practice MCQs. Read the explanations to build lasting understanding.”</p>
           </blockquote>
-          <p class="rail-quote-attr">Study Smarter<br />Not Harder</p>
-        </SidebarPanel>
+          <p class="rail-caps">Study Smarter<br />Not Harder</p>
+        </section>
+
+        <section class="rail-card">
+          <h2 class="rail-heading">
+            <Icon name="book-open" size={22} />
+            New to MCQs?
+          </h2>
+          <p class="rail-note">
+            Learn how to make the most of MCQ practice with our study guides.
+          </p>
+          <a class="btn btn-secondary rail-btn" href="/blog/">Read our study guides</a>
+        </section>
 
         <SidebarPanel heading="Browse by level" icon="layers">
           <ul class="chevron-list">
@@ -268,13 +359,6 @@ const jsonLd = {
             ))}
           </ul>
         </SidebarPanel>
-
-        <SidebarPanel heading="New to MCQs?" icon="question">
-          <p class="rail-help">
-            Learn how to make the most of MCQ practice with our study guides.
-          </p>
-          <a class="btn btn-secondary rail-help-btn" href="/blog/">Read our study guides</a>
-        </SidebarPanel>
       </aside>
     </div>
   </div>
@@ -283,16 +367,62 @@ const jsonLd = {
 <style>
   .mcqs-search {
     margin-top: var(--space-6);
-    max-width: 36rem;
   }
 
-  /* The Osler pull-quote in the header aside. */
+  /* --- hero stats: icon + bold value + muted label ---------------------- */
+  .mcq-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-6) var(--space-8);
+    margin: var(--space-8) 0 0;
+  }
+
+  .mcq-stat {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .mcq-stat svg {
+    color: var(--primary);
+  }
+
+  .mcq-stats dt {
+    color: var(--ink);
+    font-size: 0.9375rem;
+    font-weight: var(--weight-semibold);
+    line-height: 1.4;
+  }
+
+  .mcq-stats dd {
+    margin: 0;
+    color: var(--mute);
+    font-size: 0.75rem;
+    line-height: 1.4;
+  }
+
+  /* --- header aside: brain image beside the quote panel ------------------ */
+  .mcqs-side {
+    display: grid;
+    gap: var(--space-4);
+    align-items: start;
+  }
+
+  .mcqs-art {
+    display: none;
+    width: 100%;
+    aspect-ratio: 303 / 238;
+    object-fit: contain;
+  }
+
+  /* The pull-quote on its pearl panel, as in the design. */
   .mcqs-quote {
+    display: flex;
+    flex-direction: column;
     margin: 0;
     padding: var(--space-6);
-    border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    background: var(--surface-sunken);
+    background: var(--quote-surface);
   }
 
   .mcqs-quote blockquote {
@@ -302,20 +432,39 @@ const jsonLd = {
   .mcqs-quote p {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-display-sm);
+    font-size: 1.125rem;
     font-style: italic;
     font-weight: var(--weight-medium);
-    line-height: 1.35;
+    line-height: 1.45;
     text-wrap: balance;
   }
 
+  .quote-rule {
+    width: 26px;
+    height: 2px;
+    margin: var(--space-5) 0 var(--space-3);
+    background: var(--primary);
+  }
+
   .mcqs-quote figcaption {
-    margin-top: var(--space-3);
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    letter-spacing: var(--track-caps);
+    font-family: var(--font-sans);
+    font-size: 0.6563rem;
+    font-weight: var(--weight-medium);
+    letter-spacing: 0.14em;
+    line-height: 1.7;
     text-transform: uppercase;
+  }
+
+  @media (min-width: 1024px) {
+    .mcqs-side {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 15.5rem);
+      gap: var(--space-4);
+    }
+
+    .mcqs-art {
+      display: block;
+    }
   }
 
   .page-body {
@@ -329,147 +478,273 @@ const jsonLd = {
   }
 
   .mcqs-main,
-  .mcqs-side {
+  .mcqs-rail {
     min-width: 0;
   }
 
   @media (min-width: 1024px) {
     .mcqs-layout {
-      grid-template-columns: minmax(0, 1fr) 20rem;
+      grid-template-columns: minmax(0, 1fr) 17.25rem;
       gap: var(--space-12);
     }
   }
 
-  .subject-grid {
-    gap: var(--space-4);
-  }
-
-  /* --- set / subject cards ------------------------------------------------ */
-  .set-grid {
-    gap: var(--space-4);
-  }
-
-  .set-card {
+  /* --- subject / set card grid ------------------------------------------- */
+  .card-grid {
     display: grid;
-    gap: var(--space-1);
-    padding: var(--space-5) var(--space-6);
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  @media (min-width: 600px) {
+    .card-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .card-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1440px) {
+    .card-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  /* A horizontal tile: art well, title/count/description stack, chevron. */
+  .mcq-card {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
     background: var(--surface);
     color: inherit;
     text-decoration: none;
-    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+    transition: border-color 0.15s var(--ease);
   }
 
-  .set-card:hover {
-    border-color: var(--primary-border);
-    background: var(--primary-surface);
+  .mcq-card:hover {
+    border-color: var(--border-strong);
   }
 
-  .set-kicker {
+  .mcq-card-art {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 62px;
+    height: 66px;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
     color: var(--primary);
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
-    letter-spacing: var(--track-caps);
+  }
+
+  .mcq-card-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  .mcq-card-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .mcq-card-kicker {
+    color: var(--primary);
+    font-size: 0.5625rem;
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.0625em;
     text-transform: uppercase;
   }
 
-  .set-title {
-    margin-top: var(--space-1);
+  .mcq-card-title {
     color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
+    font-size: 0.8125rem;
     font-weight: var(--weight-semibold);
-    line-height: var(--leading-snug);
+    line-height: 1.3;
     transition: color 0.15s var(--ease);
   }
 
-  .set-card:hover .set-title {
+  .mcq-card:hover .mcq-card-title {
     color: var(--primary);
   }
 
-  .set-meta {
+  .mcq-card-count {
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    font-variant-numeric: tabular-nums;
+    font-size: 0.6875rem;
   }
 
-  .set-desc {
-    margin-top: var(--space-2);
-    color: var(--mute);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-normal);
+  .mcq-card-desc {
+    color: var(--faint);
+    font-size: 0.625rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
   }
 
-  /* --- interactive quiz CTA ------------------------------------------------ */
-  .quiz-cta-head {
+  .mcq-card-chev {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-self: center;
+    color: var(--faint);
+    transition: color 0.15s var(--ease), transform 0.15s var(--ease-out);
+  }
+
+  .mcq-card:hover .mcq-card-chev {
+    color: var(--primary);
+    transform: translateX(2px);
+  }
+
+  /* --- try-a-question rows ------------------------------------------------- */
+  .mcq-rows {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mcq-rows li + li {
+    margin-top: 0;
+  }
+
+  .mcq-row {
     display: flex;
     align-items: center;
     gap: var(--space-3);
+    padding: var(--space-3) var(--space-1);
+    border-bottom: 1px solid var(--border);
+    color: inherit;
+    text-decoration: none;
   }
 
-  .quiz-cta-head svg {
+  .mcq-row-tag {
+    flex-shrink: 0;
+    width: 9.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--primary);
+    font-size: 0.625rem;
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.0625em;
+    text-transform: uppercase;
+  }
+
+  .mcq-row-q {
+    flex: 1;
+    min-width: 0;
+    color: var(--ink);
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    transition: color 0.15s var(--ease);
+  }
+
+  .mcq-row:hover .mcq-row-q {
     color: var(--primary);
   }
 
-  .quiz-cta-head h2 {
-    font-size: var(--text-body-lg);
+  .mcq-row-chev {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--faint);
+    transition: color 0.15s var(--ease), transform 0.15s var(--ease-out);
   }
 
-  .quiz-cta p {
-    margin-top: var(--space-3);
-    color: var(--body);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-normal);
-    max-width: 60ch;
+  .mcq-row:hover .mcq-row-chev {
+    color: var(--primary);
+    transform: translateX(2px);
   }
 
-  .quiz-cta-actions {
+  @media (max-width: 559px) {
+    .mcq-row {
+      flex-wrap: wrap;
+    }
+
+    .mcq-row-tag {
+      width: 100%;
+    }
+  }
+
+  /* --- rail -------------------------------------------------------------- */
+  .mcqs-rail {
+    display: grid;
+    gap: var(--space-4);
+    align-content: start;
+  }
+
+  .rail-card {
+    padding: var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .rail-card-tint {
+    border-color: transparent;
+    background: var(--quote-surface);
+  }
+
+  .rail-heading {
     display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    margin-top: var(--space-5);
-  }
-
-  /* --- try-a-question list ------------------------------------------------- */
-  .try-list .try-title {
-    font-size: var(--text-body);
-    font-weight: var(--weight-medium);
+    align-items: center;
+    gap: var(--space-3);
+    margin: 0 0 var(--space-2);
+    color: var(--ink);
     font-family: var(--font-sans);
+    font-size: 1rem;
+    font-weight: var(--weight-semibold);
+    line-height: 1.35;
   }
 
-  /* --- rail ------------------------------------------------------------------ */
+  .rail-heading svg {
+    flex-shrink: 0;
+    color: var(--primary);
+  }
+
+  .rail-note {
+    margin: 0;
+    color: var(--mute);
+    font-size: 0.8125rem;
+    line-height: 1.5;
+  }
+
+  .rail-quizzes {
+    margin: var(--space-3) 0 0;
+  }
+
+  .rail-btn {
+    width: 100%;
+    margin-top: var(--space-4);
+  }
+
   .rail-quote {
     margin: 0;
   }
 
   .rail-quote p {
     color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    font-style: italic;
-    font-weight: var(--weight-medium);
-    line-height: 1.4;
-    text-wrap: balance;
+    font-size: 0.9375rem;
+    line-height: 1.5;
   }
 
-  .rail-quote-attr {
-    margin-top: var(--space-3);
+  .rail-caps {
+    margin: var(--space-3) 0 0;
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
+    font-size: 0.625rem;
+    font-weight: var(--weight-bold);
     letter-spacing: var(--track-caps);
     line-height: 1.7;
     text-transform: uppercase;
-  }
-
-  .rail-help {
-    color: var(--body);
-    font-size: var(--text-body-sm);
-  }
-
-  .rail-help-btn {
-    margin-top: var(--space-4);
   }
 </style>

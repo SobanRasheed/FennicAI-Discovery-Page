@@ -309,6 +309,18 @@ const articleSchema = {
       />
     </SidebarPanel>
 
+    {/* The red at-a-glance card: the first of the note's important points,
+        the one thing to walk away remembering. */}
+    {data.importantPoints.length > 0 && (
+      <aside class="alert-panel" aria-label="Important">
+        <p class="alert-label">
+          <Icon name="alert" size={14} />
+          Important
+        </p>
+        <p class="alert-text">{data.importantPoints[0]}</p>
+      </aside>
+    )}
+
     {relatedNotes.length > 0 && (
       <SidebarPanel heading="Related study notes" icon="book">
         <RelatedContent
@@ -381,6 +393,61 @@ const articleSchema = {
 </ArticleLayout>
 
 <style>
+  /* --- section numbers --------------------------------------------------
+     The reading column numbers its h2s in document order ("1. Definition",
+     "2. Structure"), matching the numbering the TOC rail shows. The trailing
+     apparatus (author box, FAQ) is not in the TOC, so it stays unnumbered. */
+  :global(.art-main) {
+    counter-reset: note-section;
+  }
+
+  :global(.art-main h2) {
+    counter-increment: note-section;
+  }
+
+  :global(.art-main h2)::before {
+    content: counter(note-section) '. ';
+  }
+
+  :global(.art-main h2.author-heading),
+  :global(.art-main h2.faq-heading) {
+    counter-increment: none;
+  }
+
+  :global(.art-main h2.author-heading)::before,
+  :global(.art-main h2.faq-heading)::before {
+    content: none;
+  }
+
+  /* --- sidebar important alert ----------------------------------------- */
+  .alert-panel {
+    margin-top: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--border));
+    border-radius: var(--radius-sm);
+    background: color-mix(in srgb, var(--danger) 7%, var(--surface));
+  }
+
+  .alert-label {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    margin: 0;
+    color: var(--danger);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .alert-text {
+    margin: var(--space-2) 0 0;
+    color: var(--ink);
+    font-size: 0.8125rem;
+    line-height: var(--leading-normal);
+  }
+
   /* --- rail ----------------------------------------------------------- */
   .rail-actions {
     display: none;

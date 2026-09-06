@@ -3,16 +3,21 @@
  * Past papers.
  *
  * We hold no actual board/university paper files, so this page presents the
- * honest equivalent: the question collection grouped by its real exam-pattern
- * tags (board pattern, university midterm, university final). Every count,
- * subject, and chip below is derived from real content; rows link to the
- * full worked question instead of a download.
+ * honest equivalent of the design's paper library: the question collection
+ * filtered by its real exam-pattern tags. Every count, subject, and chip below
+ * is derived from real content; rows link to the full worked question instead
+ * of a download.
+ *
+ * Structure follows the design: a band hero with a papers illustration and the
+ * pull-quote, three coverage features, a filter bar (search, subject, exam
+ * pattern, type), a section head with sort and list/grid view controls, and a
+ * rail of popular subjects, a study tip, and where to get help.
  */
 import Layout from '../layouts/Layout.astro';
 import PageHeader from '../components/PageHeader.astro';
-import SidebarPanel from '../components/SidebarPanel.astro';
 import JsonLd from '../components/JsonLd.astro';
 import Icon from '../components/Icon.astro';
+import Illustration, { illustrationForSubject } from '../components/Illustration.astro';
 import { getQuestions, getCollection } from '../utils/collections';
 
 const [questions, subjects] = await Promise.all([
@@ -42,22 +47,13 @@ const typeLabel: Record<string, string> = {
 const patterns = [
   ...new Set(questions.map((q) => q.data.examTag).filter((t): t is string => Boolean(t))),
 ]
-  .map((tag) => {
-    const tagged = questions.filter((q) => q.data.examTag === tag);
-    return {
-      tag,
-      count: tagged.length,
-      bySubject: subjects
-        .map((subject) => ({
-          subject,
-          count: tagged.filter((q) => q.data.subject === subject.slug).length,
-        }))
-        .filter((row) => row.count > 0),
-    };
-  })
+  .map((tag) => ({
+    tag,
+    count: questions.filter((q) => q.data.examTag === tag).length,
+  }))
   .sort((a, b) => b.count - a.count);
 
-/** Subjects that carry exam-tagged questions, for the filter and rail. */
+/** Subjects that carry questions, for the filter and rail. */
 const filterSubjects = subjects
   .map((subject) => ({
     subject,
@@ -66,7 +62,7 @@ const filterSubjects = subjects
   .filter((row) => row.count > 0)
   .sort((a, b) => b.count - a.count);
 
-/** Question rows: everything the client-side filter needs. */
+/** Question rows: everything the client-side filter, sort, and search need. */
 const rows = questions.map((q) => ({
   slug: q.slug,
   question: q.data.question,
@@ -77,6 +73,7 @@ const rows = questions.map((q) => ({
   type: q.data.type,
   typeLabel: typeLabel[q.data.type],
   difficulty: q.data.difficulty,
+  illustration: illustrationForSubject(q.data.subject),
   keywords: `${q.data.question} ${q.data.answer} ${q.data.examTag ?? ''} ${subjectTitle(q.data.subject)} ${chapterTitle(q.data.subject, q.data.chapter)}`.toLowerCase(),
 }));
 
@@ -120,76 +117,101 @@ const jsonLd = {
     title="Practice Past Papers"
     lead="Practice with exam-pattern questions — board exams, university midterms, and finals. Every question carries the full answer and a worked explanation, so you learn from every attempt."
     crumbs={[{ label: 'Home', href: '/' }, { label: 'Past Papers' }]}
-    stats={[
-      { value: totalTagged, label: 'Exam-pattern questions', icon: 'question' },
-      { value: patterns.length, label: 'Exam patterns covered', icon: 'layers' },
-      { value: filterSubjects.length, label: 'Subjects', icon: 'book' },
-    ]}
+    tone="band"
+    asideWide
   >
+    <ul class="pp-features">
+      <li>
+        <Icon name="grid" size={22} />
+        <div>
+          <strong>Wide coverage</strong>
+          <span>{filterSubjects.length} subjects · {patterns.length} exam patterns</span>
+        </div>
+      </li>
+      <li>
+        <Icon name="clipboard-check" size={22} />
+        <div>
+          <strong>Exam preparation</strong>
+          <span>{totalTagged} pattern-tagged questions</span>
+        </div>
+      </li>
+      <li>
+        <Icon name="chart" size={22} />
+        <div>
+          <strong>Better performance</strong>
+          <span>Answers and explanations included</span>
+        </div>
+      </li>
+    </ul>
+
     <Fragment slot="aside">
-      <figure class="pp-quote">
-        <blockquote>
-          <p>The more you practice, the more prepared you become.</p>
-        </blockquote>
-        <figcaption>Success favors the prepared</figcaption>
-      </figure>
+      <div class="pp-hero-side">
+        <img
+          class="pp-hero-art"
+          src="/assets/images/papers-hero.png"
+          alt=""
+          width="720"
+          height="564"
+          loading="eager"
+          decoding="async"
+        />
+
+        <figure class="pp-quote">
+          <span class="quote-mark" aria-hidden="true">”</span>
+          <blockquote>
+            <p>The more you practice, the more prepared you become.</p>
+          </blockquote>
+          <span class="quote-rule" aria-hidden="true"></span>
+          <figcaption>Success favors the prepared</figcaption>
+        </figure>
+      </div>
     </Fragment>
   </PageHeader>
 
   <div class="container page-body">
     <div class="pp-layout">
       <div class="pp-main">
-        {/* --- browse by exam pattern ------------------------------------- */}
-        {patterns.length > 0 && (
-          <section class="section" aria-labelledby="by-pattern">
-            <div class="section-head-row">
-              <div>
-                <h2 id="by-pattern">Browse by exam pattern</h2>
-                <p>Question sets tagged by the exams they are styled on.</p>
-              </div>
-              <a class="link-arrow" href="/practice/">All practice questions</a>
-            </div>
-
-            <div class="grid grid-3 pattern-grid">
-              {patterns.map((pattern) => (
-                <div class="pattern-card">
-                  <span class="pattern-kicker">{pattern.count} question{pattern.count === 1 ? '' : 's'}</span>
-                  <span class="pattern-title">{pattern.tag}</span>
-                  <ul class="pattern-subjects">
-                    {pattern.bySubject.map(({ subject, count }) => (
-                      <li>
-                        <a href={`/practice/subject/${subject.slug}/`}>
-                          {subject.data.title}
-                          <span class="pattern-count">{count}</span>
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* --- filter panel + question list --------------------------------- */}
         <section class="section" aria-labelledby="paper-list">
           <div class="section-head-row">
             <div>
-              <h2 id="paper-list">Exam-pattern questions</h2>
-              <p>Filter by subject, exam pattern, or type — or search the questions.</p>
+              <h2 id="paper-list">Past papers</h2>
+              <p>Browse and filter the question bank by subject, exam pattern, or type.</p>
+            </div>
+            <div class="list-controls">
+              <label class="sort-field" for="pp-sort">
+                Sort by
+                <select id="pp-sort" data-sort>
+                  <option value="pattern">Exam pattern</option>
+                  <option value="subject">Subject A–Z</option>
+                  <option value="difficulty">Difficulty</option>
+                </select>
+              </label>
+              <div class="view-toggle" role="group" aria-label="Result view">
+                <button type="button" data-view="list" aria-pressed="true">
+                  <Icon name="list" size={14} />
+                  List
+                </button>
+                <button type="button" data-view="grid" aria-pressed="false">
+                  <Icon name="grid" size={14} />
+                  Grid
+                </button>
+              </div>
             </div>
           </div>
 
           <div class="panel panel-pad filter-panel">
             <div class="filter-grid">
-              <div class="field">
+              <div class="field field-search">
                 <label for="pp-search">Search</label>
-                <input
-                  id="pp-search"
-                  type="search"
-                  placeholder="Search questions (e.g. SELECT, HTTP, recursion…)"
-                  autocomplete="off"
-                />
+                <div class="search-wrap">
+                  <span aria-hidden="true"><Icon name="search" size={16} /></span>
+                  <input
+                    id="pp-search"
+                    type="search"
+                    placeholder="Search questions (e.g. SELECT, HTTP, recursion…)"
+                    autocomplete="off"
+                  />
+                </div>
               </div>
 
               <div class="field">
@@ -228,29 +250,39 @@ const jsonLd = {
                 Showing all {rows.length} question{rows.length === 1 ? '' : 's'}
               </p>
               <button class="btn btn-sm btn-secondary" type="button" data-clear>
-                <Icon name="refresh" size={14} />
+                <Icon name="close" size={14} />
                 Clear filters
               </button>
             </div>
           </div>
 
-          <ul class="entry-list paper-list" data-list>
+          <ul class="paper-list" data-list>
             {rows.map((row) => (
-              <li data-row data-subject={row.subject} data-pattern={row.examTag} data-type={row.type} data-keywords={row.keywords}>
-                <a class="entry paper-entry" href={`/practice/${row.slug}/`}>
-                  <span class="paper-head">
+              <li
+                data-row
+                data-subject={row.subject}
+                data-pattern={row.examTag}
+                data-type={row.type}
+                data-difficulty={row.difficulty}
+                data-sort-subject={row.subjectTitle}
+                data-keywords={row.keywords}
+              >
+                <a class="paper-entry" href={`/practice/${row.slug}/`}>
+                  <span class="paper-art" aria-hidden="true">
+                    <Illustration name={row.illustration} size={34} />
+                  </span>
+                  <span class="paper-text">
                     <span class="paper-title">{row.question}</span>
-                    <span class="paper-view">
-                      View
-                      <Icon name="arrow-right" size={14} />
+                    <span class="paper-sub">{row.subjectTitle} · {row.chapter}</span>
+                    <span class="paper-chips">
+                      {row.examTag && <span class="chip chip-pattern">{row.examTag}</span>}
+                      <span class="chip">{row.typeLabel}</span>
+                      <span class="chip chip-{row.difficulty}">{row.difficulty}</span>
                     </span>
                   </span>
-                  <span class="paper-chips">
-                    <span class="chip chip-subject">{row.subjectTitle}</span>
-                    <span class="chip">{row.chapter}</span>
-                    {row.examTag && <span class="chip chip-pattern">{row.examTag}</span>}
-                    <span class="chip">{row.typeLabel}</span>
-                    <span class="chip chip-{row.difficulty}">{row.difficulty}</span>
+                  <span class="paper-view">
+                    View
+                    <Icon name="arrow-right" size={14} />
                   </span>
                 </a>
               </li>
@@ -275,7 +307,11 @@ const jsonLd = {
 
       {/* --- rail ------------------------------------------------------------ */}
       <aside class="pp-side" aria-label="Past paper links">
-        <SidebarPanel heading="Popular subjects" icon="book">
+        <section class="rail-card">
+          <h2 class="rail-heading">
+            <Icon name="grid" size={22} />
+            Popular subjects
+          </h2>
           <ul class="rail-subjects">
             {filterSubjects.map(({ subject, count }) => (
               <li>
@@ -284,28 +320,41 @@ const jsonLd = {
                   <span class="rail-count">
                     {count} question{count === 1 ? '' : 's'}
                   </span>
+                  <span class="rail-chev" aria-hidden="true">
+                    <Icon name="chevron-right" size={16} />
+                  </span>
                 </a>
               </li>
             ))}
           </ul>
           <a class="link-arrow" href="/subjects/">View all subjects</a>
-        </SidebarPanel>
+        </section>
 
-        <SidebarPanel variant="tint" heading="Study tip" icon="bulb">
+        <section class="rail-card rail-card-tint">
+          <h2 class="rail-heading">
+            <Icon name="bulb" size={22} />
+            Study tip
+          </h2>
           <blockquote class="rail-quote">
             <p>“Solving past papers helps you understand the exam pattern and manage your time better.”</p>
           </blockquote>
+          <span class="quote-rule" aria-hidden="true"></span>
           <p class="rail-quote-attr">Practice Smarter<br />Score Higher</p>
-        </SidebarPanel>
+        </section>
 
-        <SidebarPanel heading="Need help?" icon="question">
+        <section class="rail-card">
+          <h2 class="rail-heading">
+            <Icon name="question" size={22} />
+            Need help?
+          </h2>
           <p class="rail-help">
-            Read our study guides on technique, revision, and exam preparation.
+            Not sure which questions to solve first? Read our study guides on technique,
+            revision, and exam preparation.
           </p>
           <a class="btn btn-secondary rail-help-btn" href="/blog/category/study-techniques/">
             View study guides
           </a>
-        </SidebarPanel>
+        </section>
       </aside>
     </div>
   </div>
@@ -315,9 +364,13 @@ const jsonLd = {
     const subjectEl = document.getElementById('pp-subject') as HTMLSelectElement | null;
     const patternEl = document.getElementById('pp-pattern') as HTMLSelectElement | null;
     const typeEl = document.getElementById('pp-type') as HTMLSelectElement | null;
+    const sortEl = document.getElementById('pp-sort') as HTMLSelectElement | null;
+    const list = document.querySelector<HTMLElement>('[data-list]');
     const rows = [...document.querySelectorAll<HTMLElement>('[data-row]')];
     const status = document.querySelector<HTMLElement>('[data-status]');
     const empty = document.querySelector<HTMLElement>('[data-empty]');
+
+    const difficultyRank: Record<string, number> = { easy: 0, medium: 1, hard: 2 };
 
     function apply() {
       const query = (searchEl?.value ?? '').trim().toLowerCase();
@@ -342,15 +395,36 @@ const jsonLd = {
           visible === rows.length
             ? `Showing all ${rows.length} question${rows.length === 1 ? '' : 's'}`
             : `${visible} of ${rows.length} question${rows.length === 1 ? '' : 's'}${
-                query ? ` matching “${searchEl!.value.trim()}”` : ''
+                query ? ` matching “${(searchEl?.value ?? '').trim()}”` : ''
               }`;
       }
+    }
+
+    /** Re-order the row elements in the DOM by the chosen key. */
+    function sortRows() {
+      if (!list) return;
+      const mode = sortEl?.value ?? 'pattern';
+      const items = [...list.querySelectorAll<HTMLElement>('[data-row]')];
+      items.sort((a, b) => {
+        if (mode === 'subject') {
+          return (a.dataset.sortSubject ?? '').localeCompare(b.dataset.sortSubject ?? '');
+        }
+        if (mode === 'difficulty') {
+          return (
+            (difficultyRank[a.dataset.difficulty ?? ''] ?? 9) -
+            (difficultyRank[b.dataset.difficulty ?? ''] ?? 9)
+          );
+        }
+        return 0;
+      });
+      items.forEach((item) => list.append(item));
     }
 
     searchEl?.addEventListener('input', apply);
     subjectEl?.addEventListener('change', apply);
     patternEl?.addEventListener('change', apply);
     typeEl?.addEventListener('change', apply);
+    sortEl?.addEventListener('change', sortRows);
 
     document.querySelector('[data-clear]')?.addEventListener('click', () => {
       if (searchEl) searchEl.value = '';
@@ -359,17 +433,85 @@ const jsonLd = {
       if (typeEl) typeEl.value = '';
       apply();
     });
+
+    document.querySelectorAll<HTMLButtonElement>('[data-view]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const view = btn.dataset.view ?? 'list';
+        if (list) list.classList.toggle('is-grid', view === 'grid');
+        document.querySelectorAll<HTMLButtonElement>('[data-view]').forEach((other) => {
+          other.setAttribute('aria-pressed', String(other === btn));
+        });
+      });
+    });
   </script>
 </Layout>
 
 <style>
-  /* The pull-quote in the header aside. */
+  /* --- hero features ------------------------------------------------------ */
+  .pp-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3) var(--space-8);
+    margin: var(--space-8) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .pp-features li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .pp-features svg {
+    flex-shrink: 0;
+    color: var(--primary);
+  }
+
+  .pp-features strong {
+    display: block;
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  .pp-features span {
+    display: block;
+    color: var(--mute);
+    font-size: var(--text-caption);
+  }
+
+  /* --- header aside: papers illustration beside the quote panel ----------- */
+  .pp-hero-side {
+    display: grid;
+    gap: var(--space-4);
+    align-items: center;
+  }
+
+  .pp-hero-art {
+    display: none;
+    width: 100%;
+    aspect-ratio: 720 / 564;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+  }
+
   .pp-quote {
+    display: flex;
+    flex-direction: column;
     margin: 0;
     padding: var(--space-6);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
+    border-radius: 6px;
+    background: var(--quote-surface);
+  }
+
+  .quote-mark {
+    color: var(--primary);
+    font-family: var(--font-display);
+    font-size: 2.5rem;
+    font-weight: var(--weight-semibold);
+    line-height: 0.5;
+    margin-bottom: var(--space-4);
   }
 
   .pp-quote blockquote {
@@ -379,27 +521,45 @@ const jsonLd = {
   .pp-quote p {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-display-sm);
+    font-size: 1.0625rem;
     font-style: italic;
     font-weight: var(--weight-medium);
-    line-height: 1.35;
+    line-height: 1.5;
     text-wrap: balance;
   }
 
+  .quote-rule {
+    width: 26px;
+    height: 2px;
+    margin: var(--space-5) 0 var(--space-3);
+    background: var(--primary);
+  }
+
   .pp-quote figcaption {
-    margin-top: var(--space-3);
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    letter-spacing: var(--track-caps);
+    font-family: var(--font-sans);
+    font-size: 0.6563rem;
+    font-weight: var(--weight-medium);
+    letter-spacing: 0.14em;
     text-transform: uppercase;
   }
 
+  @media (min-width: 1024px) {
+    .pp-hero-side {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 15.5rem);
+      gap: var(--space-4);
+    }
+
+    .pp-hero-art {
+      display: block;
+    }
+  }
+
+  /* --- main + rail layout ------------------------------------------------- */
   .page-body {
     padding-block: var(--space-12) var(--space-16);
   }
 
-  /* --- main + rail layout ------------------------------------------------- */
   .pp-layout {
     display: grid;
     gap: var(--space-8);
@@ -417,71 +577,54 @@ const jsonLd = {
     }
   }
 
-  /* --- exam-pattern cards ---------------------------------------------------- */
-  .pattern-grid {
+  /* --- section-head controls: sort + view toggle -------------------------- */
+  .list-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
     gap: var(--space-4);
   }
 
-  .pattern-card {
-    display: grid;
+  .sort-field {
+    display: inline-flex;
+    align-items: center;
     gap: var(--space-2);
-    align-content: start;
-    padding: var(--space-5) var(--space-6);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .sort-field select {
+    min-width: 10rem;
+  }
+
+  .view-toggle {
+    display: inline-flex;
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .view-toggle button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--space-3);
+    border: 0;
     background: var(--surface);
-  }
-
-  .pattern-kicker {
-    color: var(--primary);
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
-    letter-spacing: var(--track-caps);
-    text-transform: uppercase;
-  }
-
-  .pattern-title {
-    color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    font-weight: var(--weight-semibold);
-    line-height: var(--leading-snug);
-  }
-
-  .pattern-subjects {
-    display: grid;
-    margin: var(--space-2) 0 0;
-    padding: 0;
-    list-style: none;
-  }
-
-  .pattern-subjects li + li {
-    border-top: 1px solid var(--border);
-  }
-
-  .pattern-subjects a {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-3);
-    padding: var(--space-2) 0;
-    color: var(--ink);
+    color: var(--mute);
     font-size: var(--text-body-sm);
     font-weight: var(--weight-medium);
-    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.15s var(--ease), color 0.15s var(--ease);
   }
 
-  .pattern-subjects a:hover {
+  .view-toggle button + button {
+    border-left: 1px solid var(--border);
+  }
+
+  .view-toggle button[aria-pressed='true'] {
+    background: var(--primary-surface);
     color: var(--primary);
-  }
-
-  .pattern-count {
-    flex-shrink: 0;
-    color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    font-variant-numeric: tabular-nums;
-    font-weight: var(--weight-body);
   }
 
   /* --- filter panel ------------------------------------------------------------ */
@@ -490,14 +633,26 @@ const jsonLd = {
     gap: var(--space-4);
   }
 
-  @media (min-width: 700px) {
+  @media (min-width: 900px) {
     .filter-grid {
-      grid-template-columns: minmax(0, 1fr) repeat(3, minmax(0, 11rem));
+      grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr));
     }
+  }
 
-    .filter-grid .field:first-child {
-      grid-column: 1 / -1;
-    }
+  .search-wrap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .search-wrap svg {
+    flex-shrink: 0;
+    color: var(--mute);
+  }
+
+  .search-wrap input {
+    flex: 1;
+    min-width: 0;
   }
 
   .filter-foot {
@@ -517,12 +672,24 @@ const jsonLd = {
 
   /* --- question rows ---------------------------------------------------------------- */
   .paper-list {
-    margin-top: var(--space-6);
+    display: grid;
+    gap: var(--space-3);
+    margin: var(--space-6) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  /* The grid view from the design: the same rows, two-up. */
+  @media (min-width: 760px) {
+    .paper-list.is-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   .paper-entry {
-    display: grid;
-    gap: var(--space-3);
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
     padding: var(--space-4) var(--space-5);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
@@ -537,11 +704,30 @@ const jsonLd = {
     background: var(--primary-surface);
   }
 
-  .paper-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-4);
+  .paper-art {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 3.25rem;
+    height: 3.25rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-sunken);
+    color: var(--primary);
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .paper-entry:hover .paper-art {
+    border-color: var(--primary-border);
+    background: var(--surface);
+  }
+
+  .paper-text {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: var(--space-2);
   }
 
   .paper-title {
@@ -550,11 +736,52 @@ const jsonLd = {
     font-size: var(--text-body);
     font-weight: var(--weight-semibold);
     line-height: var(--leading-snug);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
     transition: color 0.15s var(--ease);
   }
 
   .paper-entry:hover .paper-title {
     color: var(--primary);
+  }
+
+  .paper-sub {
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .paper-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .chip {
+    padding: 2px var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--body);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: 0.02em;
+    text-transform: capitalize;
+    white-space: nowrap;
+  }
+
+  .chip-pattern {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .chip-easy {
+    color: var(--primary);
+  }
+
+  .chip-hard {
+    color: #b4232a;
   }
 
   .paper-view {
@@ -577,50 +804,45 @@ const jsonLd = {
     transform: translateX(2px);
   }
 
-  .paper-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
-
-  .chip {
-    padding: 2px var(--space-2);
-    border: 1px solid var(--border);
-    border-radius: 999px;
-    color: var(--body);
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
-    letter-spacing: 0.02em;
-    text-transform: capitalize;
-    white-space: nowrap;
-  }
-
-  .chip-subject {
-    border-color: var(--primary-border);
-    background: var(--primary-surface);
-    color: var(--primary);
-  }
-
-  .chip-pattern {
-    border-color: var(--border-strong);
-    color: var(--ink);
-  }
-
-  .chip-easy {
-    color: var(--primary);
-  }
-
-  .chip-hard {
-    color: #b4232a;
-  }
-
   .nojs-notice {
     margin-top: var(--space-4);
   }
 
   /* --- rail --------------------------------------------------------------------------- */
+  .pp-side {
+    display: grid;
+    gap: var(--space-4);
+    align-content: start;
+  }
+
+  .rail-card {
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .rail-card-tint {
+    background: var(--quote-surface);
+  }
+
+  .rail-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin: 0 0 var(--space-4);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 1.1875rem;
+    font-weight: var(--weight-display);
+  }
+
+  .rail-heading :global(svg) {
+    color: var(--primary);
+  }
+
   .rail-subjects {
-    margin: 0;
+    margin: 0 0 var(--space-4);
     padding: 0;
     list-style: none;
   }
@@ -631,9 +853,8 @@ const jsonLd = {
 
   .rail-subjects a {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-3);
+    align-items: center;
+    gap: var(--space-2);
     padding: var(--space-3) 0;
     color: var(--ink);
     font-size: var(--text-body-sm);
@@ -645,13 +866,27 @@ const jsonLd = {
     color: var(--primary);
   }
 
+  .rail-subjects a > span:first-child {
+    flex: 1;
+    min-width: 0;
+  }
+
   .rail-count {
     flex-shrink: 0;
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
+    font-size: var(--text-body-sm);
     font-variant-numeric: tabular-nums;
-    font-weight: var(--weight-body);
+  }
+
+  .rail-chev {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--faint);
+    transition: color 0.15s var(--ease);
+  }
+
+  .rail-subjects a:hover .rail-chev {
+    color: var(--primary);
   }
 
   .rail-quote {
@@ -661,29 +896,36 @@ const jsonLd = {
   .rail-quote p {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-body-lg);
+    font-size: 1rem;
     font-style: italic;
     font-weight: var(--weight-medium);
-    line-height: 1.4;
+    line-height: 1.5;
     text-wrap: balance;
   }
 
+  .rail-card-tint .quote-rule {
+    margin: var(--space-4) 0 var(--space-3);
+  }
+
   .rail-quote-attr {
-    margin-top: var(--space-3);
+    margin: 0;
     color: var(--mute);
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-size: var(--text-micro);
+    font-weight: var(--weight-medium);
     letter-spacing: var(--track-caps);
     line-height: 1.7;
     text-transform: uppercase;
   }
 
   .rail-help {
+    margin: 0 0 var(--space-3);
     color: var(--body);
     font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
   }
 
   .rail-help-btn {
-    margin-top: var(--space-4);
+    margin-top: var(--space-2);
   }
 </style>

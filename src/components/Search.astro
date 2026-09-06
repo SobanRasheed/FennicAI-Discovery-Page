@@ -110,20 +110,23 @@ const {
     color: var(--primary);
   }
 
-  /* --- hero: taller, with a solid submit button ----------------------- */
+  /* --- hero: 50px tall, with a solid ~102px submit button --------------- */
   .srch-hero {
-    max-width: 36rem;
+    max-width: 38.5625rem; /* 617px, the hero field width from the design */
+    width: 100%;
   }
 
   .srch-hero input {
-    padding-block: var(--space-4);
-    font-size: var(--text-body);
+    padding-block: 0.875rem;
+    font-size: var(--text-body-sm);
   }
 
   .srch-submit {
+    flex-shrink: 0;
+    min-width: 6.375rem;
     height: auto;
     border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-    padding-inline: var(--space-6);
+    padding-inline: 1.5rem;
     font-size: var(--text-body-sm);
   }
 

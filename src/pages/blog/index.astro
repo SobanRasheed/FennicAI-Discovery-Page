@@ -2,16 +2,16 @@
 /**
  * Blog index.
  *
- * Structure follows the design: a hero with article search and a pull-quote,
- * category tabs, a featured article (the most recent post), then the rest as
- * a card grid with a rail of category counts. The search input filters the
- * cards client-side over an embedded index, so it works instantly and still
+ * Structure follows the design: a band hero with article search, a books
+ * illustration and the Yeats pull-quote; category chips with icon squares; a
+ * featured article as an image card; the rest as image-top cards; and a rail
+ * of popular topics, a study tip and where to get new articles. The search
+ * input filters the cards client-side, so it works instantly and still
  * degrades to the full listing without JavaScript.
  */
 import Layout from '../../layouts/Layout.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import Search from '../../components/Search.astro';
-import SidebarPanel from '../../components/SidebarPanel.astro';
 import Icon from '../../components/Icon.astro';
 import { getBlogPosts, getBlogCategories, getCollection } from '../../utils/collections';
 
@@ -40,6 +40,24 @@ const categoryBlurbs: Record<string, string> = {
 
 const categoryLabel = (slug: string) => slug.replace(/-/g, ' ');
 
+/** The design's chip icons, mapped onto the real categories. */
+const categoryIcons: Record<string, string> = {
+  'study-techniques': '/assets/icons/lightbulb.svg',
+  'api-design': '/assets/icons/clipboard-check.svg',
+  databases: '/assets/icons/briefcase.svg',
+};
+
+/**
+ * The blog schema carries no image, so the card illustrations are the
+ * decorative PNGs from the design, committed as real assets.
+ */
+const articleImages = [
+  '/assets/icons/blog-article-stethoscope.png',
+  '/assets/icons/blog-article-anatomy.png',
+  '/assets/icons/blog-article-notes.png',
+];
+const articleImage = (i: number) => articleImages[i % articleImages.length] ?? '';
+
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
   label: s.data.title,
@@ -53,10 +71,12 @@ const footerSubjects = subjects.map((s) => ({
   wide
 >
   <PageHeader
-    kicker="Study &amp; Learning Blog"
+    kicker="Medical Education Blog"
     title="Study Smarter. Go Further."
     lead="Practical guidance, study strategies, and insights to help you succeed in your studies and beyond."
     crumbs={[{ label: 'Home', href: '/' }, { label: 'Blog' }]}
+    tone="band"
+    asideWide
   >
     <div class="blog-search">
       <Search
@@ -68,12 +88,26 @@ const footerSubjects = subjects.map((s) => ({
     </div>
 
     <Fragment slot="aside">
-      <figure class="blog-quote">
-        <blockquote>
-          <p>Education is not the filling of a pail, but the lighting of a fire.</p>
-        </blockquote>
-        <figcaption>W.B. Yeats</figcaption>
-      </figure>
+      <div class="blog-hero-side">
+        <img
+          class="blog-hero-art"
+          src="/assets/icons/blog-hero-books.png"
+          alt=""
+          width="808"
+          height="641"
+          loading="lazy"
+          decoding="async"
+        />
+
+        <figure class="blog-quote">
+          <span class="quote-mark" aria-hidden="true">”</span>
+          <blockquote>
+            <p>Education is not the filling of a pail, but the lighting of a fire.</p>
+          </blockquote>
+          <span class="quote-rule" aria-hidden="true"></span>
+          <figcaption>W.B. Yeats</figcaption>
+        </figure>
+      </div>
     </Fragment>
   </PageHeader>
 
@@ -83,22 +117,37 @@ const footerSubjects = subjects.map((s) => ({
         <ul>
           <li>
             <a href="/blog/" aria-current="page">
-              <span class="cat-title">All Articles</span>
-              <span class="cat-blurb">Latest and popular</span>
+              <span class="cat-art" aria-hidden="true">
+                <img src="/assets/icons/home.svg" alt="" width="18" height="18" />
+              </span>
+              <span class="cat-text">
+                <span class="cat-title">All Articles</span>
+                <span class="cat-blurb">Latest and popular</span>
+              </span>
             </a>
           </li>
           {categories.map((category) => (
             <li>
               <a href={`/blog/category/${category}/`}>
-                <span class="cat-title">{categoryLabel(category)}</span>
-                <span class="cat-blurb">{categoryBlurbs[category] ?? 'Articles'}</span>
+                <span class="cat-art" aria-hidden="true">
+                  <img src={categoryIcons[category] ?? '/assets/icons/heart.svg'} alt="" width="20" height="20" />
+                </span>
+                <span class="cat-text">
+                  <span class="cat-title">{categoryLabel(category)}</span>
+                  <span class="cat-blurb">{categoryBlurbs[category] ?? 'Articles'}</span>
+                </span>
               </a>
             </li>
           ))}
           <li>
             <a href="/blog/archive/">
-              <span class="cat-title">Archive</span>
-              <span class="cat-blurb">Everything, by date</span>
+              <span class="cat-art" aria-hidden="true">
+                <Icon name="book-open" size={18} />
+              </span>
+              <span class="cat-text">
+                <span class="cat-title">Archive</span>
+                <span class="cat-blurb">Everything, by date</span>
+              </span>
             </a>
           </li>
         </ul>
@@ -123,18 +172,33 @@ const footerSubjects = subjects.map((s) => ({
             </div>
 
             <a class="featured-card" href={`/blog/${featured.slug}/`} data-article>
+              <figure class="featured-art">
+                <img
+                  src="/assets/icons/blog-featured.png"
+                  alt=""
+                  width="994"
+                  height="476"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </figure>
               <div class="featured-copy">
-                <span class="kicker">{categoryLabel(featured.data.category)}</span>
+                <span class="tag-pill">{categoryLabel(featured.data.category)}</span>
                 <span class="featured-title">{featured.data.title}</span>
                 <span class="featured-excerpt">{featured.data.description}</span>
                 <span class="featured-meta">
-                  <time datetime={featured.data.publishedDate.toISOString()}>
-                    {fmt(featured.data.publishedDate)}
-                  </time>
-                  <span aria-hidden="true">·</span>
-                  <span>{readingMinutes(featured.body ?? '')} min read</span>
+                  <span class="meta-item">
+                    <img src="/assets/icons/calendar.svg" alt="" width="16" height="16" />
+                    <time datetime={featured.data.publishedDate.toISOString()}>
+                      {fmt(featured.data.publishedDate)}
+                    </time>
+                  </span>
+                  <span class="meta-item">
+                    <img src="/assets/icons/clock-icon.svg" alt="" width="16" height="16" />
+                    <span>{readingMinutes(featured.body ?? '')} min read</span>
+                  </span>
                 </span>
-                <span class="btn btn-secondary featured-btn">Read article</span>
+                <span class="link-arrow featured-cta">Read article</span>
               </div>
             </a>
           </section>
@@ -150,38 +214,57 @@ const footerSubjects = subjects.map((s) => ({
             <a class="link-arrow" href="/blog/archive/">View all articles</a>
           </div>
 
-          {latest.length > 0 ? (
+          {latest.length > 0 && (
             <div class="grid grid-3 article-grid">
-              {latest.map((post) => (
+              {latest.map((post, i) => (
                 <a
                   class="article-card"
                   href={`/blog/${post.slug}/`}
                   data-article
                   data-keywords={`${post.data.title} ${post.data.description} ${categoryLabel(post.data.category)}`.toLowerCase()}
                 >
-                  <span class="kicker">{categoryLabel(post.data.category)}</span>
-                  <span class="article-title">{post.data.title}</span>
-                  <span class="article-excerpt">{post.data.description}</span>
-                  <span class="article-meta">
-                    <time datetime={post.data.publishedDate.toISOString()}>
-                      {fmt(post.data.publishedDate)}
-                    </time>
-                    <span aria-hidden="true">·</span>
-                    <span>{readingMinutes(post.body ?? '')} min read</span>
-                  </span>
+                  <figure class="article-art">
+                    <img
+                      src={articleImage(i)}
+                      alt=""
+                      width="619"
+                      height="235"
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  </figure>
+                  <div class="article-body">
+                    <span class="tag-pill">{categoryLabel(post.data.category)}</span>
+                    <span class="article-title">{post.data.title}</span>
+                    <span class="article-excerpt">{post.data.description}</span>
+                    <span class="article-meta">
+                      <span class="meta-item">
+                        <img src="/assets/icons/calendar.svg" alt="" width="16" height="16" />
+                        <time datetime={post.data.publishedDate.toISOString()}>
+                          {fmt(post.data.publishedDate)}
+                        </time>
+                      </span>
+                      <span class="meta-item">
+                        <img src="/assets/icons/clock-icon.svg" alt="" width="16" height="16" />
+                        <span>{readingMinutes(post.body ?? '')} min read</span>
+                      </span>
+                    </span>
+                  </div>
                 </a>
               ))}
             </div>
-          ) : (
-            <div class="empty-state" data-none hidden>
-              <h3>No matches</h3>
-              <p>
-                No articles match that search. Browse the
-                <a href="/blog/archive/">full archive</a> or read the
-                <a href="/notes/">study notes</a>.
-              </p>
-            </div>
           )}
+
+          {/* Always in the DOM so the live search can reveal it. Hidden by
+              default while there are articles to show. */}
+          <div class="empty-state" data-none hidden={latest.length > 0}>
+            <h3>No matches</h3>
+            <p>
+              No articles match that search. Browse the
+              <a href="/blog/archive/">full archive</a> or read the
+              <a href="/notes/">study notes</a>.
+            </p>
+          </div>
 
           <noscript>
             <p class="nojs-note">
@@ -194,41 +277,56 @@ const footerSubjects = subjects.map((s) => ({
       {/* --- rail ---------------------------------------------------------- */}
       <aside class="blog-side" aria-label="Blog links">
         {categories.length > 0 && (
-          <SidebarPanel heading="Popular topics" icon="layers">
+          <section class="rail-card">
+            <h2 class="rail-heading">
+              <img src="/assets/icons/bar-chart-24.svg" alt="" width="24" height="24" />
+              Popular topics
+            </h2>
             <ul class="rail-topics">
-              {categories.map((category) => (
-                <li>
-                  <a href={`/blog/category/${category}/`}>
-                    <span>{categoryLabel(category)}</span>
-                    <span class="rail-count">
-                      {posts.filter((p) => p.data.category === category).length}
-                      article{posts.filter((p) => p.data.category === category).length === 1 ? '' : 's'}
-                    </span>
-                  </a>
-                </li>
-              ))}
+              {categories.map((category) => {
+                const count = posts.filter((p) => p.data.category === category).length;
+                return (
+                  <li>
+                    <a href={`/blog/category/${category}/`}>
+                      <span class="rail-topic-name">{categoryLabel(category)}</span>
+                      <span class="rail-count">{count}</span>
+                      <span class="rail-chev" aria-hidden="true">
+                        <Icon name="chevron-right" size={16} />
+                      </span>
+                    </a>
+                  </li>
+                );
+              })}
             </ul>
             <a class="link-arrow" href="/blog/archive/">View the archive</a>
-          </SidebarPanel>
+          </section>
         )}
 
-        <SidebarPanel variant="tint" heading="Study tip" icon="bulb">
+        <section class="rail-card rail-card-tint">
+          <h2 class="rail-heading">
+            <img src="/assets/icons/lightbulb.svg" alt="" width="24" height="24" />
+            Study tip
+          </h2>
           <blockquote class="rail-quote">
             <p>“Spaced repetition and active recall are among the most effective learning techniques.”</p>
           </blockquote>
+          <span class="quote-rule" aria-hidden="true"></span>
           <p class="rail-quote-attr">Study Smarter<br />Remember Longer</p>
-        </SidebarPanel>
+        </section>
 
-        <SidebarPanel heading="Get new articles" icon="link">
+        <section class="rail-card">
+          <h2 class="rail-heading">
+            <img src="/assets/icons/envelope.svg" alt="" width="24" height="24" />
+            Get new articles
+          </h2>
           <p class="rail-help">
-            We publish steadily. Browse everything by date, or suggest a topic
-            you would like covered.
+            Stay updated with our latest articles, study tips and resources.
           </p>
           <ul class="chevron-list">
             <li><a href="/blog/archive/">Browse the archive</a></li>
             <li><a href="/contact/">Suggest a topic</a></li>
           </ul>
-        </SidebarPanel>
+        </section>
       </aside>
     </div>
   </div>
@@ -277,16 +375,41 @@ const footerSubjects = subjects.map((s) => ({
 <style>
   .blog-search {
     margin-top: var(--space-6);
-    max-width: 36rem;
+    max-width: 40rem;
   }
 
-  /* The Yeats pull-quote in the header aside. */
+  /* --- header aside: books illustration beside the quote panel ------------ */
+  .blog-hero-side {
+    display: grid;
+    gap: var(--space-4);
+    align-items: center;
+  }
+
+  .blog-hero-art {
+    display: none;
+    width: 100%;
+    aspect-ratio: 808 / 641;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+  }
+
+  /* The Yeats pull-quote on its pearl panel, as in the design. */
   .blog-quote {
+    display: flex;
+    flex-direction: column;
     margin: 0;
     padding: var(--space-6);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
+    border-radius: 6px;
+    background: var(--quote-surface);
+  }
+
+  .quote-mark {
+    color: var(--primary);
+    font-family: var(--font-display);
+    font-size: 2.5rem;
+    font-weight: var(--weight-semibold);
+    line-height: 0.5;
+    margin-bottom: var(--space-4);
   }
 
   .blog-quote blockquote {
@@ -296,23 +419,41 @@ const footerSubjects = subjects.map((s) => ({
   .blog-quote p {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-display-sm);
+    font-size: 1.0625rem;
     font-style: italic;
     font-weight: var(--weight-medium);
-    line-height: 1.35;
+    line-height: 1.5;
     text-wrap: balance;
   }
 
+  .quote-rule {
+    width: 26px;
+    height: 2px;
+    margin: var(--space-5) 0 var(--space-3);
+    background: var(--primary);
+  }
+
   .blog-quote figcaption {
-    margin-top: var(--space-3);
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    letter-spacing: var(--track-caps);
+    font-family: var(--font-sans);
+    font-size: 0.6563rem;
+    font-weight: var(--weight-medium);
+    letter-spacing: 0.14em;
     text-transform: uppercase;
   }
 
-  /* --- category tabs ---------------------------------------------------- */
+  @media (min-width: 1024px) {
+    .blog-hero-side {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 15.5rem);
+      gap: var(--space-4);
+    }
+
+    .blog-hero-art {
+      display: block;
+    }
+  }
+
+  /* --- category chips ---------------------------------------------------- */
   .cats {
     border-bottom: 1px solid var(--border);
     background: var(--surface);
@@ -320,7 +461,6 @@ const footerSubjects = subjects.map((s) => ({
 
   .cats ul {
     display: flex;
-    gap: var(--space-1);
     margin: 0;
     padding: 0;
     overflow-x: auto;
@@ -332,37 +472,61 @@ const footerSubjects = subjects.map((s) => ({
     display: none;
   }
 
+  /* Hairline dividers between the chips, as in the design. */
+  .cats li + li {
+    border-left: 1px solid var(--border);
+  }
+
   .cats a {
-    display: grid;
-    gap: 2px;
-    padding: var(--space-4) var(--space-3);
-    border-bottom: 2px solid transparent;
+    display: flex;
+    flex: 1 0 auto;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
     color: var(--body);
     text-decoration: none;
     white-space: nowrap;
-    text-transform: capitalize;
-    transition: color 0.15s var(--ease), border-color 0.15s var(--ease);
+    transition: background-color 0.15s var(--ease);
   }
 
   .cats a:hover {
-    border-bottom-color: var(--primary-border);
-    color: var(--primary);
+    background: var(--band);
   }
 
   .cats a[aria-current='page'] {
-    border-bottom-color: var(--primary);
+    background: var(--quote-surface);
+  }
+
+  .cat-art {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    background: var(--quote-surface);
     color: var(--primary);
+  }
+
+  .cats a[aria-current='page'] .cat-art {
+    background: var(--primary);
+  }
+
+  .cat-text {
+    display: grid;
+    gap: 2px;
   }
 
   .cat-title {
     font-size: var(--text-body-sm);
     font-weight: var(--weight-semibold);
+    text-transform: capitalize;
   }
 
   .cat-blurb {
     color: var(--mute);
     font-size: var(--text-caption);
-    text-transform: none;
   }
 
   /* --- layout ------------------------------------------------------------- */
@@ -397,13 +561,35 @@ const footerSubjects = subjects.map((s) => ({
     display: none;
   }
 
+  /* --- shared card bits ------------------------------------------------------ */
+  .tag-pill {
+    justify-self: start;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--quote-surface);
+    color: var(--primary);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--mute);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+  }
+
   /* --- featured card --------------------------------------------------------- */
   .featured-card {
-    display: block;
-    padding: var(--space-8) var(--space-10);
+    display: grid;
+    overflow: hidden;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
-    background: var(--primary-surface);
+    background: var(--surface);
     color: inherit;
     text-decoration: none;
     transition: border-color 0.15s var(--ease);
@@ -413,16 +599,43 @@ const footerSubjects = subjects.map((s) => ({
     border-color: var(--primary-border);
   }
 
+  .featured-art {
+    margin: 0;
+  }
+
+  .featured-art img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 994 / 476;
+    object-fit: cover;
+  }
+
   .featured-copy {
     display: grid;
-    gap: var(--space-2);
-    max-width: 46rem;
+    gap: var(--space-3);
+    align-content: center;
+    padding: var(--space-6);
+  }
+
+  @media (min-width: 768px) {
+    .featured-card {
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    }
+
+    .featured-art img {
+      height: 100%;
+      aspect-ratio: auto;
+    }
+
+    .featured-copy {
+      padding: var(--space-8);
+    }
   }
 
   .featured-title {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: clamp(1.5rem, 1.3rem + 1vw, 2rem);
+    font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.4375rem);
     font-weight: var(--weight-semibold);
     line-height: var(--leading-snug);
     text-wrap: balance;
@@ -435,24 +648,20 @@ const footerSubjects = subjects.map((s) => ({
 
   .featured-excerpt {
     color: var(--body);
-    font-size: var(--text-body);
+    font-size: var(--text-body-sm);
     line-height: var(--leading-normal);
   }
 
   .featured-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2);
-    margin-top: var(--space-2);
-    color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    font-variant-numeric: tabular-nums;
+    gap: var(--space-2) var(--space-4);
   }
 
-  .featured-btn {
-    margin-top: var(--space-4);
-    justify-self: start;
+  .featured-cta {
+    margin-top: var(--space-2);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-semibold);
   }
 
   /* --- article cards ------------------------------------------------------------ */
@@ -461,10 +670,9 @@ const footerSubjects = subjects.map((s) => ({
   }
 
   .article-card {
-    display: grid;
-    gap: var(--space-2);
-    align-content: start;
-    padding: var(--space-5) var(--space-6);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--surface);
@@ -478,12 +686,34 @@ const footerSubjects = subjects.map((s) => ({
     background: var(--primary-surface);
   }
 
+  .article-art {
+    margin: 0;
+  }
+
+  .article-art img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 619 / 235;
+    object-fit: cover;
+  }
+
+  .article-body {
+    display: grid;
+    gap: var(--space-2);
+    align-content: start;
+    padding: var(--space-5);
+  }
+
   .article-title {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-body-lg);
+    font-size: 1.0625rem;
     font-weight: var(--weight-semibold);
     line-height: var(--leading-snug);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
     transition: color 0.15s var(--ease);
   }
 
@@ -492,20 +722,20 @@ const footerSubjects = subjects.map((s) => ({
   }
 
   .article-excerpt {
-    color: var(--body);
-    font-size: var(--text-body-sm);
+    color: var(--mute);
+    font-size: 0.8125rem;
     line-height: var(--leading-normal);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
   }
 
   .article-meta {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-2);
-    margin-top: var(--space-2);
-    color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    font-variant-numeric: tabular-nums;
+    gap: var(--space-2) var(--space-4);
+    margin-top: var(--space-1);
   }
 
   .nojs-note {
@@ -515,8 +745,36 @@ const footerSubjects = subjects.map((s) => ({
   }
 
   /* --- rail ------------------------------------------------------------------------ */
+  .blog-side {
+    display: grid;
+    gap: var(--space-4);
+    align-content: start;
+  }
+
+  .rail-card {
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .rail-card-tint {
+    background: var(--quote-surface);
+  }
+
+  .rail-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin: 0 0 var(--space-4);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 1.1875rem;
+    font-weight: var(--weight-display);
+  }
+
   .rail-topics {
-    margin: 0;
+    margin: 0 0 var(--space-4);
     padding: 0;
     list-style: none;
   }
@@ -527,29 +785,42 @@ const footerSubjects = subjects.map((s) => ({
 
   .rail-topics a {
     display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-3);
+    align-items: center;
+    gap: var(--space-2);
     padding: var(--space-3) 0;
     color: var(--ink);
     font-size: var(--text-body-sm);
     font-weight: var(--weight-medium);
     text-decoration: none;
     text-transform: capitalize;
+    transition: color 0.15s var(--ease);
   }
 
   .rail-topics a:hover {
     color: var(--primary);
   }
 
+  .rail-topic-name {
+    flex: 1;
+    min-width: 0;
+  }
+
   .rail-count {
     flex-shrink: 0;
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
+    font-size: var(--text-body-sm);
     font-variant-numeric: tabular-nums;
-    font-weight: var(--weight-body);
-    text-transform: none;
+  }
+
+  .rail-chev {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--faint);
+    transition: color 0.15s var(--ease);
+  }
+
+  .rail-topics a:hover .rail-chev {
+    color: var(--primary);
   }
 
   .rail-quote {
@@ -559,25 +830,32 @@ const footerSubjects = subjects.map((s) => ({
   .rail-quote p {
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-body-lg);
+    font-size: 1rem;
     font-style: italic;
     font-weight: var(--weight-medium);
-    line-height: 1.4;
+    line-height: 1.5;
     text-wrap: balance;
   }
 
+  .rail-card-tint .quote-rule {
+    margin: var(--space-4) 0 var(--space-3);
+  }
+
   .rail-quote-attr {
-    margin-top: var(--space-3);
+    margin: 0;
     color: var(--mute);
-    font-family: var(--font-mono);
+    font-family: var(--font-sans);
     font-size: var(--text-micro);
+    font-weight: var(--weight-medium);
     letter-spacing: var(--track-caps);
     line-height: 1.7;
     text-transform: uppercase;
   }
 
   .rail-help {
+    margin: 0 0 var(--space-3);
     color: var(--body);
     font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
   }
 </style>

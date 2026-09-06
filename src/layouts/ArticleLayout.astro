@@ -39,6 +39,7 @@ const {
 
 const hasRail = Astro.slots.has('rail');
 const hasSidebar = Astro.slots.has('sidebar');
+const hasHero = Astro.slots.has('hero');
 ---
 
 <Layout
@@ -52,12 +53,23 @@ const hasSidebar = Astro.slots.has('sidebar');
   {footerSubjects}
   wide
 >
-  {crumbs.length > 0 && (
-    <div class="art-crumbs">
+  {hasHero ? (
+    <div class="art-hero">
       <div class="container">
-        <Breadcrumbs {crumbs} schema={crumbSchema} />
+        {crumbs.length > 0 && (
+          <div class="art-hero-crumbs"><Breadcrumbs {crumbs} schema={crumbSchema} /></div>
+        )}
+        <slot name="hero" />
       </div>
     </div>
+  ) : (
+    crumbs.length > 0 && (
+      <div class="art-crumbs">
+        <div class="container">
+          <Breadcrumbs {crumbs} schema={crumbSchema} />
+        </div>
+      </div>
+    )
   )}
 
   <div class="container">
@@ -88,6 +100,16 @@ const hasSidebar = Astro.slots.has('sidebar');
     padding-block: var(--space-3);
     border-bottom: 1px solid var(--border);
     background: var(--surface);
+  }
+
+  /* Band hero: a tinted panel above the reading grid for articles that open
+     with a headline, byline, and hero art rather than a plain header. */
+  .art-hero {
+    background: var(--band);
+  }
+
+  .art-hero-crumbs {
+    padding-block: var(--space-3);
   }
 
   .art {

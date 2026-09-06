@@ -1,14 +1,12 @@
 ---
 /**
- * A blog article. Same reading shell as a study note, but the sidebar carries
- * related notes and the author rather than quick facts, since an article has
- * no chapter taxonomy behind it.
+ * A blog article. Opens with a band hero — tag pill, serif headline, byline
+ * with the author's initials, and hero art — then the same reading shell as a
+ * study note. The left rail carries the contents, share links, and a quote;
+ * the right rail carries related reading and practice links.
  */
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
-import ArticleHeader from '../../components/ArticleHeader.astro';
 import TableOfContents from '../../components/TableOfContents.astro';
-import SidebarPanel from '../../components/SidebarPanel.astro';
-import RelatedContent from '../../components/RelatedContent.astro';
 import ReferenceList from '../../components/ReferenceList.astro';
 import Faq from '../../components/Faq.astro';
 import JsonLd from '../../components/JsonLd.astro';
@@ -42,7 +40,7 @@ const older = index < allPosts.length - 1 ? allPosts[index + 1] : undefined;
 
 const relatedPosts = allPosts
   .filter((p) => p.slug !== post.slug && p.data.topics.some((t) => data.topics.includes(t)))
-  .slice(0, 4);
+  .slice(0, 3);
 
 const tocHeadings = [
   ...headings.filter((h) => h.depth === 2 || h.depth === 3),
@@ -55,11 +53,45 @@ const categoryLabel = data.category.replace(/-/g, ' ');
 const title = data.seoTitle ?? data.title;
 const site = Astro.site!;
 
+const fmt = (d: Date) =>
+  d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
 /** Reading time at 200 words per minute, from the raw markdown. */
-const readingMinutes = Math.max(
-  1,
-  Math.round((post.body ?? '').split(/\s+/).filter(Boolean).length / 200),
-);
+const readingMinutesOf = (body: string) =>
+  Math.max(1, Math.round(body.split(/\s+/).filter(Boolean).length / 200));
+const readingMinutes = readingMinutesOf(post.body ?? '');
+
+const initials = (author?.data.title ?? 'Medical Study Notes')
+  .split(/\s+/)
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((word) => word.charAt(0))
+  .join('')
+  .toUpperCase();
+
+// Real share intents for the rail card — only the copy-link button needs JS.
+const canonical = new URL(`/blog/${post.slug}/`, site).href;
+const shareTitle = encodeURIComponent(data.title);
+const shareUrl = encodeURIComponent(canonical);
+const xShare = `https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareTitle}`;
+const linkedinShare = `https://www.linkedin.com/sharing/share-offsite/?url=${shareUrl}`;
+const facebookShare = `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`;
+const emailShare = `mailto:?subject=${shareTitle}&body=${shareUrl}`;
+
+// Category counts across all posts, for the Popular topics card.
+const categoryCounts = new Map<string, number>();
+for (const p of allPosts) {
+  categoryCounts.set(p.data.category, (categoryCounts.get(p.data.category) ?? 0) + 1);
+}
+const popularTopics = [...categoryCounts.entries()].sort((a, b) => b[1] - a[1]);
+
+// Decorative art for the related-article rows (the blog schema has no image
+// field, so committed design assets stand in and are marked presentational).
+const relatedImages = [
+  '/assets/icons/related-notes.png',
+  '/assets/icons/related-anatomy.png',
+  '/assets/icons/related-exam.png',
+];
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
@@ -87,7 +119,7 @@ const articleSchema = {
   },
   mainEntityOfPage: {
     '@type': 'WebPage',
-    '@id': new URL(`/blog/${post.slug}/`, site).href,
+    '@id': canonical,
   },
   articleSection: data.category,
 };
@@ -109,42 +141,131 @@ const articleSchema = {
 >
   <JsonLd data={articleSchema} />
 
+  {/* --- band hero: tag / headline / lead / byline / art ------------------- */}
+  <Fragment slot="hero">
+    <div class="post-hero">
+      <div class="post-hero-copy">
+        <a class="tag-pill" href={`/blog/category/${data.category}/`}>{categoryLabel}</a>
+        <h1 class="post-hero-title">{data.title}</h1>
+        <p class="post-hero-lead">{data.description}</p>
+
+        <div class="post-byline">
+          {author && (
+            <span class="byline-who">
+              <span class="byline-avatar" aria-hidden="true">{initials}</span>
+              <span class="byline-text">
+                <a class="byline-name" href={`/authors/${author.slug}/`}>{author.data.title}</a>
+                <span class="byline-role">{author.data.role}</span>
+              </span>
+            </span>
+          )}
+          <span class="meta-item">
+            <img src="/assets/icons/calendar.svg" width="16" height="16" alt="" />
+            <time datetime={isoDate(data.publishedDate)}>{fmt(data.publishedDate)}</time>
+          </span>
+          <span class="meta-item">
+            <img src="/assets/icons/clock-icon.svg" width="16" height="16" alt="" />
+            {readingMinutes} min read
+          </span>
+          <button
+            class="save-btn"
+            type="button"
+            data-action="save"
+            data-save-slug={post.slug}
+            aria-pressed="false"
+          >
+            <Icon name="bookmark" size={15} />
+            <span data-save-label>Save article</span>
+            <span class="save-feedback" data-feedback="save" role="status"></span>
+          </button>
+        </div>
+      </div>
+
+      <img
+        class="post-hero-art"
+        src="/assets/icons/blog-article-hero.png"
+        width="326"
+        height="320"
+        alt=""
+        loading="lazy"
+      />
+    </div>
+  </Fragment>
+
+  {/* --- left rail: contents / share / quote ------------------------------- */}
   {tocHeadings.length >= 3 && (
     <Fragment slot="rail">
-      <TableOfContents headings={tocHeadings} numbered={false} />
+      <div class="rail-box">
+        <TableOfContents headings={tocHeadings} numbered={false} />
+      </div>
+
+      <div class="rail-card">
+        <h2 class="rail-heading">
+          <img src="/assets/icons/share-link.svg" width="24" height="24" alt="" />
+          Share this article
+        </h2>
+        <ul class="share-row" role="list">
+          <li>
+            <button class="share-btn" type="button" data-action="share" aria-label="Copy link">
+              <img src="/assets/icons/share-link.svg" width="20" height="20" alt="" />
+            </button>
+          </li>
+          <li>
+            <a
+              class="share-btn"
+              href={xShare}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Share on X"
+            >
+              <img src="/assets/icons/x-twitter.svg" width="18" height="18" alt="" />
+            </a>
+          </li>
+          <li>
+            <a
+              class="share-btn"
+              href={linkedinShare}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Share on LinkedIn"
+            >
+              <img src="/assets/icons/linkedin.svg" width="20" height="20" alt="" />
+            </a>
+          </li>
+          <li>
+            <a
+              class="share-btn"
+              href={facebookShare}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Share on Facebook"
+            >
+              <img src="/assets/icons/facebook.svg" width="20" height="20" alt="" />
+            </a>
+          </li>
+          <li>
+            <a class="share-btn" href={emailShare} aria-label="Share by email">
+              <img src="/assets/icons/envelope.svg" width="20" height="20" alt="" />
+            </a>
+          </li>
+        </ul>
+        <span class="share-feedback" data-feedback="share" role="status"></span>
+      </div>
+
+      <div class="rail-card rail-card-tint">
+        <figure class="rail-quote">
+          <span class="quote-mark" aria-hidden="true">&rdquo;</span>
+          <blockquote>
+            <p>Discipline today builds the doctor you hope to be tomorrow.</p>
+          </blockquote>
+          <span class="quote-rule" aria-hidden="true"></span>
+          <figcaption>Unknown</figcaption>
+        </figure>
+      </div>
     </Fragment>
   )}
 
-  {/* --- article actions: share / print / save --------------------------- */}
-  <div class="article-actions" role="group" aria-label="Article actions">
-    <button class="action-btn" type="button" data-action="share">
-      <Icon name="share" size={15} />
-      <span>Share</span>
-      <span class="action-feedback" data-feedback="share" role="status"></span>
-    </button>
-    <button class="action-btn" type="button" data-action="print">
-      <Icon name="print" size={15} />
-      <span>Print</span>
-    </button>
-    <button class="action-btn" type="button" data-action="save" data-save-slug={post.slug}>
-      <Icon name="bookmark" size={15} />
-      <span data-save-label>Save article</span>
-      <span class="action-feedback" data-feedback="save" role="status"></span>
-    </button>
-  </div>
-
-  <ArticleHeader
-    title={data.title}
-    kicker={categoryLabel}
-    kickerHref={`/blog/category/${data.category}/`}
-    standfirst={data.description}
-    published={data.publishedDate}
-    updated={data.updatedDate}
-    readingMinutes={readingMinutes}
-    author={author?.data.title}
-    authorHref={author ? `/authors/${author.slug}/` : undefined}
-  />
-
+  {/* --- article body ------------------------------------------------------ */}
   <div class="prose post-body">
     <PostBody />
   </div>
@@ -181,58 +302,108 @@ const articleSchema = {
 
   <Faq faqs={data.faqs} level={2} id="post-faq" />
 
+  {/* --- right rail: related reading / topics / practice ------------------- */}
   <Fragment slot="sidebar">
-    {relatedNotes.length > 0 && (
-      <SidebarPanel heading="Related study notes" icon="book">
-        <RelatedContent
-          items={relatedNotes.map((n) => ({
-            href: `/notes/${n.slug}/`,
-            title: n.data.title,
-            context: subjects.find((s) => s.slug === n.data.subject)?.data.title,
-          }))}
-          variant="list"
-          heading=""
-          level={3}
-          id="side-notes"
-        />
-      </SidebarPanel>
-    )}
-
     {relatedPosts.length > 0 && (
-      <SidebarPanel heading="Related articles" icon="notes">
-        <RelatedContent
-          items={relatedPosts.map((p) => ({
-            href: `/blog/${p.slug}/`,
-            title: p.data.title,
-            context: p.data.category.replace(/-/g, ' '),
-          }))}
-          variant="list"
-          heading=""
-          level={3}
-          id="side-posts"
-        />
-      </SidebarPanel>
+      <div class="rail-card">
+        <h2 class="rail-heading">
+          <Icon name="notes" size={22} />
+          Related articles
+        </h2>
+        <ul class="rail-posts" role="list">
+          {relatedPosts.map((p, i) => (
+            <li>
+              <a class="rail-post" href={`/blog/${p.slug}/`}>
+                <img
+                  class="rail-post-art"
+                  src={relatedImages[i % relatedImages.length]}
+                  width="112"
+                  height="96"
+                  alt=""
+                  loading="lazy"
+                />
+                <span class="rail-post-body">
+                  <span class="tag-pill">{p.data.category.replace(/-/g, ' ')}</span>
+                  <span class="rail-post-title">{p.data.title}</span>
+                  <span class="rail-post-meta">{readingMinutesOf(p.body ?? '')} min read</span>
+                </span>
+                <span class="rail-chev"><Icon name="chevron-right" size={16} /></span>
+              </a>
+            </li>
+          ))}
+        </ul>
+        <a class="link-arrow rail-all" href="/blog/">View all articles</a>
+      </div>
     )}
 
-    <SidebarPanel variant="tint" heading="Practice what you learn" icon="question">
-      <p class="practice-copy">
+    {relatedNotes.length > 0 && (
+      <div class="rail-card">
+        <h2 class="rail-heading">
+          <Icon name="book" size={22} />
+          Related study notes
+        </h2>
+        <ul class="rail-notes" role="list">
+          {relatedNotes.map((n) => (
+            <li>
+              <a href={`/notes/${n.slug}/`}>
+                <span class="rail-note-title">{n.data.title}</span>
+                <span class="rail-note-ctx">
+                  {subjects.find((s) => s.slug === n.data.subject)?.data.title}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+
+    {popularTopics.length > 0 && (
+      <div class="rail-card">
+        <h2 class="rail-heading">
+          <img src="/assets/icons/bar-chart-24.svg" width="24" height="24" alt="" />
+          Popular topics
+        </h2>
+        <ul class="rail-topics" role="list">
+          {popularTopics.map(([slug, count]) => (
+            <li>
+              <a href={`/blog/category/${slug}/`}>
+                <span class="rail-topic-name">{slug.replace(/-/g, ' ')}</span>
+                <span class="rail-count">{count}</span>
+                <span class="rail-chev"><Icon name="chevron-right" size={16} /></span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )}
+
+    <div class="rail-card">
+      <h2 class="rail-heading">
+        <img src="/assets/icons/envelope.svg" width="24" height="24" alt="" />
+        Get new articles
+      </h2>
+      <p class="rail-help">
+        Stay updated with our latest articles, study tips and resources.
+      </p>
+      <ul class="chevron-list">
+        <li><a href="/blog/archive/">Browse the archive</a></li>
+        <li><a href="/contact/">Suggest a topic</a></li>
+      </ul>
+    </div>
+
+    <div class="rail-card">
+      <h2 class="rail-heading">
+        <Icon name="target" size={22} />
+        Practice what you learn
+      </h2>
+      <p class="rail-help">
         Test your knowledge with subject-wise MCQs and track your progress.
       </p>
       <a class="btn btn-secondary practice-btn" href="/practice/">Start Practicing</a>
-    </SidebarPanel>
-
-    <SidebarPanel heading="Keep reading" icon="link">
-      <ul class="chevron-list">
-        <li><a href="/blog/">All articles</a></li>
-        <li><a href="/notes/">Study notes</a></li>
-        <li><a href="/practice/">Practice questions</a></li>
-        <li><a href="/editorial-policy/">Editorial policy</a></li>
-      </ul>
-    </SidebarPanel>
+    </div>
   </Fragment>
 
   <script>
-    const actions = document.querySelector<HTMLElement>('[data-action]')?.parentElement;
     const SAVE_KEY = 'msn:saved-articles';
 
     const savedList = (): { slug: string; title: string; href: string }[] => {
@@ -272,28 +443,18 @@ const articleSchema = {
       saveLabel.textContent = isSaved ? 'Saved' : 'Save article';
     };
 
-    actions?.addEventListener('click', async (event) => {
-      const btn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-action]');
+    document.addEventListener('click', async (event) => {
+      const btn = (event.target as HTMLElement).closest<HTMLElement>('[data-action]');
       if (!btn) return;
 
       const action = btn.dataset.action;
 
-      if (action === 'print') {
-        window.print();
-        return;
-      }
-
       if (action === 'share') {
-        const url = location.href;
         try {
-          if (navigator.share) {
-            await navigator.share({ title: document.title, url });
-            return;
-          }
-          await navigator.clipboard.writeText(url);
+          await navigator.clipboard.writeText(location.href);
           flash('share', 'Link copied!');
         } catch {
-          /* user cancelled the share sheet, or clipboard denied */
+          /* clipboard denied — nothing to fall back to silently */
         }
         return;
       }
@@ -324,19 +485,121 @@ const articleSchema = {
 </ArticleLayout>
 
 <style>
-  /* --- article actions --------------------------------------------------- */
-  .article-actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    margin-bottom: var(--space-6);
+  /* --- band hero ----------------------------------------------------------- */
+  .post-hero {
+    display: grid;
+    gap: var(--space-6);
+    padding-block: var(--space-6) var(--space-8);
   }
 
-  .action-btn {
+  .post-hero-copy {
+    display: grid;
+    gap: var(--space-4);
+    min-width: 0;
+  }
+
+  .tag-pill {
+    justify-self: start;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: var(--quote-surface);
+    color: var(--primary);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-semibold);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+    text-decoration: none;
+  }
+
+  .post-hero-title {
+    margin: 0;
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: clamp(1.75rem, 1.3rem + 2vw, 2.5rem);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    text-wrap: balance;
+  }
+
+  .post-hero-lead {
+    margin: 0;
+    max-width: 60ch;
+    color: var(--body);
+    font-size: var(--text-body-lg);
+    line-height: var(--leading-normal);
+  }
+
+  .post-byline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-3) var(--space-4);
+    margin-top: var(--space-2);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--border);
+  }
+
+  .byline-who {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .byline-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--quote-surface);
+    color: var(--primary);
+    font-size: .8125rem;
+    font-weight: var(--weight-semibold);
+    letter-spacing: .04em;
+  }
+
+  .byline-text {
+    display: grid;
+    gap: 1px;
+  }
+
+  .byline-name {
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-semibold);
+    text-decoration: none;
+  }
+
+  .byline-name:hover {
+    color: var(--primary);
+  }
+
+  .byline-role {
+    color: var(--mute);
+    font-size: var(--text-caption);
+  }
+
+  .meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--mute);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .meta-item img {
+    display: block;
+  }
+
+  .save-btn {
     position: relative;
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
+    margin-left: auto;
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--border);
     border-radius: var(--radius-sm);
@@ -350,27 +613,27 @@ const articleSchema = {
       color 0.15s var(--ease);
   }
 
-  .action-btn:hover {
+  .save-btn:hover {
     border-color: var(--border-strong);
     color: var(--ink);
   }
 
-  .action-btn svg {
+  .save-btn :global(svg) {
     color: var(--primary);
   }
 
-  .action-btn.is-saved {
+  .save-btn.is-saved {
     border-color: var(--primary-border);
     background: var(--primary-surface);
     color: var(--primary);
   }
 
-  .action-btn:focus-visible {
+  .save-btn:focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
 
-  .action-feedback {
+  .save-feedback {
     position: absolute;
     top: 100%;
     left: 0;
@@ -384,19 +647,342 @@ const articleSchema = {
     pointer-events: none;
   }
 
-  /* --- practice panel ------------------------------------------------------ */
-  .practice-copy {
+  .post-hero-art {
+    display: none;
+    width: 100%;
+    aspect-ratio: 326 / 320;
+    object-fit: cover;
+    border-radius: var(--radius-md);
+  }
+
+  @media (min-width: 1024px) {
+    .post-hero {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 17rem);
+      align-items: center;
+      gap: var(--space-10);
+    }
+
+    .post-hero-art {
+      display: block;
+    }
+  }
+
+  /* --- left rail ----------------------------------------------------------- */
+  .rail-box {
+    padding: var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  /* Below 1024px the table of contents renders its own bordered disclosure
+     card, so the wrapper would just double the frame. */
+  @media (max-width: 1023px) {
+    .rail-box {
+      padding: 0;
+      border: 0;
+      background: none;
+    }
+  }
+
+  .share-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .share-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: var(--quote-surface);
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .share-btn:hover {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  .share-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .share-feedback {
+    display: block;
+    margin-top: var(--space-2);
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .share-feedback:empty {
+    display: none;
+  }
+
+  .rail-quote {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+  }
+
+  .quote-mark {
+    color: var(--primary);
+    font-family: var(--font-display);
+    font-size: 2.5rem;
+    font-weight: var(--weight-semibold);
+    line-height: .5;
+    margin-bottom: var(--space-4);
+  }
+
+  .rail-quote blockquote {
+    margin: 0;
+  }
+
+  .rail-quote p {
     color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.5;
+    text-wrap: balance;
+  }
+
+  .quote-rule {
+    width: 26px;
+    height: 2px;
+    margin: var(--space-4) 0 var(--space-3);
+    background: var(--primary);
+  }
+
+  .rail-quote figcaption {
+    color: var(--mute);
+    font-family: var(--font-sans);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--track-caps);
+    line-height: 1.7;
+    text-transform: uppercase;
+  }
+
+  /* --- right rail ----------------------------------------------------------- */
+  .rail-card {
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .rail-card-tint {
+    background: var(--quote-surface);
+  }
+
+  .rail-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin: 0 0 var(--space-4);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 1.1875rem;
+    font-weight: var(--weight-display);
+  }
+
+  .rail-heading :global(svg) {
+    flex-shrink: 0;
+    color: var(--primary);
+  }
+
+  .rail-posts {
+    display: grid;
+    gap: var(--space-4);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rail-posts li + li {
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-4);
+  }
+
+  .rail-post {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .rail-post-art {
+    display: block;
+    flex-shrink: 0;
+    width: 96px;
+    aspect-ratio: 112 / 96;
+    object-fit: cover;
+    border-radius: var(--radius-sm);
+  }
+
+  @media (min-width: 1280px) {
+    .rail-post-art {
+      width: 112px;
+    }
+  }
+
+  .rail-post-body {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .rail-post .tag-pill {
+    justify-self: start;
+    padding: 2px 8px;
+  }
+
+  .rail-post-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: .9375rem;
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    transition: color 0.15s var(--ease);
+  }
+
+  .rail-post:hover .rail-post-title {
+    color: var(--primary);
+  }
+
+  .rail-post-meta {
+    color: var(--mute);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rail-chev {
+    display: inline-flex;
+    flex-shrink: 0;
+    margin-left: auto;
+    color: var(--faint);
+    transition: color 0.15s var(--ease);
+  }
+
+  .rail-post:hover .rail-chev {
+    color: var(--primary);
+  }
+
+  .rail-all {
+    display: inline-block;
+    margin-top: var(--space-4);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  .rail-notes {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rail-notes a {
+    display: grid;
+    gap: 2px;
+    text-decoration: none;
+  }
+
+  .rail-note-title {
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    transition: color 0.15s var(--ease);
+  }
+
+  .rail-notes a:hover .rail-note-title {
+    color: var(--primary);
+  }
+
+  .rail-note-ctx {
+    color: var(--mute);
+    font-size: var(--text-caption);
+  }
+
+  .rail-topics {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rail-topics a {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+    text-transform: capitalize;
+    transition: color 0.15s var(--ease);
+  }
+
+  .rail-topics a:hover {
+    color: var(--primary);
+  }
+
+  .rail-topic-name {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .rail-count {
+    flex-shrink: 0;
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .rail-topics .rail-chev {
+    margin-left: 0;
+    color: var(--faint);
+  }
+
+  .rail-topics a:hover .rail-chev {
+    color: var(--primary);
+  }
+
+  .rail-help {
+    margin: 0 0 var(--space-3);
+    color: var(--body);
     font-size: var(--text-body-sm);
     line-height: var(--leading-normal);
   }
 
   .practice-btn {
-    margin-top: var(--space-4);
+    margin-top: var(--space-2);
   }
 
+  /* --- article body ----------------------------------------------------------- */
   .post-body {
-    margin-top: var(--space-8);
+    margin-top: 0;
   }
 
   /* --- prev / next ----------------------------------------------------- */
@@ -445,7 +1031,7 @@ const articleSchema = {
     text-transform: uppercase;
   }
 
-  .pn-prev .pn-label svg {
+  .pn-prev .pn-label :global(svg) {
     transform: rotate(180deg);
   }
 

@@ -3,6 +3,10 @@
  * /register/ — the public "Create account" screen. Presentational for now:
  * student accounts aren't provisioned yet, so the form posts nowhere and the
  * page is noindexed.
+ *
+ * The card's shared styling (title, fields, OR divider, social buttons,
+ * switch line, security note) lives in AuthLayout; only the consent checkbox
+ * row is specific to this page.
  */
 import AuthLayout from '../layouts/AuthLayout.astro';
 import Icon from '../components/Icon.astro';
@@ -15,6 +19,7 @@ const social = ['Google', 'Apple', 'Microsoft'];
   description="Create a free Medical Study Notes account to save notes, track your quiz performance, and personalize your learning experience."
   path="/register/"
   kicker="Create account"
+  crumb="Register"
   headingLines={['Start Your Medical', 'Learning Journey']}
   lead="Create a free account to save notes, track your quiz performance, and personalize your learning experience."
   quote="Every expert was once a beginner. Start today, stay consistent, and keep going."
@@ -70,47 +75,26 @@ const social = ['Google', 'Apple', 'Microsoft'];
   </div>
 
   <p class="auth-secure">
-    <Icon name="shield" size={14} />
-    <span><strong>Your data is secure</strong> — we use industry-standard encryption to keep your information safe.</span>
+    <Icon name="shield" size={22} />
+    <span><strong>Your data is secure</strong>We use industry-standard encryption to keep your information safe.</span>
   </p>
 </AuthLayout>
 
 <style>
-  .auth-card {
-    padding: var(--space-8);
-  }
-
-  .auth-card-title {
-    font-size: var(--text-display-sm);
-  }
-
-  .auth-card-sub {
-    margin-top: var(--space-2);
-    color: var(--mute);
-    font-size: var(--text-body-sm);
-  }
-
-  .auth-form {
-    display: grid;
-    gap: var(--space-5);
-    margin-top: var(--space-6);
-  }
-
-  .auth-form .field > label span {
-    color: var(--danger);
-  }
-
   .auth-consent {
     display: flex;
     align-items: flex-start;
     gap: var(--space-3);
     margin-top: var(--space-1);
     color: var(--body);
-    font-size: var(--text-body-sm);
+    font-size: var(--text-caption);
   }
 
   .auth-consent input {
-    margin-top: 0.2em;
+    width: 16px;
+    height: 16px;
+    margin-top: 0.15em;
+    border-radius: 4px;
     accent-color: var(--primary);
   }
 
@@ -121,76 +105,5 @@ const social = ['Google', 'Apple', 'Microsoft'];
 
   .auth-consent a:hover {
     text-decoration: underline;
-  }
-
-  .auth-submit {
-    width: 100%;
-  }
-
-  .auth-or {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    margin: var(--space-6) 0;
-    color: var(--faint);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    text-align: center;
-  }
-
-  .auth-or::before,
-  .auth-or::after {
-    content: '';
-    flex: 1;
-    border-top: 1px solid var(--border);
-  }
-
-  .auth-social {
-    display: grid;
-    gap: var(--space-3);
-  }
-
-  .auth-social-btn {
-    width: 100%;
-  }
-
-  .auth-switch {
-    margin: var(--space-6) 0 0;
-    color: var(--mute);
-    font-size: var(--text-body-sm);
-    text-align: center;
-  }
-
-  .auth-switch a {
-    color: var(--primary);
-    font-weight: var(--weight-medium);
-    text-decoration: none;
-  }
-
-  .auth-switch a:hover {
-    text-decoration: underline;
-  }
-
-  .auth-secure {
-    display: flex;
-    align-items: flex-start;
-    gap: var(--space-2);
-    margin-top: var(--space-5);
-    padding: var(--space-4);
-    border: 1px solid var(--primary-border);
-    border-radius: var(--radius-md);
-    background: var(--primary-surface);
-    color: var(--mute);
-    font-size: var(--text-caption);
-  }
-
-  .auth-secure svg {
-    flex-shrink: 0;
-    margin-top: 0.15em;
-    color: var(--primary);
-  }
-
-  .auth-secure strong {
-    color: var(--ink);
   }
 </style>

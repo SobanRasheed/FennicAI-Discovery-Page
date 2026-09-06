@@ -1,6 +1,14 @@
 ---
 /**
- * Interactive quiz for one subject.
+ * Interactive quiz for one subject — Screen 08 (MCQ Quiz).
+ *
+ * Three columns as in the design: the topic nav card (subject header on the
+ * tinted band + chapter list with per-chapter progress), the question card
+ * (position + progress bar, subject/chapter tags, the question, lettered
+ * options, Check Answer) with the answer card on its pale-green surface
+ * below it, and a rail with the timer (with a real pause button), the
+ * question navigation grid, a study tip, and links to the subject's other
+ * questions.
  *
  * The questions ship with the page as JSON; the whole quiz — checking
  * answers, the timer, the navigation grid, the score ring, performance by
@@ -13,9 +21,11 @@
  */
 import Layout from '../../../layouts/Layout.astro';
 import Breadcrumbs from '../../../components/Breadcrumbs.astro';
-import SidebarPanel from '../../../components/SidebarPanel.astro';
+
 import Icon from '../../../components/Icon.astro';
+import Illustration, { illustrationForSubject } from '../../../components/Illustration.astro';
 import { getQuestions, getNotes, getCollection } from '../../../utils/collections';
+import { jsonForScript } from '../../../utils/json-script';
 
 export async function getStaticPaths() {
   const [questions, subjects] = await Promise.all([
@@ -76,7 +86,7 @@ const quizData = {
   })),
 };
 
-/** Sidebar sections: chapters in quiz order, with per-chapter counts. */
+/** Topic nav: chapters in quiz order, with per-chapter counts. */
 const sections = quizData.questions.reduce<{ chapter: string; count: number }[]>(
   (acc, q) => {
     const found = acc.find((s) => s.chapter === q.chapter);
@@ -86,6 +96,9 @@ const sections = quizData.questions.reduce<{ chapter: string; count: number }[]>
   },
   [],
 );
+
+/** Other playable questions in this subject, for the rail. */
+const relatedQuestions = quizData.questions.slice(0, 4);
 
 /** Recommended notes: this subject's most recently updated. */
 const recommendedNotes = notes
@@ -101,6 +114,21 @@ const keepGoing = subjects.filter(
       (q) => q.data.subject === s.slug && q.data.options.length > 0,
     ),
 );
+
+/** Subjects with a PNG icon in /assets/landing/; the rest fall back to a drawing. */
+const pngSubjects = new Set([
+  'anatomy',
+  'biochemistry',
+  'community-medicine',
+  'forensic-medicine',
+  'microbiology',
+  'pathology',
+  'pharmacology',
+  'physiology',
+]);
+
+const subjectIcon = (slug: string) =>
+  pngSubjects.has(slug) ? `/assets/landing/subject-${slug}.png` : undefined;
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
@@ -129,12 +157,24 @@ const quizDataJson = jsonForScript(quizData);
 
   <div class="container quiz-body">
     <div class="quiz-layout" id="quiz-root">
-      {/* --- sidebar: sections, navigation, finish -------------------------- */}
-      <aside class="quiz-side" aria-label="Quiz navigation" data-quiz-side>
-        <p class="quiz-side-title">{subjectData.title} MCQs</p>
-        <p class="quiz-side-count">
-          {questions.length} question{questions.length === 1 ? '' : 's'}
-        </p>
+      {/* --- topic nav card ------------------------------------------------ */}
+      <aside class="quiz-side" aria-label="Quiz topics" data-quiz-side>
+        <header class="quiz-side-head">
+          <span class="quiz-side-art" aria-hidden="true">
+            {subjectIcon(subject.slug) ? (
+              <img src={subjectIcon(subject.slug)} alt="" width="64" height="60" loading="lazy" decoding="async" />
+            ) : (
+              <Illustration name={illustrationForSubject(subject.slug)} size={32} />
+            )}
+          </span>
+          <span class="quiz-side-meta">
+            <span class="quiz-side-title">{subjectData.title} MCQs</span>
+            <span class="quiz-side-sub">Interactive quiz</span>
+            <span class="quiz-side-sub">
+              {questions.length} question{questions.length === 1 ? '' : 's'}
+            </span>
+          </span>
+        </header>
 
         <ol class="quiz-sections" data-quiz-sections>
           {sections.map((section, i) => (
@@ -146,235 +186,403 @@ const quizDataJson = jsonForScript(quizData);
             </li>
           ))}
         </ol>
-
-        <div class="quiz-navgrid-wrap">
-          <h2 class="quiz-navgrid-title">Question navigation</h2>
-          <p class="quiz-legend">
-            <span class="dot dot-answered"></span>Answered
-            <span class="dot dot-current"></span>Current
-            <span class="dot dot-open"></span>Not answered
-          </p>
-          <div class="quiz-navgrid" data-quiz-navgrid></div>
-          <button class="btn btn-primary quiz-finish" type="button" data-quiz-finish>
-            Finish quiz
-          </button>
-        </div>
       </aside>
 
-      {/* --- main ------------------------------------------------------------- */}
-      <div class="quiz-main">
-        {/* --- quiz view ------------------------------------------------------ */}
-        <section class="quiz-view" data-quiz-view>
-          <header class="quiz-topbar">
-            <p class="quiz-position" data-quiz-position aria-live="polite"></p>
-            <p class="quiz-topbar-right">
-              <span class="quiz-pct" data-quiz-pct>0%</span>
-              <span class="quiz-timer">
-                Time elapsed
-                <span class="quiz-timer-value" data-quiz-timer>00:00</span>
-              </span>
-            </p>
-          </header>
+      {/* --- main column + rail --------------------------------------------- */}
+      <div class="quiz-work">
+        <div class="quiz-main">
+          {/* --- quiz view ---------------------------------------------------- */}
+          <section class="quiz-view" data-quiz-view>
+            <div class="quiz-card">
+              <header class="quiz-card-head">
+                <p class="q-position" data-quiz-position aria-live="polite"></p>
+                <div
+                  class="q-progress"
+                  role="progressbar"
+                  aria-label="Quiz progress"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  data-quiz-progress
+                >
+                  <span class="q-progress-fill" data-quiz-fill></span>
+                </div>
+                <p class="q-pct" data-quiz-pct>0%</p>
+              </header>
 
-          <div class="panel panel-pad quiz-card" data-quiz-card></div>
+              <div class="quiz-card-body" data-quiz-card></div>
+            </div>
 
-          <div class="quiz-pager">
-            <button class="btn btn-secondary" type="button" data-quiz-prev>
-              <Icon name="arrow-right" size={15} data-icon-flip />
-              Previous question
-            </button>
-            <button class="btn btn-secondary" type="button" data-quiz-next>
-              Next question
-              <Icon name="arrow-right" size={15} />
-            </button>
-          </div>
-        </section>
+            <div class="answer-card" data-feedback hidden aria-live="polite"></div>
 
-        {/* --- results view ----------------------------------------------------- */}
-        <section class="results-view" data-results-view hidden>
-          <div class="panel panel-pad results-hero">
-            <p class="kicker">Quiz complete</p>
-            <h1 class="results-title" data-results-heading>Great effort!</h1>
-            <p class="results-sub" data-results-sub>
-              You’ve completed the {subjectData.title} MCQs.
-            </p>
-            <blockquote class="results-quote">
-              <p>“Consistent practice leads to real progress.”</p>
-            </blockquote>
-          </div>
-
-          <div class="panel panel-pad results-score">
-            <div class="score-ring" data-score-ring>
-              <svg viewBox="0 0 120 120" aria-hidden="true">
-                <circle class="ring-track" cx="60" cy="60" r="54"></circle>
-                <circle class="ring-fill" cx="60" cy="60" r="54" data-ring-fill></circle>
-              </svg>
-              <div class="ring-center">
-                <span class="ring-score" data-ring-score>0/0</span>
-                <span class="ring-pct" data-ring-pct>0%</span>
-              </div>
-            </div>
-            <p class="score-label">Correct</p>
-            <span class="score-caption" data-score-caption></span>
-          </div>
-
-          <div class="results-stats">
-            <div class="panel panel-pad stat-card">
-              <span class="stat-value" data-stat-correct>0</span>
-              <span class="stat-name">Correct</span>
-            </div>
-            <div class="panel panel-pad stat-card">
-              <span class="stat-value" data-stat-incorrect>0</span>
-              <span class="stat-name">Incorrect</span>
-            </div>
-            <div class="panel panel-pad stat-card">
-              <span class="stat-value" data-stat-skipped>0</span>
-              <span class="stat-name">Skipped</span>
-            </div>
-            <div class="panel panel-pad stat-card">
-              <span class="stat-value stat-wide" data-stat-time>—</span>
-              <span class="stat-name">Time taken</span>
-            </div>
-            <div class="panel panel-pad stat-card">
-              <span class="stat-value stat-wide" data-stat-total>—</span>
-              <span class="stat-name">Total questions</span>
-            </div>
-            <div class="panel panel-pad stat-card">
-              <span class="stat-value stat-wide">Mixed</span>
-              <span class="stat-name">Difficulty level</span>
-            </div>
-          </div>
-
-          <div class="results-actions">
-            <button class="btn btn-primary" type="button" data-results-retry>Try Again</button>
-            <button class="btn btn-secondary" type="button" data-results-review>
-              Review Answers
-            </button>
-            <a class="btn btn-secondary" href={`/subjects/${subject.slug}/`}>
-              Study Related Notes
-            </a>
-            <button class="btn btn-secondary" type="button" data-results-share>
-              Share Result
-            </button>
-          </div>
-
-          {/* --- performance by topic ------------------------------------------ */}
-          <section class="section section-plain results-section" aria-labelledby="perf-title">
-            <div class="section-head">
-              <h2 id="perf-title">Performance by topic</h2>
-              <p>See how you performed in each topic.</p>
-            </div>
-            <div class="table-wrap">
-              <table class="results-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Topic</th>
-                    <th scope="col">Correct</th>
-                    <th scope="col">Total</th>
-                    <th scope="col">Accuracy</th>
-                  </tr>
-                </thead>
-                <tbody data-perf-tbody></tbody>
-              </table>
+            <div class="quiz-pager">
+              <button class="btn btn-secondary" type="button" data-quiz-prev>
+                <Icon name="arrow-right" size={15} data-icon-flip />
+                Previous question
+              </button>
+              <button class="btn btn-primary" type="button" data-quiz-next>
+                Next question
+              </button>
             </div>
           </section>
 
-          {/* --- next steps ------------------------------------------------------ */}
-          <section class="section section-plain results-section" aria-labelledby="next-steps">
-            <div class="section-head">
-              <h2 id="next-steps">Next steps</h2>
-              <p>Continue your learning journey.</p>
+          {/* --- results view -------------------------------------------------- */}
+          <section class="results-view" data-results-view hidden>
+            {/* trophy + verdict, with the quote panel beside them when wide */}
+            <div class="results-head">
+              <img
+                class="results-trophy"
+                src="/assets/icons/trophy.png"
+                alt=""
+                width="228"
+                height="193"
+                decoding="async"
+              />
+              <div class="results-head-text">
+                <p class="kicker">Quiz complete</p>
+                <h1 class="results-title" data-results-heading>Great effort!</h1>
+                <p class="results-sub" data-results-sub>
+                  You’ve completed the {subjectData.title} MCQs.
+                </p>
+                <p class="results-motto">“Consistent practice leads to real progress.”</p>
+              </div>
+              <div class="results-quote-panel">
+                <span class="quote-mark" aria-hidden="true">”</span>
+                <p>“Success in medicine comes from preparation today.”</p>
+                <span class="quote-rule" aria-hidden="true"></span>
+                <p class="rail-caps">A brighter you<br />A healthier tomorrow</p>
+              </div>
             </div>
-            <div class="grid grid-3 next-steps">
-              <div class="panel panel-pad step-card">
-                <Icon name="refresh" size={18} />
-                <h3>Try Again</h3>
-                <p>Improve your score by taking this quiz again.</p>
-                <button class="btn btn-sm btn-secondary" type="button" data-results-retry>
-                  Restart quiz
+
+            {/* score card: ring, counts, session details, actions */}
+            <div class="results-card">
+              <div class="results-score-grid">
+                <div class="score-ring" data-score-ring>
+                  <svg viewBox="0 0 120 120" aria-hidden="true">
+                    <circle class="ring-track" cx="60" cy="60" r="54"></circle>
+                    <circle class="ring-fill" cx="60" cy="60" r="54" data-ring-fill></circle>
+                  </svg>
+                  <div class="ring-center">
+                    <span class="ring-score" data-ring-score>0/0</span>
+                    <span class="ring-pct" data-ring-pct>0%</span>
+                    <span class="ring-label">Correct</span>
+                  </div>
+                </div>
+
+                <span class="score-divider" aria-hidden="true"></span>
+
+                <ul class="score-counts">
+                  <li>
+                    <img src="/assets/icons/check-badge.svg" alt="" width="30" height="30" />
+                    <span class="count-value" data-stat-correct>0</span>
+                    <span class="count-name">Correct</span>
+                  </li>
+                  <li>
+                    <img src="/assets/icons/count-badge-incorrect.svg" alt="" width="30" height="30" />
+                    <span class="count-value" data-stat-incorrect>0</span>
+                    <span class="count-name">Incorrect</span>
+                  </li>
+                  <li>
+                    <img src="/assets/icons/count-badge-skipped.svg" alt="" width="30" height="30" />
+                    <span class="count-value" data-stat-skipped>0</span>
+                    <span class="count-name">Skipped</span>
+                  </li>
+                </ul>
+
+                <span class="score-divider" aria-hidden="true"></span>
+
+                <dl class="score-details">
+                  <div class="detail-row">
+                    <Icon name="clock" size={20} />
+                    <dt>Time taken</dt>
+                    <dd data-stat-time>—</dd>
+                  </div>
+                  <div class="detail-row">
+                    <Icon name="file" size={20} />
+                    <dt>Total questions</dt>
+                    <dd data-stat-total>—</dd>
+                  </div>
+                  <div class="detail-row">
+                    <img src="/assets/icons/bar-chart.svg" alt="" width="20" height="20" />
+                    <dt>Difficulty level</dt>
+                    <dd data-stat-difficulty>—</dd>
+                  </div>
+                </dl>
+              </div>
+
+              <div class="results-actions">
+                <button class="btn btn-primary" type="button" data-results-retry>
+                  <img
+                    src="/assets/icons/circle-dash.svg"
+                    alt=""
+                    width="18"
+                    height="18"
+                    aria-hidden="true"
+                  />
+                  Try Again
+                </button>
+                <button class="btn btn-secondary" type="button" data-results-review>
+                  <Icon name="list" size={18} />
+                  Review Answers
+                </button>
+                <a class="btn btn-secondary" href={`/subjects/${subject.slug}/`}>
+                  <Icon name="book-open" size={18} />
+                  Study Related Notes
+                </a>
+                <button class="btn btn-secondary" type="button" data-results-share>
+                  <Icon name="share" size={18} />
+                  Share Result
                 </button>
               </div>
-              <div class="panel panel-pad step-card">
-                <Icon name="book" size={18} />
-                <h3>Study Notes</h3>
-                <p>Review related study notes to strengthen your concepts.</p>
-                <a class="btn btn-sm btn-secondary" href={`/subjects/${subject.slug}/`}>
-                  {subjectData.title} notes
+            </div>
+
+            {/* --- performance by topic ------------------------------------------ */}
+            <section class="results-panel" aria-labelledby="perf-title">
+              <div class="results-panel-head">
+                <h2 id="perf-title">Performance by topic</h2>
+                <p>See how you performed in each topic.</p>
+              </div>
+              <div class="table-wrap">
+                <table class="results-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Topic</th>
+                      <th scope="col">Correct</th>
+                      <th scope="col">Total</th>
+                      <th scope="col">Accuracy</th>
+                    </tr>
+                  </thead>
+                  <tbody data-perf-tbody></tbody>
+                </table>
+              </div>
+            </section>
+
+            {/* --- next steps ------------------------------------------------------ */}
+            <section class="results-panel" aria-labelledby="next-steps">
+              <div class="results-panel-head">
+                <h2 id="next-steps">Next steps</h2>
+                <p>Continue your learning journey.</p>
+              </div>
+              <div class="next-steps">
+                <button class="step-row" type="button" data-results-retry>
+                  <span class="step-icon" aria-hidden="true">
+                    <img src="/assets/icons/play-circle.svg" alt="" width="20" height="20" />
+                  </span>
+                  <span class="step-body">
+                    <span class="step-title">Try Again</span>
+                    <span class="step-desc">Improve your score by taking this quiz again.</span>
+                  </span>
+                  <span class="step-chev" aria-hidden="true">
+                    <Icon name="chevron-right" size={18} />
+                  </span>
+                </button>
+                <a class="step-row" href={`/subjects/${subject.slug}/`}>
+                  <span class="step-icon" aria-hidden="true">
+                    <Icon name="book-open" size={20} />
+                  </span>
+                  <span class="step-body">
+                    <span class="step-title">Study Notes</span>
+                    <span class="step-desc">
+                      Review related study notes to strengthen your concepts.
+                    </span>
+                  </span>
+                  <span class="step-chev" aria-hidden="true">
+                    <Icon name="chevron-right" size={18} />
+                  </span>
+                </a>
+                <a class="step-row" href="/practice/">
+                  <span class="step-icon" aria-hidden="true">
+                    <Icon name="list" size={20} />
+                  </span>
+                  <span class="step-body">
+                    <span class="step-title">Practice More</span>
+                    <span class="step-desc">
+                      Explore more MCQ sets from {subjectData.title}.
+                    </span>
+                  </span>
+                  <span class="step-chev" aria-hidden="true">
+                    <Icon name="chevron-right" size={18} />
+                  </span>
                 </a>
               </div>
-              <div class="panel panel-pad step-card">
-                <Icon name="question" size={18} />
-                <h3>Practice More</h3>
-                <p>Explore more MCQ sets from every subject.</p>
-                <a class="btn btn-sm btn-secondary" href="/practice/">All MCQs</a>
+            </section>
+
+            {/* --- results rail panels --------------------------------------------- */}
+            <aside class="results-rail">
+              {keepGoing.length > 0 && (
+                <div class="rail-card">
+                  <p class="rail-heading">
+                    <img src="/assets/icons/bar-chart.svg" alt="" width="24" height="24" />
+                    Keep going!
+                  </p>
+                  <p class="rail-help">Practice more MCQs to strengthen your knowledge.</p>
+                  <ul class="rail-rows">
+                    {keepGoing.slice(0, 4).map((s) => (
+                      <li>
+                        <a href={`/practice/quiz/${s.slug}/`}>
+                          {s.data.title} MCQs
+                          <span class="rail-row-chev" aria-hidden="true">
+                            <Icon name="chevron-right" size={16} />
+                          </span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                  <a class="link-arrow" href="/subjects/">View all subjects</a>
+                </div>
+              )}
+
+              {recommendedNotes.length > 0 && (
+                <div class="rail-card">
+                  <p class="rail-heading">
+                    <Icon name="book-open" size={24} />
+                    Recommended study notes
+                  </p>
+                  <p class="rail-help">Review these notes based on your performance.</p>
+                  <ul class="rail-rows rail-notes">
+                    {recommendedNotes.map((note) => (
+                      <li>
+                        <a href={`/notes/${note.slug}/`}>
+                          <span class="rail-note-body">
+                            <span class="rail-note-title">{note.data.title}</span>
+                            <span class="rail-note-desc">{note.data.description}</span>
+                          </span>
+                          <span class="rail-row-chev" aria-hidden="true">
+                            <Icon name="chevron-right" size={16} />
+                          </span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                  <a class="link-arrow" href={`/subjects/${subject.slug}/`}>
+                    View more study notes
+                  </a>
+                </div>
+              )}
+
+              <div class="rail-card rail-card-tint">
+                <p class="rail-heading">
+                  <Icon name="bulb" size={22} />
+                  Study tip
+                </p>
+                <blockquote class="rail-quote">
+                  <p>
+                    “Don’t be discouraged by mistakes. They are part of the learning process.
+                    Review, understand, and try again.”
+                  </p>
+                </blockquote>
+                <span class="quote-rule" aria-hidden="true"></span>
+                <p class="rail-caps">Practice today<br />Progress tomorrow</p>
               </div>
-            </div>
+            </aside>
           </section>
 
-          {/* --- results rail panels --------------------------------------------- */}
-          <div class="results-rail">
-            {keepGoing.length > 0 && (
-              <SidebarPanel heading="Keep going!" icon="target">
-                <p class="rail-help">Practice more MCQs to strengthen your knowledge.</p>
-                <ul class="chevron-list">
-                  {keepGoing.map((s) => (
-                    <li><a href={`/practice/quiz/${s.slug}/`}>{s.data.title} MCQs</a></li>
-                  ))}
-                </ul>
-                <a class="link-arrow" href="/subjects/">View all subjects</a>
-              </SidebarPanel>
-            )}
-
-            {recommendedNotes.length > 0 && (
-              <SidebarPanel heading="Recommended study notes" icon="book">
-                <p class="rail-help">Review these notes based on your performance.</p>
-                <ul class="chevron-list">
-                  {recommendedNotes.map((note) => (
-                    <li><a href={`/notes/${note.slug}/`}>{note.data.title}</a></li>
-                  ))}
-                </ul>
-                <a class="link-arrow" href={`/subjects/${subject.slug}/`}>
-                  View more study notes
-                </a>
-              </SidebarPanel>
-            )}
-
-            <SidebarPanel heading="Study tip" icon="bulb" variant="tint">
-              <blockquote class="rail-quote">
+          {/* --- review view ------------------------------------------------------ */}
+          <section class="review-view" data-review-view hidden>
+            <div class="section-head-row review-head">
+              <div>
+                <h2>Answer review</h2>
                 <p>
-                  “Don’t be discouraged by mistakes. They are part of the learning process.
-                  Review, understand, and try again.”
+                  Every question with the correct answer and your pick.
+                  <span data-review-summary></span>
                 </p>
-              </blockquote>
-              <p class="rail-quote-attr">Practice Today<br />Progress Tomorrow</p>
-            </SidebarPanel>
-          </div>
-        </section>
-
-        {/* --- review view ------------------------------------------------------ */}
-        <section class="review-view" data-review-view hidden>
-          <div class="section-head-row review-head">
-            <div>
-              <h2>Answer review</h2>
-              <p>
-                Every question with the correct answer and your pick.
-                <span data-review-summary></span>
-              </p>
+              </div>
+              <button class="btn btn-secondary" type="button" data-review-back>
+                Back to results
+              </button>
             </div>
-            <button class="btn btn-secondary" type="button" data-review-back>
-              Back to results
+            <div class="review-list" data-review-list></div>
+          </section>
+
+          <noscript>
+            <div class="notice notice-info quiz-nojs">
+              The interactive quiz needs JavaScript. Every question and answer is
+              also available on the
+              <a href={`/practice/subject/${subject.slug}/`}>{subjectData.title} practice page</a>.
+            </div>
+          </noscript>
+        </div>
+
+        {/* --- rail --------------------------------------------------------------- */}
+        <aside class="quiz-rail" aria-label="Quiz tools" data-quiz-rail>
+          <div class="rail-card rail-timer">
+            <img
+              class="rail-img"
+              src="/assets/icons/stopwatch.svg"
+              alt=""
+              width="30"
+              height="30"
+              aria-hidden="true"
+            />
+            <p class="rail-timer-meta">
+              <span class="rail-timer-label">Time elapsed</span>
+              <span class="rail-timer-value" data-quiz-timer>00:00</span>
+            </p>
+            <button class="q-pause" type="button" data-quiz-pause aria-pressed="false">
+              <img
+                src="/assets/icons/pause.svg"
+                alt=""
+                width="18"
+                height="18"
+                aria-hidden="true"
+              />
+              <span class="visually-hidden">Pause timer</span>
             </button>
           </div>
-          <div class="review-list" data-review-list></div>
-        </section>
 
-        <noscript>
-          <div class="notice notice-info quiz-nojs">
-            The interactive quiz needs JavaScript. Every question and answer is
-            also available on the
-            <a href={`/practice/subject/${subject.slug}/`}>{subjectData.title} practice page</a>.
+          <div class="rail-card rail-nav">
+            <h2 class="rail-title">Question navigation</h2>
+            <p class="quiz-legend">
+              <span class="dot dot-answered"></span>Answered
+              <span class="dot dot-current"></span>Current
+              <span class="dot dot-open"></span>Not answered
+            </p>
+            <div class="quiz-navgrid" data-quiz-navgrid></div>
+            <button class="btn btn-secondary quiz-finish" type="button" data-quiz-finish>
+              <img
+                src="/assets/icons/flag.svg"
+                alt=""
+                width="18"
+                height="18"
+                aria-hidden="true"
+              />
+              Finish quiz
+            </button>
           </div>
-        </noscript>
+
+          <div class="rail-card rail-card-tint">
+            <p class="rail-heading">
+              <Icon name="bulb" size={22} />
+              Study tip
+            </p>
+            <blockquote class="rail-quote">
+              <p>“Try to understand the reasoning behind each answer, not just memorize it.”</p>
+            </blockquote>
+            <span class="quote-rule" aria-hidden="true"></span>
+            <p class="rail-caps">Better questions<br />Stronger clinicians</p>
+          </div>
+
+          {relatedQuestions.length > 0 && (
+            <div class="rail-card">
+              <p class="rail-heading">
+                <Icon name="book-open" size={22} />
+                Related questions
+              </p>
+              <ul class="rail-questions">
+                {relatedQuestions.map((q, i) => (
+                  <li>
+                    <a href={q.url}>
+                      <span class="rail-q-num">Q{i + 1}</span>
+                      <span class="rail-q-text">{q.question}</span>
+                      <span class="rail-q-chev" aria-hidden="true">
+                        <Icon name="chevron-right" size={16} />
+                      </span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </aside>
       </div>
     </div>
   </div>
@@ -408,15 +616,20 @@ const quizDataJson = jsonForScript(quizData);
       const questions = data.questions;
       const total = questions.length;
 
-      const $ = <T extends HTMLElement = HTMLElement>(sel: string) =>
+      const $ = <T extends Element = HTMLElement>(sel: string) =>
         root.querySelector<T>(sel);
       const view = $('[data-quiz-view]')!;
       const card = $('[data-quiz-card]')!;
+      const feedback = $('[data-feedback]')!;
       const positionEl = $('[data-quiz-position]')!;
       const pctEl = $('[data-quiz-pct]')!;
+      const progressEl = $('[data-quiz-progress]')!;
+      const fillEl = $('[data-quiz-fill]')!;
       const timerEl = $('[data-quiz-timer]')!;
+      const pauseBtn = $('[data-quiz-pause]') as HTMLButtonElement | null;
       const navGrid = $('[data-quiz-navgrid]')!;
       const side = $('[data-quiz-side]')!;
+      const rail = $('[data-quiz-rail]')!;
       const resultsView = $('[data-results-view]')!;
       const reviewView = $('[data-review-view]')!;
 
@@ -426,8 +639,6 @@ const quizDataJson = jsonForScript(quizData);
       const revealed: boolean[] = new Array(total).fill(false);
       let current = 0;
       let finished = false;
-      let startedAt = Date.now();
-      let elapsedMs = 0;
 
       const escape = (value: string) =>
         value.replace(/[&<>"']/g, (ch) =>
@@ -436,17 +647,43 @@ const quizDataJson = jsonForScript(quizData);
 
       const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
 
-      // --- timer ---------------------------------------------------------------
+      // --- timer (with a real pause) --------------------------------------------
+      let startedAt = Date.now();
+      let accumulatedMs = 0; // time from completed (unpaused) segments
+      let paused = false;
+      let elapsedMs = 0;
+
+      function readClock() {
+        const s = Math.floor(elapsedMs / 1000);
+        timerEl.textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+      }
+
       let timer = startTimer();
 
       function startTimer() {
+        readClock();
         return window.setInterval(() => {
-          if (finished) return;
-          elapsedMs = Date.now() - startedAt;
-          const s = Math.floor(elapsedMs / 1000);
-          timerEl.textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+          if (finished || paused) return;
+          elapsedMs = accumulatedMs + (Date.now() - startedAt);
+          readClock();
         }, 1000);
       }
+
+      pauseBtn?.addEventListener('click', () => {
+        if (finished) return;
+        if (paused) {
+          startedAt = Date.now();
+          paused = false;
+        } else {
+          accumulatedMs += Date.now() - startedAt;
+          elapsedMs = accumulatedMs;
+          paused = true;
+          readClock();
+        }
+        pauseBtn.setAttribute('aria-pressed', String(paused));
+        const label = pauseBtn.querySelector('.visually-hidden');
+        if (label) label.textContent = paused ? 'Resume timer' : 'Pause timer';
+      });
 
       // --- navigation grid -------------------------------------------------------
       questions.forEach((_, i) => {
@@ -463,14 +700,14 @@ const quizDataJson = jsonForScript(quizData);
       });
       const dots = [...navGrid.children] as HTMLButtonElement[];
 
-      // --- chapter progress -------------------------------------------------------
+      // --- chapter progress + active chapter --------------------------------------
       const chProgress = [
         ...root.querySelectorAll<HTMLElement>('[data-quiz-ch-progress]'),
       ];
       const sectionEls = [
         ...root.querySelectorAll<HTMLElement>('[data-chapter]'),
       ];
-      function updateSections() {
+      function updateSections(activeChapter?: string) {
         // Count answered per chapter.
         const counts = new Map<string, { done: number; total: number }>();
         questions.forEach((q) => {
@@ -486,6 +723,11 @@ const quizDataJson = jsonForScript(quizData);
           const c = chapter ? counts.get(chapter) : undefined;
           if (c) el.textContent = `${c.done}/${c.total}`;
         });
+        if (activeChapter !== undefined) {
+          sectionEls.forEach((el) =>
+            el.classList.toggle('active', el.dataset.chapter === activeChapter),
+          );
+        }
       }
 
       // --- one question ------------------------------------------------------------
@@ -495,16 +737,26 @@ const quizDataJson = jsonForScript(quizData);
 
         positionEl.textContent = `Question ${i + 1} of ${total}`;
         const answeredCount = revealed.filter(Boolean).length;
-        pctEl.textContent = `${Math.round((answeredCount / total) * 100)}%`;
+        const pct = total > 0 ? Math.round((answeredCount / total) * 100) : 0;
+        pctEl.textContent = `${pct}%`;
+        fillEl.style.width = `${pct}%`;
+        progressEl.setAttribute('aria-valuenow', String(pct));
+
         dots.forEach((dot, j) => {
           dot.classList.toggle('current', j === i);
           dot.classList.toggle('answered', revealed[j]);
         });
 
+        updateSections(q.chapter);
+
         const answered = revealed[i];
+        feedback.hidden = true;
+        feedback.className = 'answer-card';
+        feedback.innerHTML = '';
+
         card.innerHTML = `
           <p class="q-kicker"><span>${escape(data.subject)}</span>${
-            q.chapter ? `<span aria-hidden="true">·</span><span>${escape(q.chapter)}</span>` : ''
+            q.chapter ? `<span>${escape(q.chapter)}</span>` : ''
           }</p>
           <h2 class="q-text">${escape(q.question)}</h2>
           <div class="q-options" role="group" aria-label="Answer options">
@@ -520,14 +772,14 @@ const quizDataJson = jsonForScript(quizData);
               .join('')}
           </div>
           <div class="q-actions">
-            <button type="button" class="btn btn-primary" data-check ${
+            <button type="button" class="btn btn-primary q-check" data-check ${
               answered || picked[i] === null ? 'disabled' : ''
-            }>Check Answer</button>
+            }>
+              <span>Check Answer</span>
+              <img src="/assets/icons/arrow-right.svg" alt="" width="18" height="18" aria-hidden="true" />
+            </button>
             <a class="q-link" href="${q.url}">Full explanation</a>
           </div>
-          <div class="q-feedback" data-feedback ${
-            answered ? '' : 'hidden'
-          } aria-live="polite"></div>
         `;
 
         if (answered) showFeedback(i, false);
@@ -550,8 +802,9 @@ const quizDataJson = jsonForScript(quizData);
           if (picked[i] === null || revealed[i]) return;
           revealed[i] = true;
           showFeedback(i, true);
-          updateSections();
+          updateSections(q.chapter);
           render(i);
+          feedback.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
 
         const prev = $('[data-quiz-prev]') as HTMLButtonElement;
@@ -560,8 +813,9 @@ const quizDataJson = jsonForScript(quizData);
         next.textContent = '';
         next.append(
           i === total - 1 ? 'Finish quiz' : 'Next question',
-          Object.assign(document.createElement('span'), {
-            textContent: '→',
+          Object.assign(document.createElement('img'), {
+            src: '/assets/icons/arrow-right.svg',
+            alt: '',
             className: 'pager-arrow',
           }),
         );
@@ -570,8 +824,6 @@ const quizDataJson = jsonForScript(quizData);
 
       function showFeedback(i: number, markOptions: boolean) {
         const q = questions[i];
-        const feedback = card.querySelector<HTMLElement>('[data-feedback]');
-        if (!feedback) return;
         const isCorrect = q.answerIndex >= 0 && picked[i] === q.answerIndex;
         const revealOnly = q.answerIndex < 0;
 
@@ -585,9 +837,12 @@ const quizDataJson = jsonForScript(quizData);
         }
 
         feedback.hidden = false;
-        feedback.className = `q-feedback ${isCorrect ? 'ok' : 'bad'}`;
+        feedback.className = `answer-card ${isCorrect ? 'ok' : 'bad'}`;
         feedback.innerHTML = `
-          <p class="q-verdict">${isCorrect ? 'Correct!' : 'Not quite'}</p>
+          <div class="ans-head">
+            ${isCorrect ? '<img class="ans-badge" src="/assets/icons/check-badge.svg" alt="" width="32" height="32" />' : ''}
+            <p class="q-verdict">${isCorrect ? 'Correct!' : 'Not quite'}</p>
+          </div>
           ${revealOnly ? `<p class="q-answer">Answer: <strong>${escape(q.answer)}</strong></p>` : ''}
           <p class="q-explanation">${escape(q.explanation)}</p>
           <a class="q-link" href="${q.url}">Read the full explanation</a>
@@ -617,7 +872,7 @@ const quizDataJson = jsonForScript(quizData);
         }
         finished = true;
         window.clearInterval(timer);
-        elapsedMs = Date.now() - startedAt;
+        if (!paused) elapsedMs = accumulatedMs + (Date.now() - startedAt);
 
         const correct = questions.reduce(
           (sum, q, i) => sum + (revealed[i] && q.answerIndex >= 0 && picked[i] === q.answerIndex ? 1 : 0),
@@ -659,21 +914,26 @@ const quizDataJson = jsonForScript(quizData);
         ringFill.style.strokeDashoffset = `${RING_LENGTH * (1 - correct / total)}`;
         $('[data-ring-score]')!.textContent = `${correct}/${total}`;
         $('[data-ring-pct]')!.textContent = `${pct}%`;
-        $('[data-score-caption]')!.textContent =
-          skipped > 0
-            ? `${skipped} question${skipped === 1 ? '' : 's'} left unanswered`
-            : 'Every question answered';
 
         $('[data-stat-correct]')!.textContent = String(correct);
         $('[data-stat-incorrect]')!.textContent = String(incorrect);
         $('[data-stat-skipped]')!.textContent = String(skipped);
         $('[data-stat-total]')!.textContent = String(total);
 
+        // Difficulty shown honestly: the single level if the set is uniform,
+        // otherwise "Mixed".
+        const difficulties = [...new Set(questions.map((q) => q.difficulty))];
+        $('[data-stat-difficulty]')!.textContent =
+          difficulties.length === 1
+            ? difficulties[0]!.charAt(0).toUpperCase() + difficulties[0]!.slice(1)
+            : 'Mixed';
+
         const s = Math.floor(elapsedMs / 1000);
         $('[data-stat-time]')!.textContent =
           `${Math.floor(s / 60)} minute${Math.floor(s / 60) === 1 ? '' : 's'} ${String(s % 60).padStart(2, '0')} seconds`;
 
-        // Performance by topic (chapter).
+        // Performance by topic (chapter), with the accuracy bar from the
+        // design: green at 70% and above, red below.
         const topics = new Map<string, { correct: number; total: number }>();
         questions.forEach((q, i) => {
           const entry = topics.get(q.chapter) ?? { correct: 0, total: 0 };
@@ -683,18 +943,25 @@ const quizDataJson = jsonForScript(quizData);
         });
         const tbody = $('[data-perf-tbody]')!;
         tbody.innerHTML = [...topics.entries()]
-          .map(
-            ([topic, c]) => `
+          .map(([topic, c]) => {
+            const acc = Math.round((c.correct / c.total) * 100);
+            return `
             <tr>
               <th scope="row">${escape(topic)}</th>
               <td>${c.correct} / ${c.total}</td>
-              <td>${Math.round((c.correct / c.total) * 100)}%</td>
-            </tr>`,
-          )
+              <td>${acc}%</td>
+              <td class="perf-acc">
+                <span class="acc-bar">
+                  <span class="acc-fill ${acc >= 70 ? 'good' : 'bad'}" style="width:${acc}%"></span>
+                </span>
+              </td>
+            </tr>`;
+          })
           .join('');
 
         view.hidden = true;
         side.hidden = true;
+        rail.hidden = true;
         resultsView.hidden = false;
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -705,12 +972,18 @@ const quizDataJson = jsonForScript(quizData);
         picked.fill(null);
         revealed.fill(false);
         finished = false;
+        paused = false;
+        accumulatedMs = 0;
+        elapsedMs = 0;
+        startedAt = Date.now();
+        pauseBtn?.setAttribute('aria-pressed', 'false');
+        const label = pauseBtn?.querySelector('.visually-hidden');
+        if (label) label.textContent = 'Pause timer';
         reviewView.hidden = true;
         resultsView.hidden = true;
         view.hidden = false;
         side.hidden = false;
-        startedAt = Date.now();
-        elapsedMs = 0;
+        rail.hidden = false;
         window.clearInterval(timer);
         timer = startTimer();
         render(0);
@@ -732,7 +1005,7 @@ const quizDataJson = jsonForScript(quizData);
             <article class="panel panel-pad review-item ${revealed[i] ? (isCorrect ? 'ok' : 'bad') : 'skipped'}">
               <p class="q-kicker">
                 <span>Question ${i + 1}</span>
-                ${q.chapter ? `<span aria-hidden="true">·</span><span>${escape(q.chapter)}</span>` : ''}
+                ${q.chapter ? `<span>${escape(q.chapter)}</span>` : ''}
               </p>
               <h3 class="q-text">${escape(q.question)}</h3>
               <ul class="review-options">
@@ -799,10 +1072,21 @@ const quizDataJson = jsonForScript(quizData);
     padding-block: var(--space-8) var(--space-16);
   }
 
-  /* --- layout ------------------------------------------------------------------ */
+  /* --- layout: topic nav | main + rail -------------------------------------- */
   .quiz-layout {
     display: grid;
-    gap: var(--space-8);
+    gap: var(--space-6);
+  }
+
+  /* On small screens the question card leads; the nav and rail follow. */
+  .quiz-side {
+    order: 2;
+  }
+
+  .quiz-work {
+    order: 1;
+    display: grid;
+    gap: var(--space-6);
   }
 
   .quiz-main {
@@ -811,38 +1095,83 @@ const quizDataJson = jsonForScript(quizData);
 
   @media (min-width: 1024px) {
     .quiz-layout {
-      grid-template-columns: 17rem minmax(0, 1fr);
-      gap: var(--space-10);
+      grid-template-columns: 18rem minmax(0, 1fr);
+      gap: var(--space-8);
+      align-items: start;
     }
 
-    .quiz-side {
-      position: sticky;
-      top: calc(var(--header-height) + var(--space-6));
-      align-self: start;
-      max-height: calc(100vh - var(--header-height) - var(--space-12));
-      overflow-y: auto;
-      overscroll-behavior: contain;
-      scrollbar-width: thin;
+    .quiz-side,
+    .quiz-work {
+      order: initial;
     }
   }
 
-  /* --- sidebar ------------------------------------------------------------------- */
+  @media (min-width: 1280px) {
+    .quiz-work {
+      grid-template-columns: minmax(0, 1fr) 17.25rem;
+      gap: var(--space-6);
+    }
+  }
+
+  /* --- topic nav card --------------------------------------------------------- */
+  .quiz-side {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    overflow: hidden;
+  }
+
+  .quiz-side-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-3) calc(var(--space-3) + 2px);
+    background: var(--quote-surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .quiz-side-art {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 60px;
+    overflow: hidden;
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+  }
+
+  .quiz-side-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .quiz-side-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
   .quiz-side-title {
     color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
+    font-family: var(--font-sans);
+    font-size: 0.9375rem;
     font-weight: var(--weight-semibold);
+    line-height: 1.25;
   }
 
-  .quiz-side-count {
-    margin-top: var(--space-1);
+  .quiz-side-sub {
     color: var(--mute);
-    font-size: var(--text-body-sm);
+    font-size: 0.75rem;
+    line-height: 1.35;
   }
 
   .quiz-sections {
-    margin: var(--space-4) 0 0;
-    padding: 0;
+    margin: 0;
+    padding: var(--space-2) 0;
     list-style: none;
   }
 
@@ -851,14 +1180,25 @@ const quizDataJson = jsonForScript(quizData);
     align-items: baseline;
     justify-content: space-between;
     gap: var(--space-3);
-    padding: var(--space-2) 0;
-    border-bottom: 1px solid var(--border);
+    padding: var(--space-2) var(--space-3) var(--space-2) 15px;
+    border-left: 3px solid transparent;
+  }
+
+  /* The chapter the current question belongs to, as in the design. */
+  .quiz-sections li.active {
+    padding-left: 12px;
+    border-left-color: var(--primary);
+    background: var(--quote-surface);
+  }
+
+  .quiz-sections li.active .quiz-section-name {
+    color: var(--primary);
+    font-weight: var(--weight-semibold);
   }
 
   .quiz-section-name {
     color: var(--ink);
-    font-size: var(--text-body-sm);
-    font-weight: var(--weight-medium);
+    font-size: 0.8125rem;
     line-height: var(--leading-snug);
   }
 
@@ -866,18 +1206,358 @@ const quizDataJson = jsonForScript(quizData);
     flex-shrink: 0;
     color: var(--mute);
     font-family: var(--font-mono);
-    font-size: var(--text-caption);
+    font-size: 0.75rem;
     font-variant-numeric: tabular-nums;
   }
 
-  .quiz-navgrid-wrap {
-    margin-top: var(--space-6);
-    padding-top: var(--space-5);
-    border-top: 1px solid var(--border);
+  .quiz-sections li.active .quiz-section-progress {
+    color: var(--primary);
+    font-weight: var(--weight-semibold);
   }
 
-  .quiz-navgrid-title {
-    font-size: var(--text-body);
+  /* --- question card ------------------------------------------------------------- */
+  .quiz-card {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .quiz-card-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-5);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .q-position {
+    flex-shrink: 0;
+    color: var(--ink);
+    font-size: 0.8125rem;
+    font-weight: var(--weight-semibold);
+  }
+
+  .q-progress {
+    flex: 1;
+    min-width: 4rem;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--quote-surface);
+    overflow: hidden;
+  }
+
+  .q-progress-fill {
+    display: block;
+    width: 0%;
+    height: 100%;
+    border-radius: 4px;
+    background: var(--primary);
+    transition: width 0.3s var(--ease-out);
+  }
+
+  .q-pct {
+    flex-shrink: 0;
+    min-width: 2.5rem;
+    color: var(--mute);
+    font-size: 0.75rem;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .quiz-card-body {
+    padding: var(--space-5);
+  }
+
+  .q-kicker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .q-kicker span {
+    padding: 3px 10px;
+    border-radius: 11px;
+    background: var(--quote-surface);
+    color: var(--primary);
+    font-size: 0.625rem;
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    line-height: 1.5;
+  }
+
+  .q-text {
+    margin-top: var(--space-4);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: clamp(1.25rem, 1.1rem + 0.6vw, 1.5rem);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    text-wrap: balance;
+  }
+
+  .q-options {
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+  }
+
+  .q-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: 50px;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.9375rem;
+    text-align: left;
+    line-height: var(--leading-normal);
+    cursor: pointer;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .q-option:not(:disabled):hover {
+    border-color: var(--border-strong);
+  }
+
+  .q-option.selected,
+  .q-option.correct {
+    border-color: var(--primary);
+    background: var(--primary-surface);
+  }
+
+  .q-option.incorrect {
+    border-color: #b4232a;
+    background: #fdf1f1;
+  }
+
+  /* The 28px letter key: a quiet circle until picked, then a filled one. */
+  .q-letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border: 1px solid var(--border);
+    border-radius: 50%;
+    color: var(--mute);
+    font-size: 0.75rem;
+    font-weight: var(--weight-semibold);
+  }
+
+  .q-option-text {
+    min-width: 0;
+  }
+
+  .q-option.selected .q-letter,
+  .q-option.correct .q-letter {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: var(--on-primary);
+  }
+
+  .q-option.incorrect .q-letter {
+    border-color: #b4232a;
+    background: #b4232a;
+    color: #fff;
+  }
+
+  .q-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-6);
+  }
+
+  .q-check {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .q-check img {
+    display: block;
+  }
+
+  .q-link {
+    color: var(--primary);
+    font-size: 0.8125rem;
+    font-weight: var(--weight-medium);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .q-link:hover {
+    color: var(--ink);
+  }
+
+  /* --- answer card ----------------------------------------------------------------- */
+  .answer-card {
+    margin-top: var(--space-4);
+    padding: var(--space-5);
+    border: 1px solid var(--primary-border);
+    border-radius: var(--radius-md);
+    background: var(--primary-surface);
+  }
+
+  .answer-card.bad {
+    border-color: #e7c9cb;
+    background: #fdf6f6;
+  }
+
+  .ans-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .ans-badge {
+    display: block;
+    flex-shrink: 0;
+  }
+
+  .q-verdict {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 1.5rem;
+    font-weight: var(--weight-semibold);
+    line-height: 1.2;
+  }
+
+  .answer-card.bad .q-verdict {
+    color: #8f1d24;
+  }
+
+  .q-answer {
+    margin-top: var(--space-3);
+    color: var(--ink);
+    font-size: 0.8125rem;
+  }
+
+  .q-explanation {
+    margin-top: var(--space-3);
+    color: var(--body);
+    font-size: 0.8125rem;
+    line-height: 1.55;
+  }
+
+  .answer-card .q-link {
+    display: inline-block;
+    margin-top: var(--space-3);
+  }
+
+  /* --- pager -------------------------------------------------------------------------- */
+  .quiz-pager {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+  }
+
+  .quiz-pager .btn {
+    min-width: 12.5rem;
+    justify-content: center;
+  }
+
+  .quiz-pager [data-icon-flip] {
+    transform: scaleX(-1);
+  }
+
+  .pager-arrow {
+    display: block;
+    margin-left: 0.5rem;
+  }
+
+  /* --- rail ----------------------------------------------------------------------------- */
+  .quiz-rail {
+    display: grid;
+    gap: var(--space-4);
+    align-content: start;
+    min-width: 0;
+  }
+
+  .rail-card {
+    padding: var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .rail-card-tint {
+    border-color: transparent;
+    background: var(--quote-surface);
+  }
+
+  .rail-img {
+    display: block;
+    flex-shrink: 0;
+  }
+
+  /* Timer: icon, label + serif clock, pause button. */
+  .rail-timer {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .rail-timer-meta {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .rail-timer-label {
+    color: var(--mute);
+    font-size: 0.75rem;
+  }
+
+  .rail-timer-value {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 1.375rem;
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+  }
+
+  .q-pause {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 38px;
+    height: 32px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    transition: border-color 0.15s var(--ease);
+  }
+
+  .q-pause:hover {
+    border-color: var(--border-strong);
+  }
+
+  .q-pause[aria-pressed='true'] {
+    border-color: var(--primary);
+    box-shadow: inset 0 0 0 1px var(--primary);
+  }
+
+  /* Question navigation. */
+  .rail-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 0.9375rem;
     font-weight: var(--weight-semibold);
   }
 
@@ -888,16 +1568,15 @@ const quizDataJson = jsonForScript(quizData);
     gap: var(--space-1) var(--space-2);
     margin-top: var(--space-2);
     color: var(--mute);
-    font-size: var(--text-caption);
+    font-size: 0.6563rem;
   }
 
   .dot {
     display: inline-block;
-    width: 0.75rem;
-    height: 0.75rem;
-    margin-right: 0.25rem;
+    width: 10px;
+    height: 10px;
     border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
+    border-radius: 5px;
     vertical-align: -1px;
   }
 
@@ -917,8 +1596,8 @@ const quizDataJson = jsonForScript(quizData);
 
   .quiz-navgrid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(2rem, 1fr));
-    gap: var(--space-1);
+    grid-template-columns: repeat(auto-fill, minmax(22px, 1fr));
+    gap: 4px;
     margin-top: var(--space-3);
   }
 
@@ -926,13 +1605,12 @@ const quizDataJson = jsonForScript(quizData);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    height: 2rem;
+    height: 22px;
     border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    border-radius: 5px;
     background: var(--surface);
-    color: var(--body);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
+    color: var(--mute);
+    font-size: 0.625rem;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
     transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease),
@@ -945,9 +1623,9 @@ const quizDataJson = jsonForScript(quizData);
   }
 
   .nav-dot.answered {
-    border-color: var(--primary-border);
-    background: var(--primary-surface);
-    color: var(--primary);
+    border-color: var(--primary);
+    background: var(--primary);
+    color: var(--on-primary);
   }
 
   .nav-dot.current {
@@ -956,247 +1634,257 @@ const quizDataJson = jsonForScript(quizData);
     box-shadow: 0 0 0 1px var(--primary);
   }
 
+  .nav-dot.answered.current {
+    color: var(--on-primary);
+  }
+
   .quiz-finish {
     width: 100%;
     margin-top: var(--space-4);
+    justify-content: center;
   }
 
-  /* --- topbar -------------------------------------------------------------------- */
-  .quiz-topbar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: var(--space-3);
-    margin-bottom: var(--space-4);
-  }
-
-  .quiz-position {
-    color: var(--ink);
-    font-size: var(--text-body-lg);
-    font-weight: var(--weight-semibold);
-  }
-
-  .quiz-topbar-right {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
-    gap: var(--space-5);
-  }
-
-  .quiz-pct {
-    color: var(--primary);
-    font-family: var(--font-mono);
-    font-size: var(--text-body-sm);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .quiz-timer {
-    color: var(--mute);
-    font-size: var(--text-body-sm);
-  }
-
-  .quiz-timer-value {
+  .quiz-finish img {
     display: block;
-    color: var(--ink);
-    font-family: var(--font-mono);
-    font-variant-numeric: tabular-nums;
   }
 
-  /* --- question card --------------------------------------------------------------- */
-  .q-kicker {
+  /* Study tip, as on the MCQs hub. */
+  .rail-heading {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: var(--space-2);
-    color: var(--primary);
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
-    letter-spacing: var(--track-caps);
-    text-transform: uppercase;
-  }
-
-  .q-text {
-    margin-top: var(--space-3);
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
+    font-size: 1.0625rem;
     font-weight: var(--weight-semibold);
-    line-height: var(--leading-snug);
+  }
+
+  .rail-heading svg {
+    color: var(--primary);
+    flex-shrink: 0;
+  }
+
+  .rail-quote {
+    margin: var(--space-3) 0 0;
+  }
+
+  .rail-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 0.9375rem;
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.45;
     text-wrap: balance;
   }
 
-  .q-options {
-    display: grid;
-    gap: var(--space-3);
-    margin-top: var(--space-6);
+  .quote-rule {
+    display: block;
+    width: 26px;
+    height: 2px;
+    margin: var(--space-4) 0 var(--space-2);
+    background: var(--primary);
   }
 
-  .q-option {
-    display: flex;
-    align-items: center;
-    gap: var(--space-3);
-    padding: var(--space-3) var(--space-4);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
-    font-size: var(--text-body);
-    text-align: left;
-    line-height: var(--leading-normal);
-    cursor: pointer;
-    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
-  }
-
-  .q-option:not(:disabled):hover {
-    border-color: var(--border-strong);
-  }
-
-  .q-option.selected {
-    border-color: var(--primary);
-    background: var(--primary-surface);
-  }
-
-  .q-option.correct {
-    border-color: var(--primary);
-    background: var(--primary-surface);
-  }
-
-  .q-option.incorrect {
-    border-color: #b4232a;
-    background: #fdf1f1;
-  }
-
-  .q-letter {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    width: 1.75rem;
-    height: 1.75rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+  .rail-caps {
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
+    font-family: var(--font-sans);
+    font-size: 0.625rem;
+    font-weight: var(--weight-bold);
+    letter-spacing: var(--track-caps);
+    line-height: 1.7;
+    text-transform: uppercase;
   }
 
-  .q-option.selected .q-letter,
-  .q-option.correct .q-letter {
-    border-color: var(--primary-border);
-    background: var(--surface);
-    color: var(--primary);
+  /* Related questions: numbered rows with dividers. */
+  .rail-questions {
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    list-style: none;
   }
 
-  .q-option.incorrect .q-letter {
-    border-color: #b4232a;
-    color: #b4232a;
+  .rail-questions li {
+    border-bottom: 1px solid var(--border);
   }
 
-  .q-actions {
+  .rail-questions li:last-child {
+    border-bottom: 0;
+  }
+
+  .rail-questions a {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-4);
-    margin-top: var(--space-6);
+    align-items: flex-start;
+    gap: var(--space-2);
+    padding: var(--space-3) 0;
+    text-decoration: none;
   }
 
-  .q-link {
-    color: var(--primary);
-    font-size: var(--text-body-sm);
-    font-weight: var(--weight-medium);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-
-  .q-link:hover {
-    color: var(--ink);
-  }
-
-  .q-feedback {
-    margin-top: var(--space-5);
-    padding: var(--space-5) var(--space-6);
-    border-radius: var(--radius-md);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-normal);
-  }
-
-  .q-feedback.ok {
-    border: 1px solid var(--primary-border);
-    background: var(--primary-surface);
-  }
-
-  .q-feedback.bad {
-    border: 1px solid #e7c9cb;
-    background: #fdf6f6;
-  }
-
-  .q-verdict {
-    color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
+  .rail-q-num {
+    flex-shrink: 0;
+    color: var(--mute);
+    font-size: 0.75rem;
     font-weight: var(--weight-semibold);
+    line-height: 1.5;
   }
 
-  .q-feedback.bad .q-verdict {
-    color: #8f1d24;
-  }
-
-  .q-answer {
-    margin-top: var(--space-2);
+  .rail-q-text {
+    flex: 1;
+    min-width: 0;
     color: var(--ink);
+    font-size: 0.75rem;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
   }
 
-  .q-explanation {
-    margin-top: var(--space-2);
-    color: var(--body);
+  .rail-questions a:hover .rail-q-text {
+    color: var(--primary);
   }
 
-  /* --- pager -------------------------------------------------------------------------- */
-  .quiz-pager {
-    display: flex;
-    justify-content: space-between;
-    gap: var(--space-3);
-    margin-top: var(--space-5);
-  }
-
-  .quiz-pager [data-icon-flip] {
-    transform: scaleX(-1);
-  }
-
-  .pager-arrow {
-    margin-left: 0.4em;
+  .rail-q-chev {
+    display: inline-flex;
+    flex-shrink: 0;
+    color: var(--faint);
   }
 
   /* --- results -------------------------------------------------------------------------- */
+  /* When the quiz rail is hidden (results/review), reclaim its track so the
+     results content can use the full work-column width. */
+  @media (min-width: 1280px) {
+    .quiz-work:has(> .quiz-rail[hidden]) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  .results-view {
+    display: grid;
+    gap: var(--space-6);
+  }
+
+  /* --- hero: trophy, verdict, quote panel ------------------------------------------ */
+  .results-head {
+    display: grid;
+    gap: var(--space-6);
+    align-items: center;
+    justify-items: center;
+    text-align: center;
+  }
+
+  .results-head-text {
+    display: grid;
+    gap: var(--space-2);
+  }
+
   .results-title {
-    margin-top: var(--space-2);
     font-size: clamp(1.75rem, 1.5rem + 1.2vw, 2.5rem);
   }
 
   .results-sub {
-    margin-top: var(--space-2);
     color: var(--body);
   }
 
-  .results-quote {
-    margin: var(--space-4) 0 0;
-  }
-
-  .results-quote p {
-    color: var(--mute);
+  .results-motto {
+    color: var(--faint);
     font-family: var(--font-display);
-    font-size: var(--text-body-lg);
     font-style: italic;
   }
 
-  .results-score {
+  .results-trophy {
+    width: min(100%, 228px);
+    height: auto;
+  }
+
+  .results-quote-panel {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding: var(--space-5);
+    border-radius: var(--radius-sm);
+    background: var(--quote-surface);
+    text-align: left;
+  }
+
+  .quote-mark {
+    font-family: var(--font-display);
+    font-size: 2.5rem;
+    line-height: 0.5;
+    color: var(--primary);
+  }
+
+  .results-quote-panel p {
+    margin-top: var(--space-3);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 1rem;
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.5;
+  }
+
+  @media (min-width: 640px) {
+    .results-head {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+      justify-items: start;
+      text-align: left;
+    }
+
+    .results-head-text {
+      align-content: center;
+    }
+
+    .results-quote-panel {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .results-head {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) 15.625rem;
+    }
+
+    .results-quote-panel {
+      grid-column: auto;
+    }
+  }
+
+  /* --- score card ---------------------------------------------------------------------- */
+  .results-card {
     display: grid;
-    place-items: center;
-    gap: var(--space-2);
-    margin-top: var(--space-6);
-    padding-block: var(--space-8);
+    gap: var(--space-6);
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .results-score-grid {
+    display: grid;
+    gap: var(--space-5);
+    justify-items: center;
     text-align: center;
+  }
+
+  @media (min-width: 768px) {
+    .results-score-grid {
+      grid-template-columns: 10rem 1px auto 1px minmax(0, 1fr);
+      align-items: center;
+      justify-items: stretch;
+      text-align: left;
+    }
+
+    .score-counts,
+    .score-details {
+      justify-self: start;
+    }
+  }
+
+  .score-divider {
+    width: 1px;
+    height: 100%;
+    min-height: 6rem;
+    background: var(--border);
   }
 
   .score-ring {
@@ -1238,79 +1926,134 @@ const quizDataJson = jsonForScript(quizData);
   }
 
   .ring-score {
-    color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-display-sm);
-    font-weight: var(--weight-semibold);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
     font-variant-numeric: tabular-nums;
   }
 
   .ring-pct {
     color: var(--primary);
-    font-family: var(--font-mono);
-    font-size: var(--text-body-sm);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .score-label {
-    color: var(--ink);
-    font-size: var(--text-body-sm);
-    font-weight: var(--weight-medium);
-  }
-
-  .score-caption {
-    color: var(--mute);
-    font-size: var(--text-caption);
-  }
-
-  .results-stats {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--space-4);
-    margin-top: var(--space-6);
-  }
-
-  .stat-card {
-    display: grid;
-    gap: var(--space-1);
-    text-align: center;
-  }
-
-  .stat-value {
-    color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-display-sm);
+    font-size: 1.75rem;
     font-weight: var(--weight-semibold);
     font-variant-numeric: tabular-nums;
   }
 
-  .stat-wide {
-    font-size: var(--text-body-lg);
-  }
-
-  .stat-name {
+  .ring-label {
     color: var(--mute);
     font-size: var(--text-caption);
+  }
+
+  .score-counts {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .score-counts li {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 0 var(--space-3);
+    align-items: center;
+  }
+
+  .score-counts img {
+    grid-row: 1 / span 2;
+    width: 30px;
+    height: 30px;
+  }
+
+  .count-value {
+    color: var(--ink);
+    font-size: 1.1875rem;
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+
+  .count-name {
+    grid-column: 2;
+    color: var(--mute);
+    font-size: var(--text-caption);
+    line-height: 1.2;
+  }
+
+  .score-details {
+    margin: 0;
+    display: grid;
+  }
+
+  .detail-row {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    align-items: center;
+    padding-block: var(--space-3);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .detail-row:last-child {
+    border-bottom: 0;
+  }
+
+  .detail-row svg {
+    color: var(--mute);
+  }
+
+  .detail-row dt {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+
+  .detail-row dd {
+    margin: 0;
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
   }
 
   .results-actions {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-3);
-    margin-top: var(--space-6);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--border);
   }
 
-  .results-section {
-    padding-block: var(--space-4) 0;
+  /* --- performance + next steps panels ------------------------------------------------- */
+  .results-panel {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .results-panel-head h2 {
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-weight: var(--weight-display);
+  }
+
+  .results-panel-head p {
+    color: var(--mute);
+    font-size: var(--text-body-sm);
   }
 
   .table-wrap {
-    margin-top: var(--space-4);
+    margin-top: var(--space-3);
     overflow-x: auto;
   }
 
   .results-table {
     width: 100%;
+    min-width: 34rem;
     border-collapse: collapse;
     font-size: var(--text-body-sm);
   }
@@ -1321,6 +2064,7 @@ const quizDataJson = jsonForScript(quizData);
     border-bottom: 1px solid var(--border);
     text-align: left;
     font-variant-numeric: tabular-nums;
+    vertical-align: middle;
   }
 
   .results-table thead th {
@@ -1336,40 +2080,166 @@ const quizDataJson = jsonForScript(quizData);
     font-weight: var(--weight-medium);
   }
 
-  .step-card {
-    display: grid;
-    gap: var(--space-2);
-    align-content: start;
+  .perf-acc {
+    width: 100%;
+    min-width: 10rem;
   }
 
-  .step-card svg {
+  .acc-bar {
+    display: block;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--quote-surface);
+    overflow: hidden;
+  }
+
+  .acc-fill {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+  }
+
+  /* The design's threshold: green at 70% and above, red below. */
+  .acc-fill.good {
+    background: #3db376;
+  }
+
+  .acc-fill.bad {
+    background: #ef665a;
+  }
+
+  .next-steps {
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+  }
+
+  .step-row {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr) auto;
+    gap: var(--space-3);
+    align-items: center;
+    width: 100%;
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    transition: border-color 0.15s var(--ease);
+  }
+
+  .step-row:hover {
+    border-color: var(--border-strong);
+  }
+
+  .step-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--quote-surface);
     color: var(--primary);
   }
 
-  .step-card h3 {
-    font-size: var(--text-body-lg);
+  .step-icon img {
+    width: 20px;
+    height: 20px;
   }
 
-  .step-card p {
-    color: var(--body);
+  .step-body {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .step-title {
+    color: var(--ink);
     font-size: var(--text-body-sm);
+    font-weight: var(--weight-semibold);
   }
 
-  .step-card .btn {
-    margin-top: var(--space-2);
-    justify-self: start;
+  .step-desc {
+    color: var(--mute);
+    font-size: var(--text-caption);
   }
 
+  .step-chev {
+    display: inline-flex;
+    color: var(--faint);
+  }
+
+  /* --- results rail --------------------------------------------------------------------- */
   .results-rail {
     display: grid;
     gap: var(--space-4);
-    margin-top: var(--space-10);
+    align-content: start;
   }
 
-  @media (min-width: 900px) {
-    .results-rail {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+  @media (min-width: 1280px) {
+    .results-view {
+      grid-template-columns: minmax(0, 1fr) 19.25rem;
+      align-items: start;
     }
+
+    .results-rail {
+      grid-column: 2;
+      grid-row: 1 / span 4;
+    }
+  }
+
+  .rail-rows {
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .rail-rows a {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    text-decoration: none;
+  }
+
+  .rail-rows a:hover {
+    color: var(--primary);
+  }
+
+  .rail-row-chev {
+    display: inline-flex;
+    flex-shrink: 0;
+    margin-left: auto;
+    color: var(--faint);
+  }
+
+  .rail-note-body {
+    flex: 1;
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+  }
+
+  .rail-note-title {
+    color: var(--ink);
+    font-weight: var(--weight-medium);
+  }
+
+  .rail-note-desc {
+    color: var(--faint);
+    font-size: var(--text-caption);
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
   }
 
   /* --- review ------------------------------------------------------------------------------ */
@@ -1396,14 +2266,14 @@ const quizDataJson = jsonForScript(quizData);
     gap: var(--space-3);
     padding: var(--space-2) var(--space-3);
     border: 1px solid var(--border);
-    border-radius: var(--radius-md);
+    border-radius: 10px;
     color: var(--body);
-    font-size: var(--text-body-sm);
+    font-size: 0.8125rem;
     line-height: var(--leading-normal);
   }
 
   .review-options li.correct {
-    border-color: var(--primary-border);
+    border-color: var(--primary);
     background: var(--primary-surface);
     color: var(--ink);
   }
@@ -1412,6 +2282,12 @@ const quizDataJson = jsonForScript(quizData);
     border-color: #e7c9cb;
     background: #fdf6f6;
     color: #8f1d24;
+  }
+
+  .review-options li.correct .q-letter {
+    border-color: var(--primary);
+    background: var(--primary);
+    color: var(--on-primary);
   }
 
   .review-item.skipped .q-text {
@@ -1427,19 +2303,9 @@ const quizDataJson = jsonForScript(quizData);
     text-transform: uppercase;
   }
 
-  /* --- rail quote ------------------------------------------------------------------------------ */
-  .rail-quote {
-    margin: 0;
-  }
-
-  .rail-quote p {
-    color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body);
-    font-style: italic;
-    font-weight: var(--weight-medium);
-    line-height: 1.4;
-    text-wrap: balance;
+  .rail-help {
+    color: var(--body);
+    font-size: var(--text-body-sm);
   }
 
   .rail-quote-attr {
@@ -1452,18 +2318,7 @@ const quizDataJson = jsonForScript(quizData);
     text-transform: uppercase;
   }
 
-  .rail-help {
-    color: var(--body);
-    font-size: var(--text-body-sm);
-  }
-
   .quiz-nojs {
     margin-top: var(--space-4);
-  }
-
-  @media (max-width: 1023px) {
-    .quiz-side {
-      order: 2;
-    }
   }
 </style>

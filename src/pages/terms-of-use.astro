@@ -27,6 +27,7 @@ const id = (n: number) => legalSectionId(sections[n - 1].heading);
 
 <LegalLayout
   title="Terms of Use | Medical Study Notes"
+  heading="Terms of Use"
   description="The terms that govern your use of Medical Study Notes — acceptable use, intellectual property, user contributions, and the limits of our liability."
   path="/terms-of-use/"
   kicker="Legal"
@@ -34,8 +35,8 @@ const id = (n: number) => legalSectionId(sections[n - 1].heading);
   updated={new Date('2026-09-04')}
   readingTime="8 min read"
   {sections}
+  heroQuote="With knowledge comes responsibility. Use it wisely."
   quote="Good learners respect rules, because they protect the learning community."
-  quoteAttribution="Clear guidelines · responsible use"
   contactPrompt="Need clarification about these Terms?"
   {footerSubjects}
 >

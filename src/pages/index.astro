@@ -2,20 +2,15 @@
 import Layout from '../layouts/Layout.astro';
 import Search from '../components/Search.astro';
 import ArticleCard from '../components/ArticleCard.astro';
-import Faq from '../components/Faq.astro';
 import JsonLd from '../components/JsonLd.astro';
-import Icon from '../components/Icon.astro';
-import Illustration, { illustrationForSubject } from '../components/Illustration.astro';
-import QuoteBand from '../components/QuoteBand.astro';
+import Illustration, { illustrationForSubject, type IllustrationName } from '../components/Illustration.astro';
 import { getNotes, getBlogPosts, getQuestions, getCollection } from '../utils/collections';
 
-const [notes, posts, questions, subjects, levels, topics] = await Promise.all([
+const [notes, posts, questions, subjects] = await Promise.all([
   getNotes(),
   getBlogPosts(),
   getQuestions(),
   getCollection('subjects'),
-  getCollection('levels'),
-  getCollection('topics'),
 ]);
 
 /** Real per-subject note counts; a subject with none shows no count. */
@@ -27,14 +22,17 @@ const subjectIndex = subjects
   }))
   .sort((a, b) => b.noteCount - a.noteCount || a.data.title.localeCompare(b.data.title));
 
+/** The grid holds the eight most note-dense subjects, as in the design. */
+const homeSubjects = subjectIndex.slice(0, 8);
+
 /** Popular notes if flagged, otherwise the most recently updated. */
 const flaggedPopular = notes.filter((n) => n.data.popular);
 const popularNotes = (flaggedPopular.length >= 4 ? flaggedPopular : notes)
   .slice()
   .sort((a, b) => b.data.updatedDate.valueOf() - a.data.updatedDate.valueOf())
-  .slice(0, 5);
+  .slice(0, 4);
 
-const latestPosts = posts.slice(0, 4);
+const latestPosts = posts.slice(0, 3);
 
 const subjectLabel = (slug: string) =>
   subjects.find((s) => s.slug === slug)?.data.title ?? slug;
@@ -44,7 +42,7 @@ const footerSubjects = subjects.map((s) => ({
   label: s.data.title,
 }));
 
-/** Subjects with a PNG icon in /assets/landing/; the rest fall back to a drawing. */
+/** Subjects with a PNG icon in /assets/images/; the rest fall back to a drawing. */
 const pngSubjects = new Set([
   'anatomy',
   'biochemistry',
@@ -57,38 +55,29 @@ const pngSubjects = new Set([
 ]);
 
 const subjectIcon = (slug: string) =>
-  pngSubjects.has(slug) ? `/assets/landing/subject-${slug}.png` : undefined;
+  pngSubjects.has(slug) ? `/assets/images/subject-${slug}.png` : undefined;
 
-/** The four feature tiles under the subject grid. */
-const features = [
-  { icon: 'notes' as const, title: 'Structured Notes', sub: 'Clear and easy to understand' },
-  { icon: 'question' as const, title: 'Practice MCQs', sub: 'Test your knowledge' },
-  { icon: 'image' as const, title: 'Visual Diagrams', sub: 'Visual learning support' },
-  { icon: 'users' as const, title: 'Trusted by Students', sub: 'A global learning community' },
-];
+/** The card sub-line: real counts, never invented ones. */
+const subjectSub = (noteCount: number, mcqCount: number) => {
+  const parts = [
+    noteCount > 0 ? `${noteCount} Study Notes` : null,
+    mcqCount > 0 ? `${mcqCount} MCQs` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(' · ') : 'Study subject';
+};
 
-const homeFaqs = [
-  {
-    question: 'Who are these notes written for?',
-    answer:
-      'Students revising for exams. Each note is structured for recall rather than continuous reading: definitions first, then key points, clinical pearls, and practice questions at the end.',
-  },
-  {
-    question: 'Is the content free?',
-    answer:
-      'Yes. Every study note and practice question is free to read, with no account required.',
-  },
-  {
-    question: 'How is accuracy checked?',
-    answer:
-      'Every note lists the textbooks, journal articles, and clinical guidelines it draws on, so any statement can be traced back to its source. Notes show both a published and a last-updated date.',
-  },
-  {
-    question: 'Can these notes replace a textbook?',
-    answer:
-      'No. They are revision material that condenses and cross-references standard sources. Use them alongside your prescribed textbooks and course teaching, not instead of them.',
-  },
-];
+/** Decorative line art for the article cards, keyed by category slug. */
+const categoryArt: Record<string, IllustrationName> = {
+  'api-design': 'code',
+  'databases': 'database',
+  'study-techniques': 'open-book',
+};
+const artForCategory = (slug: string): IllustrationName =>
+  categoryArt[slug] ?? 'open-book';
+
+/** Reading time from the actual body, not a hardcoded number. */
+const readingMinutes = (body: string) =>
+  Math.max(1, Math.round(body.trim().split(/\s+/).length / 200));
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -117,92 +106,113 @@ const jsonLd = {
 >
   <JsonLd data={jsonLd} />
 
-  {/* --- 1. Hero ---------------------------------------------------------- */}
+  {/* --- 1. Hero band ------------------------------------------------------ */}
   <section class="hero">
     <div class="container hero-inner">
       <div class="hero-copy">
-        <p class="eyebrow">Your trusted partner in</p>
+        <p class="hero-eyebrow">Medical education resource</p>
         <h1 class="hero-title">
-          Medical<br /><span class="hero-em">Learning</span>
+          Study medicine<br /><span>with clarity.</span>
         </h1>
-        <p class="lead hero-lead">
-          Access high-quality study notes, MCQs, diagrams, and resources to
-          help you learn, practice, and master every medical subject.
+        <p class="hero-lead">
+          Structured study notes, explanations, MCQs, and medical resources
+          organized by subject.
         </p>
 
         <div class="hero-search">
           <Search
             variant="hero"
             id="hero-search"
-            placeholder="Search for a topic (e.g. anatomy, pharmacology, MCQs...)"
+            placeholder="Search anatomy, microbiology, pharmacology..."
           />
         </div>
+
+        <a class="more-link hero-more" href="/subjects/">
+          Browse all subjects
+          <img src="/assets/icons/arrow-right.svg" alt="" width="15" height="15" />
+        </a>
       </div>
 
-      <aside class="hero-aside">
-        <div class="hero-art" aria-hidden="true">
-          <img src="/assets/landing/hero-heart.png" alt="" width="170" height="170" decoding="async" />
-        </div>
-        <blockquote class="hero-quote">
-          <p>Better Students<br />Brighter Tomorrow</p>
+      <img
+        class="hero-art"
+        src="/assets/images/hero-heart.png"
+        alt=""
+        width="394"
+        height="382"
+        decoding="async"
+      />
+
+      <aside class="hero-quote">
+        <blockquote>
+          <p>“Good medical knowledge improves lives.”</p>
         </blockquote>
-        <hr class="hero-quote-rule" />
-        <p class="hero-quote-attr">Study · Practice · Succeed</p>
+        <span class="hero-quote-rule" aria-hidden="true"></span>
+        <p class="hero-quote-attr">
+          Study today<br />for a better tomorrow
+        </p>
       </aside>
     </div>
   </section>
 
-  <div class="container">
-    {/* --- 2. Subjects ---------------------------------------------------- */}
-    <section class="section section-plain" aria-labelledby="subjects-heading">
-      <div class="section-head-row">
+  <main class="container">
+    {/* --- 2. Subjects ----------------------------------------------------- */}
+    <section class="home-subjects" aria-labelledby="subjects-heading">
+      <div class="section-head-row home-head">
         <div>
-          <h2 id="subjects-heading">Explore by Subject</h2>
-          <p>Find study notes, MCQs, and resources for your favorite subjects.</p>
+          <p class="eyebrow">Explore</p>
+          <h2 id="subjects-heading">Explore medical subjects</h2>
+          <p>Find study notes organized by subject.</p>
         </div>
-        <a class="link-arrow" href="/subjects/">View All Subjects</a>
+        <a class="more-link" href="/subjects/">
+          View all subjects
+          <img src="/assets/icons/arrow-right.svg" alt="" width="15" height="15" />
+        </a>
       </div>
 
-      <div class="grid grid-3 home-subject-grid">
-        {subjectIndex.map((subject) => (
-          <a class="home-subject" href={`/subjects/${subject.slug}/`}>
-            <span class="home-subject-art" aria-hidden="true">
-              {subjectIcon(subject.slug) ? (
-                <img src={subjectIcon(subject.slug)} alt="" loading="lazy" decoding="async" />
-              ) : (
-                <Illustration name={illustrationForSubject(subject.slug)} size={40} />
-              )}
+      <div class="subject-grid">
+        {homeSubjects.map((subject) => (
+          <a class="subj-card" href={`/subjects/${subject.slug}/`}>
+            <span class="subj-body">
+              <span class="subj-art" aria-hidden="true">
+                {subjectIcon(subject.slug) ? (
+                  <img
+                    src={subjectIcon(subject.slug)}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
+                ) : (
+                  <Illustration name={illustrationForSubject(subject.slug)} size={34} />
+                )}
+              </span>
+              <span class="subj-text">
+                <span class="subj-title">{subject.data.title}</span>
+                <span class="subj-sub">
+                  {subjectSub(subject.noteCount, subject.mcqCount)}
+                </span>
+              </span>
             </span>
-            <span class="home-subject-title">{subject.data.title}</span>
-            <span class="home-subject-meta">
-              {subject.noteCount > 0 ? `${subject.noteCount} notes` : 'Study notes'}
-              {subject.mcqCount > 0 ? ' · MCQs' : ''}
-            </span>
+            <img
+              class="subj-chev"
+              src="/assets/icons/chevron-right.svg"
+              alt=""
+              width="16"
+              height="16"
+            />
           </a>
         ))}
       </div>
     </section>
 
-    {/* --- 3. What the site offers ---------------------------------------- */}
-    <section class="section" aria-label="What Medical Study Notes offers">
-      <div class="grid grid-4 features">
-        {features.map((f) => (
-          <div class="feature">
-            <span class="feature-icon" aria-hidden="true"><Icon name={f.icon} size={20} /></span>
-            <h3 class="feature-title">{f.title}</h3>
-            <p class="feature-sub">{f.sub}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-
-    {/* --- 3. Popular notes beside the latest articles -------------------- */}
-    <section class="section split" aria-label="Popular notes and latest articles">
+    {/* --- 3. Popular notes beside the latest articles --------------------- */}
+    <section class="home-split" aria-label="Popular study notes and latest articles">
       <div class="split-col">
-        <div class="section-head">
-          <p class="eyebrow">Popular</p>
-          <h2>Popular study notes</h2>
-          <p>Most accessed and important topics for medical students.</p>
+        <div class="section-head split-head">
+          <div>
+            <p class="eyebrow">Popular</p>
+            <h2>Popular study notes</h2>
+            <p>Most accessed and important topics for medical students.</p>
+          </div>
         </div>
 
         <ul class="entry-list">
@@ -219,14 +229,23 @@ const jsonLd = {
           ))}
         </ul>
 
-        <a class="link-arrow split-more" href="/notes/">All study notes</a>
+        <a class="more-link split-more" href="/notes/">
+          All study notes
+          <img src="/assets/icons/arrow-right.svg" alt="" width="15" height="15" />
+        </a>
       </div>
 
       <div class="split-col">
-        <div class="section-head">
-          <p class="eyebrow">Latest</p>
-          <h2>Latest from Medical Study Notes</h2>
-          <p>Educational articles, exam tips, and medical resources.</p>
+        <div class="section-head split-head">
+          <div>
+            <p class="eyebrow">Latest</p>
+            <h2>Latest from Medical Study Notes</h2>
+            <p>Educational articles, exam tips and medical resources.</p>
+          </div>
+          <a class="more-link split-link" href="/blog/">
+            View all articles
+            <img src="/assets/icons/arrow-right.svg" alt="" width="15" height="15" />
+          </a>
         </div>
 
         <ul class="entry-list">
@@ -238,359 +257,262 @@ const jsonLd = {
                 excerpt={post.data.description}
                 kicker={post.data.category.replace(/-/g, ' ')}
                 date={post.data.publishedDate}
+                readingMinutes={readingMinutes(post.body ?? '')}
+                illustration={artForCategory(post.data.category)}
+                variant="media"
               />
             </li>
           ))}
         </ul>
 
-        <a class="link-arrow split-more" href="/blog/">All articles</a>
+        <a class="more-link split-more" href="/blog/">
+          All articles
+          <img src="/assets/icons/arrow-right.svg" alt="" width="15" height="15" />
+        </a>
       </div>
     </section>
-  </div>
-
-  {/* --- 4. Practice band: a tinted strip, not a dark marketing block ---- */}
-  <section class="practice">
-    <div class="container practice-inner">
-      <div>
-        <p class="eyebrow">Self-testing</p>
-        <h2>{questions.length} practice questions with worked answers</h2>
-        <p class="lead practice-lead">
-          Filter by subject, level, or question type. Every answer explains the
-          reasoning, not just the correct option.
-        </p>
-      </div>
-      <div class="btn-row">
-        <a class="btn btn-primary" href="/practice/">Start practising</a>
-        <a class="btn btn-secondary" href="/topics/">Browse topics</a>
-      </div>
-    </div>
-  </section>
-
-  <div class="container">
-    {/* --- 5. What a note contains, shown rather than described ---------- */}
-    <section class="section section-plain" aria-labelledby="inside-heading">
-      <div class="section-head">
-        <p class="eyebrow">Inside a note</p>
-        <h2 id="inside-heading">Every note breaks down into blocks you can revise from</h2>
-        <p>
-          The same components appear in every study note, so you always know
-          where the definition, the exam-relevant point, and the clinical
-          detail will be.
-        </p>
-      </div>
-
-      <div class="samples">
-        <aside class="callout callout-definition">
-          <p class="callout-label"><Icon name="book" size={15} />Definition</p>
-          <p>
-            Gram-positive bacteria retain crystal violet during Gram staining
-            and appear purple under the microscope.
-          </p>
-        </aside>
-        <aside class="callout callout-key-point">
-          <p class="callout-label"><Icon name="bulb" size={15} />Key point</p>
-          <p>
-            The thick peptidoglycan cell wall is what prevents the dye being
-            lost during decolorisation.
-          </p>
-        </aside>
-        <aside class="callout callout-clinical-pearl">
-          <p class="callout-label"><Icon name="stethoscope" size={15} />Clinical pearl</p>
-          <p>
-            Teichoic acids are unique to gram-positive organisms and act as
-            important antigens.
-          </p>
-        </aside>
-        <aside class="callout callout-important">
-          <p class="callout-label"><Icon name="alert" size={15} />Important</p>
-          <p>
-            Gram-positive organisms are generally more sensitive to penicillin
-            and vancomycin. Expect this in examinations.
-          </p>
-        </aside>
-      </div>
-    </section>
-
-  </div>
-
-  {/* --- 6. Quote band ---------------------------------------------------- */}
-  <QuoteBand
-    quote="The beautiful thing about learning is that no one can take it away from you."
-    attribution="B.B. King"
-    icon="bulb"
-  />
-
-  <div class="container">
-    {/* --- 7. Questions ------------------------------------------------- */}
-    <Faq faqs={homeFaqs} heading="Common questions" />
-
-    {/* --- 8. Secondary browse routes ----------------------------------- */}
-    <section class="section" aria-labelledby="browse-heading">
-      <div class="section-head">
-        <h2 id="browse-heading">More ways to browse</h2>
-      </div>
-      <div class="grid grid-3">
-        <div class="browse-col">
-          <h3 class="browse-title">By education level</h3>
-          <ul class="link-list">
-            {levels.map((level) => (
-              <li><a href={`/levels/${level.slug}/`}>{level.data.title}</a></li>
-            ))}
-          </ul>
-        </div>
-        <div class="browse-col">
-          <h3 class="browse-title">By content type</h3>
-          <ul class="link-list">
-            <li><a href="/notes/">Study notes</a></li>
-            <li><a href="/practice/">MCQs and practice questions</a></li>
-            <li><a href="/blog/">Articles</a></li>
-            <li><a href="/topics/">Topic hubs</a></li>
-          </ul>
-        </div>
-        <div class="browse-col">
-          <h3 class="browse-title">Popular topics</h3>
-          <ul class="link-list">
-            {topics.slice(0, 6).map((topic) => (
-              <li><a href={`/topics/${topic.slug}/`}>{topic.data.title}</a></li>
-            ))}
-          </ul>
-        </div>
-      </div>
-    </section>
-  </div>
-
-  {/* --- 9. Closing CTA --------------------------------------------------- */}
-  <section class="cta">
-    <div class="container cta-inner">
-      <h2 class="cta-title">
-        Learn Today<br />Build a Healthier<br />Tomorrow
-      </h2>
-      <div class="btn-row">
-        <a class="btn btn-primary btn-lg" href="/subjects/">Explore Subjects</a>
-        <a class="btn btn-secondary btn-lg" href="/practice/">Practice MCQs</a>
-      </div>
-    </div>
-  </section>
+  </main>
 </Layout>
 
 <style>
-  /* --- 1. hero -------------------------------------------------------- */
+  /* --- 1. hero band ------------------------------------------------------ */
   .hero {
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
+    background: var(--band);
   }
 
   .hero-inner {
     display: grid;
     gap: var(--space-8);
-    padding-block: var(--space-12);
+    align-items: start;
+    padding-block: 44px 48px;
   }
 
-  @media (min-width: 900px) {
-    .hero-inner {
-      grid-template-columns: minmax(0, 1fr) 19rem;
-      gap: var(--space-16);
-      align-items: center;
-      padding-block: var(--space-16);
-    }
+  .hero-copy {
+    max-width: 620px;
+  }
+
+  .hero-eyebrow {
+    margin: 0;
+    color: var(--primary);
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: var(--weight-bold);
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
   }
 
   .hero-title {
-    font-size: clamp(2.75rem, 2rem + 3.8vw, 4.25rem);
-    line-height: 1.05;
+    margin-top: 18px;
+    font-size: clamp(2.5rem, 1.4rem + 4vw, 3.6875rem);
+    line-height: 1.1;
   }
 
-  .hero-em {
+  .hero-title span {
     color: var(--primary);
-    font-style: italic;
   }
 
   .hero-lead {
-    max-width: 46ch;
-    margin-top: var(--space-4);
+    max-width: 560px;
+    margin-top: 22px;
+    color: var(--mute);
+    font-size: 1.125rem;
+    line-height: 1.45;
   }
 
   .hero-search {
-    margin-top: var(--space-8);
+    margin-top: 26px;
   }
 
-  /* The hero aside: the anatomical heart from the design in a hairline
-     panel, with a serif italic line beneath. */
-  .hero-aside {
-    display: none;
-  }
-
-  @media (min-width: 900px) {
-    .hero-aside {
-      display: block;
-      padding: var(--space-6);
-      border: 1px solid var(--border);
-      border-radius: var(--radius-md);
-      background: var(--surface-sunken);
-    }
+  .hero-more {
+    margin-top: 14px;
   }
 
   .hero-art {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: var(--space-6);
-    border: 1px solid var(--primary-border);
-    border-radius: var(--radius-sm);
-    background: var(--primary-surface);
-  }
-
-  .hero-art img {
-    width: 10.5rem;
-    height: 10.5rem;
-    object-fit: contain;
+    display: none;
+    width: 100%;
+    border-radius: var(--radius-tag);
+    object-fit: cover;
   }
 
   .hero-quote {
-    margin: var(--space-6) 0 0;
+    display: none;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 22px 20px 24px 22px;
+    border-radius: 6px;
+    background: var(--quote-surface);
   }
 
   .hero-quote p {
+    margin: 0;
     color: var(--ink);
     font-family: var(--font-display);
-    font-size: var(--text-display-md);
+    font-size: 1.1875rem;
     font-style: italic;
     font-weight: var(--weight-medium);
-    line-height: 1.3;
-    text-wrap: balance;
+    line-height: 1.48;
   }
 
   .hero-quote-rule {
-    width: 2rem;
+    width: 26px;
     height: 2px;
-    margin: var(--space-6) 0 var(--space-4);
+    margin: 22px 0 14px;
     background: var(--primary);
   }
 
   .hero-quote-attr {
     color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-micro);
-    letter-spacing: var(--track-caps);
+    font-family: var(--font-sans);
+    font-size: 0.6563rem;
+    font-weight: var(--weight-medium);
+    letter-spacing: 0.1em;
     line-height: 1.7;
     text-transform: uppercase;
   }
 
-  /* --- 2. subjects: vertical tiles, art over title --------------------- */
-  .home-subject-grid {
-    gap: var(--space-4);
-  }
-
-  .home-subject {
-    display: grid;
-    justify-items: center;
-    gap: var(--space-3);
-    padding: var(--space-8) var(--space-4);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface);
-    color: inherit;
-    text-align: center;
-    text-decoration: none;
-    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
-  }
-
-  .home-subject:hover {
-    border-color: var(--primary-border);
-    background: var(--primary-surface);
-  }
-
-  .home-subject-art {
+  /* --- shared "more" link: green, semibold, real arrow glyph ------------- */
+  .more-link {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    width: 5.5rem;
-    height: 5.5rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface-sunken);
+    gap: 8px;
     color: var(--primary);
-    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
-  }
-
-  .home-subject:hover .home-subject-art {
-    border-color: var(--primary-border);
-    background: var(--surface);
-  }
-
-  .home-subject-art img {
-    width: 3.25rem;
-    height: 3.25rem;
-    object-fit: contain;
-  }
-
-  .home-subject-title {
-    color: var(--ink);
-    font-family: var(--font-display);
-    font-size: var(--text-body-lg);
-    font-weight: var(--weight-semibold);
-    line-height: var(--leading-snug);
-    transition: color 0.15s var(--ease);
-  }
-
-  .home-subject:hover .home-subject-title {
-    color: var(--primary);
-  }
-
-  .home-subject-meta {
-    color: var(--mute);
-    font-family: var(--font-mono);
-    font-size: var(--text-caption);
-    font-variant-numeric: tabular-nums;
-  }
-
-  /* --- 3. features ----------------------------------------------------- */
-  .features {
-    gap: var(--space-4);
-  }
-
-  .feature {
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-6);
-    border: 1px solid var(--border);
-    border-radius: var(--radius-md);
-    background: var(--surface);
-  }
-
-  .feature-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    margin-bottom: var(--space-1);
-    border: 1px solid var(--primary-border);
-    border-radius: var(--radius-sm);
-    background: var(--primary-surface);
-    color: var(--primary);
-  }
-
-  .feature-title {
-    font-size: var(--text-body);
-    font-weight: var(--weight-semibold);
-  }
-
-  .feature-sub {
-    color: var(--mute);
     font-size: var(--text-body-sm);
+    font-weight: var(--weight-semibold);
+    text-decoration: none;
   }
 
-  /* --- 5. split ------------------------------------------------------- */
-  .split {
+  .more-link img {
+    display: block;
+    transition: transform 0.15s var(--ease-out);
+  }
+
+  .more-link:hover {
+    color: var(--primary-hover);
+  }
+
+  .more-link:hover img {
+    transform: translateX(3px);
+  }
+
+  /* --- 2. subjects -------------------------------------------------------- */
+  .home-subjects {
+    padding-block: 26px 44px;
+  }
+
+  .home-head {
+    align-items: flex-start;
+    margin-bottom: 26px;
+  }
+
+  .home-head h2 {
+    margin-top: 10px;
+  }
+
+  .subject-grid {
     display: grid;
-    gap: var(--space-12);
+    grid-template-columns: 1fr;
+    gap: 14px 16px;
+  }
+
+  @media (min-width: 640px) {
+    .subject-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
   }
 
   @media (min-width: 1024px) {
-    .split {
+    .subject-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  .subj-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    min-height: 90px;
+    padding: var(--space-3) 24px var(--space-3) 28px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 0.15s var(--ease);
+  }
+
+  .subj-card:hover {
+    border-color: var(--border-strong);
+  }
+
+  .subj-body {
+    display: flex;
+    align-items: center;
+    gap: 17px;
+    min-width: 0;
+  }
+
+  .subj-art {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    justify-content: center;
+    width: 54px;
+    height: 54px;
+    overflow: hidden;
+    border-radius: 50%;
+    background: var(--surface-sunken);
+    color: var(--primary);
+  }
+
+  .subj-art img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .subj-text {
+    min-width: 0;
+  }
+
+  .subj-title {
+    display: block;
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: 1.0938rem;
+    font-weight: var(--weight-display);
+    line-height: 1.25;
+    transition: color 0.15s var(--ease);
+  }
+
+  .subj-card:hover .subj-title {
+    color: var(--primary);
+  }
+
+  .subj-sub {
+    display: block;
+    margin-top: 3px;
+    color: var(--mute);
+    font-size: var(--text-caption);
+    line-height: 1.45;
+  }
+
+  .subj-chev {
+    flex-shrink: 0;
+    color: var(--faint);
+  }
+
+  /* --- 3. popular / latest split ------------------------------------------ */
+  .home-split {
+    display: grid;
+    gap: var(--space-10);
+    padding-block: 40px 64px;
+  }
+
+  @media (min-width: 1024px) {
+    .home-split {
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: var(--space-16);
+      gap: 45px;
     }
   }
 
@@ -598,87 +520,60 @@ const jsonLd = {
     min-width: 0;
   }
 
-  .split-col .section-head {
-    margin-bottom: var(--space-4);
+  .split-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+    margin-bottom: 12px;
+  }
+
+  .split-head h2 {
+    margin-top: 10px;
+  }
+
+  .split-link {
+    margin-top: 6px;
+  }
+
+  /* The design separates rows with hairlines between and after them, but not
+     above the first row. */
+  .home-split .entry-list {
+    border-top: 0;
   }
 
   .split-more {
-    margin-top: var(--space-6);
+    margin-top: var(--space-5);
   }
 
-  /* --- practice band --------------------------------------------------- */
-  .practice {
-    border-block: 1px solid var(--primary-border);
-    background: var(--primary-surface);
-  }
-
-  .practice-inner {
-    display: grid;
-    gap: var(--space-6);
-    padding-block: var(--space-12);
-  }
-
+  /* --- responsive hero: art appears beside the copy from 900px, the quote
+         card joins at 1280px ---------------------------------------------- */
   @media (min-width: 900px) {
-    .practice-inner {
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: var(--space-16);
-      align-items: center;
+    .hero-inner {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 340px);
+      padding-block: 50px 53px;
+    }
+
+    .hero-art {
+      display: block;
+      aspect-ratio: 394 / 382;
     }
   }
 
-  .practice h2 {
-    max-width: 32ch;
-  }
-
-  .practice-lead {
-    margin-top: var(--space-3);
-    color: var(--body);
-  }
-
-  /* --- samples --------------------------------------------------------- */
-  .samples {
-    display: grid;
-    gap: var(--space-4);
-  }
-
-  @media (min-width: 768px) {
-    .samples {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+  @media (min-width: 1280px) {
+    .hero-inner {
+      grid-template-columns: minmax(0, 620px) 394px 246px;
+      gap: 32px;
     }
-  }
 
-  /* Inside the grid the callouts lose their prose margins. */
-  .samples .callout {
-    margin: 0;
-  }
+    .hero-art {
+      max-width: 394px;
+    }
 
-  /* --- browse ---------------------------------------------------------- */
-  .browse-col {
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--border-strong);
-  }
-
-  .browse-title {
-    margin-bottom: var(--space-3);
-    font-size: var(--text-body);
-    font-weight: var(--weight-semibold);
-  }
-
-  /* --- 9. closing CTA -------------------------------------------------- */
-  .cta {
-    padding-block: var(--space-16) var(--space-20);
-  }
-
-  .cta-inner {
-    display: grid;
-    gap: var(--space-8);
-    justify-items: center;
-    text-align: center;
-  }
-
-  .cta-title {
-    font-size: clamp(2.25rem, 1.6rem + 3vw, 3.5rem);
-    line-height: 1.1;
-    text-wrap: balance;
+    .hero-quote {
+      display: flex;
+      margin-top: 45px;
+    }
   }
 </style>

@@ -3,15 +3,20 @@
  * ArticleCard: an editorial row for a study note or an article.
  *
  * Two variants, both hairline-separated rows rather than floating cards:
- *   `row`   — kicker column, title, excerpt, trailing date. The dense listing
- *             used for study notes and search results.
- *   `media` — the same row with a small 4:3 thumbnail on the left, used only
- *             where an article genuinely has an image worth showing.
+ *   `row`   — a kicker column on the left, title + excerpt in the middle, a
+ *             trailing date and chevron on the right. The dense listing used
+ *             for study notes, search results, and the home page.
+ *   `media` — the same row with a small 16:9 thumbnail on the left, used only
+ *             where an article genuinely has an image worth showing. When no
+ *             image exists, a decorative line-art illustration can be passed
+ *             instead — it is art, not content imagery, and never implies a
+ *             photo that does not exist.
  *
  * No invented metadata: reading time, author, and date each render only when
  * the caller passes a real value.
  */
 import Icon from './Icon.astro';
+import Illustration, { type IllustrationName } from './Illustration.astro';
 
 interface Props {
   href: string;
@@ -26,6 +31,8 @@ interface Props {
   author?: string;
   image?: string;
   imageAlt?: string;
+  /** Decorative line art for the thumb area when the item has no image. */
+  illustration?: IllustrationName;
   variant?: 'row' | 'media';
 }
 
@@ -40,30 +47,45 @@ const {
   author,
   image,
   imageAlt = '',
+  illustration,
   variant = 'row',
 } = Astro.props;
 
+const isRow = variant === 'row';
 const iso = date?.toISOString();
+// The design abbreviates September as "Sep", but en-GB short gives "Sept".
 const shown = date
-  ? date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  ? date
+      .toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+      .replace('Sept ', 'Sep ')
   : null;
 
-const hasMedia = variant === 'media' && !!image;
+const hasMedia = !isRow;
 const metaBits = [readingMinutes ? `${readingMinutes} min read` : null, author].filter(Boolean);
 ---
 
-<a class:list={['acard', hasMedia && 'acard-media']} href={href}>
+<a class:list={['acard', `acard-${variant}`]} href={href}>
   {hasMedia && (
     <span class="acard-thumb">
-      <img src={image} alt={imageAlt} loading="lazy" decoding="async" />
+      {image ? (
+        <img src={image} alt={imageAlt} loading="lazy" decoding="async" />
+      ) : (
+        illustration && (
+          <span class="acart-art" aria-hidden="true">
+            <Illustration name={illustration} size={44} />
+          </span>
+        )
+      )}
     </span>
   )}
 
+  {isRow && kicker && <span class="kicker acard-kicker">{kicker}</span>}
+
   <span class="acard-body">
-    {kicker && <span class="kicker acard-kicker">{kicker}</span>}
+    {!isRow && kicker && <span class="kicker acard-kicker">{kicker}</span>}
     <span class="acard-title">{title}</span>
     {excerpt && <span class="acard-excerpt">{excerpt}</span>}
-    {(metaBits.length > 0 || shown) && (
+    {(metaBits.length > 0 || (shown && !isRow)) && (
       <span class="acard-meta">
         {metaBits.map((bit, i) => (
           <>
@@ -71,7 +93,7 @@ const metaBits = [readingMinutes ? `${readingMinutes} min read` : null, author].
             <span>{bit}</span>
           </>
         ))}
-        {shown && (
+        {shown && !isRow && (
           <>
             {metaBits.length > 0 && <span class="acard-dot" aria-hidden="true">·</span>}
             <time datetime={iso}>{dateLabel ? `${dateLabel} ${shown}` : shown}</time>
@@ -81,6 +103,10 @@ const metaBits = [readingMinutes ? `${readingMinutes} min read` : null, author].
     )}
   </span>
 
+  {isRow && shown && (
+    <time class="acard-date" datetime={iso}>{dateLabel ? `${dateLabel} ${shown}` : shown}</time>
+  )}
+
   <span class="acard-chev" aria-hidden="true"><Icon name="chevron-right" size={16} /></span>
 </a>
 
@@ -88,42 +114,56 @@ const metaBits = [readingMinutes ? `${readingMinutes} min read` : null, author].
   .acard {
     display: flex;
     align-items: flex-start;
-    gap: var(--space-4);
-    padding: var(--space-4) 0;
     color: inherit;
     text-decoration: none;
   }
 
+  /* --- thumb (media variant) -------------------------------------------- */
   .acard-thumb {
+    display: flex;
     flex-shrink: 0;
-    width: 5.5rem;
+    align-items: center;
+    justify-content: center;
+    width: 120px;
+    aspect-ratio: 167 / 94;
     overflow: hidden;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
+    border-radius: var(--radius-tag);
     background: var(--surface-sunken);
   }
 
   @media (min-width: 640px) {
     .acard-thumb {
-      width: 7.5rem;
+      width: 167px;
     }
   }
 
   .acard-thumb img {
     display: block;
     width: 100%;
-    aspect-ratio: 4 / 3;
+    height: 100%;
     object-fit: cover;
   }
 
+  .acart-art {
+    display: inline-flex;
+    color: var(--primary);
+  }
+
+  /* --- kicker ----------------------------------------------------------- */
+  .acard-body .acard-kicker {
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .acard-row .acard-kicker {
+    margin-top: 3px;
+  }
+
+  /* --- body -------------------------------------------------------------- */
   .acard-body {
     flex: 1;
     min-width: 0;
     display: block;
-  }
-
-  .acard-kicker {
-    margin-bottom: var(--space-1);
   }
 
   .acard-title {
@@ -142,10 +182,10 @@ const metaBits = [readingMinutes ? `${readingMinutes} min read` : null, author].
 
   .acard-excerpt {
     display: block;
-    margin-top: var(--space-1);
+    margin-top: 4px;
     color: var(--mute);
-    font-size: var(--text-body-sm);
-    line-height: var(--leading-normal);
+    font-size: var(--text-caption);
+    line-height: 1.45;
   }
 
   .acard-meta {
@@ -153,19 +193,30 @@ const metaBits = [readingMinutes ? `${readingMinutes} min read` : null, author].
     flex-wrap: wrap;
     gap: var(--space-2);
     align-items: baseline;
-    margin-top: var(--space-2);
+    margin-top: 6px;
     color: var(--faint);
-    font-size: var(--text-caption);
+    font-size: var(--text-micro);
   }
 
   .acard-dot {
     color: var(--border-strong);
   }
 
+  /* --- trailing date + chevron ------------------------------------------ */
+  .acard-date {
+    flex-shrink: 0;
+    margin-top: 3px;
+    color: var(--faint);
+    font-size: var(--text-caption);
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+
   .acard-chev {
-    display: none;
+    display: inline-flex;
     flex-shrink: 0;
     align-self: center;
+    margin-left: 12px;
     color: var(--faint);
     transition: color 0.15s var(--ease), transform 0.15s var(--ease-out);
   }
@@ -175,9 +226,59 @@ const metaBits = [readingMinutes ? `${readingMinutes} min read` : null, author].
     transform: translateX(2px);
   }
 
+  /* --- row variant: kicker column | body | date | chevron --------------- */
+  .acard-row {
+    gap: 16px;
+    padding-block: 26px 24px;
+  }
+
   @media (min-width: 640px) {
-    .acard-chev {
-      display: inline-flex;
+    .acard-row .acard-kicker {
+      flex: 0 0 107px;
+      margin-top: 3px;
+      margin-bottom: 0;
+    }
+  }
+
+  /* --- media variant: thumb | body | chevron ----------------------------- */
+  .acard-media {
+    gap: 14px;
+    padding-block: 14px;
+  }
+
+  @media (min-width: 640px) {
+    .acard-media {
+      gap: 22px;
+    }
+  }
+
+  .acard-media .acard-kicker {
+    margin-top: 0;
+  }
+
+  /* --- small screens: the row unwraps into stacked lines ----------------- */
+  @media (max-width: 639px) {
+    .acard-row {
+      flex-wrap: wrap;
+      gap: 6px 12px;
+    }
+
+    .acard-row .acard-kicker {
+      flex-basis: 100%;
+      margin-top: 0;
+      margin-bottom: 2px;
+    }
+
+    .acard-row .acard-body {
+      flex-basis: 100%;
+    }
+
+    .acard-row .acard-date {
+      margin-top: 0;
+    }
+
+    .acard-row .acard-chev {
+      margin-left: auto;
     }
   }
 </style>

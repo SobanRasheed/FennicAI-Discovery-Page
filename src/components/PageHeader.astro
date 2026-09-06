@@ -22,13 +22,31 @@ interface Props {
   stats?: Stat[];
   /** A single quote or note in the right column. */
   aside?: boolean;
+  /**
+   * `band` puts the header on the tinted hero band (var(--band)) with no
+   * hairline under it — the treatment listing pages with a search field use.
+   */
+  tone?: 'default' | 'band';
+  /**
+   * Widens the aside column so it can hold a quote panel plus a hero image
+   * side by side, as on the subjects hub.
+   */
+  asideWide?: boolean;
 }
 
-const { title, kicker, lead, crumbs = [], stats = [] } = Astro.props;
+const {
+  title,
+  kicker,
+  lead,
+  crumbs = [],
+  stats = [],
+  tone = 'default',
+  asideWide = false,
+} = Astro.props;
 const hasAside = Astro.slots.has('aside');
 ---
 
-<div class="phdr">
+<div class:list={['phdr', tone === 'band' && 'phdr-band']}>
   {crumbs.length > 0 && (
     <div class="container phdr-crumbs">
       <Breadcrumbs {crumbs} />
@@ -36,7 +54,7 @@ const hasAside = Astro.slots.has('aside');
   )}
 
   <div class="container">
-    <div class:list={['phdr-inner', hasAside && 'phdr-split']}>
+    <div class:list={['phdr-inner', hasAside && 'phdr-split', asideWide && 'phdr-split-wide']}>
       <div class="phdr-copy">
         {kicker && <p class="kicker">{kicker}</p>}
         <h1 class="phdr-title">{title}</h1>
@@ -73,6 +91,13 @@ const hasAside = Astro.slots.has('aside');
     background: var(--surface);
   }
 
+  /* The band treatment: tinted ground, no hairline — the colour change
+     itself is the boundary, as in the designs. */
+  .phdr-band {
+    border-bottom: 0;
+    background: var(--band);
+  }
+
   .phdr-crumbs {
     padding-top: var(--space-4);
   }
@@ -88,6 +113,16 @@ const hasAside = Astro.slots.has('aside');
       grid-template-columns: minmax(0, 1fr) 17rem;
       gap: var(--space-16);
       align-items: center;
+    }
+  }
+
+  /* The wide aside holds a quote panel plus a hero image side by side, so it
+     needs most of the second half of the container. */
+  @media (min-width: 1024px) {
+    .phdr-split-wide {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 34rem);
+      gap: var(--space-12);
+      align-items: start;
     }
   }
 
