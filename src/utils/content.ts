@@ -751,17 +751,18 @@ export async function listAuthorCounts(
 /** Subjects with published note/MCQ counts, for the subject grid. */
 export async function listSubjectsWithCounts(
   locals: App.Locals,
-): Promise<(SubjectRow & { note_count: number; mcq_count: number })[]> {
+): Promise<(SubjectRow & { note_count: number; mcq_count: number; image_key: string | null })[]> {
   const rows = await env(locals)
     .DB.prepare(
       `SELECT s.*,
         (SELECT COUNT(*) FROM articles a WHERE a.subject_id = s.id
           AND a.status = 'published' AND a.article_type = 'study-note') AS note_count,
         (SELECT COUNT(*) FROM mcqs m WHERE m.subject_id = s.id
-          AND m.status = 'published') AS mcq_count
+          AND m.status = 'published') AS mcq_count,
+        (SELECT r2_key FROM media WHERE id = s.image_media_id) AS image_key
        FROM subjects s WHERE s.is_active = 1 ORDER BY s.sort_order, s.title`,
     )
-    .all<SubjectRow & { note_count: number; mcq_count: number }>();
+    .all<SubjectRow & { note_count: number; mcq_count: number; image_key: string | null }>();
   return rows.results;
 }
 

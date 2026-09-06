@@ -6,7 +6,9 @@
  *
  * Responsibilities:
  * - uploadMediaFile: resize (client-side auto-adjust) + POST to /api/media/
- * - pickMedia: the media-library dialog (search existing or upload new)
+ * - generateMediaImage: AI-generate an image via /api/media/generate/
+ * - pickMedia: the media-library dialog (search existing, upload new, or
+ *   generate with AI)
  */
 
 import { resizeImageFile } from './image-resize';
@@ -27,6 +29,25 @@ export async function uploadMediaFile(csrf: string, file: File, altText: string)
   const data = await res.json() as { id?: number; url?: string; error?: string };
   if (!res.ok) throw new Error(data.error ?? 'Upload failed.');
   return { id: data.id!, url: data.url!, alt: altText };
+}
+
+/**
+ * AI-generate an image with DashScope (qwen-image) via /api/media/generate/.
+ * The generated image is stored in the media library like any upload.
+ * `size`: landscape (thumbnails) | square (icons) | portrait (tall art).
+ */
+export async function generateMediaImage(
+  csrf: string,
+  opts: { prompt: string; altText: string; size?: 'landscape' | 'square' | 'portrait' },
+): Promise<PickedMedia> {
+  const res = await fetch('/api/media/generate/', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'X-CSRF-Token': csrf },
+    body: JSON.stringify(opts),
+  });
+  const data = await res.json() as { id?: number; url?: string; altText?: string; error?: string };
+  if (!res.ok) throw new Error(data.error ?? 'Generation failed.');
+  return { id: data.id!, url: data.url!, alt: data.altText ?? opts.altText };
 }
 
 /**

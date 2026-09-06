@@ -38,6 +38,8 @@ interface Env {
   // Secrets, set via `wrangler secret put` — never committed.
   ADMIN_INITIAL_EMAIL?: string;
   ADMIN_INITIAL_PASSWORD?: string;
+  /** DashScope (Alibaba Cloud) API key for AI image generation. */
+  DASHSCOPE_API_KEY?: string;
 }
 
 declare namespace App {

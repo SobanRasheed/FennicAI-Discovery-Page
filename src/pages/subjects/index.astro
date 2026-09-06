@@ -163,7 +163,14 @@ const jsonLd = {
             {group.rows.map(({ subject, noteCount, mcqCount }) => (
               <a class="subj-card" href={`/subjects/${subject.slug}/`}>
                 <span class="subj-art" aria-hidden="true">
-                  {subjectIcon(subject.slug) ? (
+                  {subject.image_key ? (
+                    <img
+                      src={`/media/${subject.image_key}/`}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  ) : subjectIcon(subject.slug) ? (
                     <img src={subjectIcon(subject.slug)} alt="" loading="lazy" decoding="async" />
                   ) : (
                     <Illustration name={illustrationForSubject(subject.slug)} size={30} />
