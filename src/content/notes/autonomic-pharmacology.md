@@ -2,9 +2,9 @@
 title: 'Autonomic Pharmacology: Complete Study Notes'
 seoTitle: 'Autonomic Pharmacology Notes: Receptors, Sympathomimetics, Anticholinergics, Prototypes'
 description: >
-  Autonomic pharmacology study notes with a receptor and end-organ effect
-  table, sympathomimetic and sympatholytic classes, parasympathomimetics and
-  anticholinergics with prototype drugs, and clinical pearls.
+  Autonomic pharmacology notes with a receptor and end-organ effect table,
+  the four drug classes with prototype drugs, and clinical pearls on
+  anaphylaxis, myasthenia and organophosphate poisoning.
 overview: >
   These notes organize the autonomic nervous system for pharmacology exams:
   a receptor table with end-organ effects, the four drug classes with

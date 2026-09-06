@@ -2,9 +2,9 @@
 title: 'Asphyxia: Complete Study Notes'
 seoTitle: 'Asphyxia Notes: Hanging, Strangulation, Suffocation, Drowning, Autopsy Findings'
 description: >
-  Forensic medicine study notes on asphyxia: definition, types — hanging,
-  strangulation, suffocation, drowning — with distinguishing forensic signs,
-  autopsy findings, and ligature versus suspension groove comparison.
+  Forensic medicine notes on asphyxia covering hanging, strangulation,
+  suffocation and drowning, with distinguishing forensic signs, autopsy
+  findings, and the ligature versus suspension groove.
 overview: >
   These notes define asphyxia in forensic terms, classify its mechanical
   types — hanging, strangulation, suffocation and drowning — and set out the

@@ -2,9 +2,9 @@
 title: 'Gram-Positive vs Gram-Negative Bacteria: Complete Study Notes'
 seoTitle: 'Gram-Positive vs Gram-Negative: Cell Wall, Staining, Genera and Treatment'
 description: >
-  Study notes comparing gram-positive and gram-negative bacteria: cell wall
-  structure, why the Gram stain works, clinically important genera each side,
-  treatment implications, and MRSA and VRE resistance mechanisms.
+  Notes comparing gram-positive and gram-negative bacteria: cell wall
+  structure, Gram stain chemistry, clinically important genera, treatment
+  implications, and MRSA and VRE.
 overview: >
   These notes contrast the gram-positive and gram-negative cell wall, explain
   the chemistry behind Gram staining, list the medically important genera on
@@ -67,8 +67,8 @@ importantPoints:
     mediator of gram-negative septic shock.
   - The gram-negative outer membrane with its porins is a permeability
     barrier that excludes many large antibiotics such as vancomycin.
-  - Gram-positive cocci: Staphylococcus, Streptococcus, Enterococcus;
-    gram-negative diplococci: Neisseria.
+  - Gram-positive cocci include Staphylococcus, Streptococcus and
+    Enterococcus; the gram-negative diplococci are the Neisseria.
   - The Enterobacteriaceae (E. coli, Klebsiella, Salmonella, Shigella,
     Proteus) are gram-negative bacilli that ferment glucose.
   - Mycobacteria are neither — their waxy mycolic-acid wall demands the

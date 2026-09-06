@@ -2,9 +2,9 @@
 title: 'Glycolysis: Complete Study Notes'
 seoTitle: 'Glycolysis Notes: Ten Steps, Energetics, Regulation and Clinical Correlations'
 description: >
-  Glycolysis study notes covering all ten steps with enzymes, the investment
-  and payoff phases, net ATP yield, regulation at three enzymes, fates of
-  pyruvate, and clinical correlations like LDH and lactic acidosis.
+  Glycolysis notes covering the ten steps with enzymes, the investment and
+  payoff phases, energetics, regulation, fates of pyruvate, and clinical
+  correlations including LDH and lactic acidosis.
 overview: >
   These notes split glycolysis into its investment and payoff phases, tabulate
   every enzyme with the regulated steps flagged, tally the energetics under
@@ -60,8 +60,9 @@ importantPoints:
   - Two steps consume ATP (hexokinase/glucokinase and PFK-1) and two produce
     it (phosphoglycerate kinase and pyruvate kinase) — per glucose the
     pathway pays 2 and earns 4 ATP.
-  - Only three steps are irreversible: hexokinase, PFK-1 and pyruvate kinase
-    — these are the regulated steps and the gluconeogenesis bypasses.
+  - Only three steps are irreversible — hexokinase, PFK-1 and pyruvate
+    kinase — and these are the regulated steps and the gluconeogenesis
+    bypasses.
   - PFK-1 is the rate-limiting enzyme; AMP and fructose-2,6-bisphosphate
     activate it, ATP and citrate inhibit it.
   - The only oxidation step is glyceraldehyde-3-phosphate dehydrogenase,
@@ -219,6 +220,31 @@ the biochemistry of lactic acidosis (Type A, due to tissue hypoxia).
    and liver.
 5. In yeast, decarboxylation to acetaldehyde and ethanol — fermentation,
    tested as general biochemistry rather than human.
+
+## Regulation: Fed versus Fasting State
+
+The three irreversible enzymes let the pathway respond to the body's fuel
+state:
+
+- **Hexokinase vs glucokinase** — hexokinase's low Km means it works at all
+  times in all tissues; the liver's glucokinase, with its high Km and its
+  induction by insulin, only engages when blood glucose is high after a meal.
+  This is why the liver buffers blood glucose but does not compete for it
+  when glucose is scarce.
+- **PFK-1 and fructose-2,6-bisphosphate** — in the fed state, insulin raises
+  fructose-2,6-bisphosphate (through activation of the kinase domain of the
+  bifunctional PFK-2/FBPase-2 enzyme) and glycolysis accelerates. In
+  fasting, glucagon shifts the same bifunctional enzyme to its phosphatase
+  mode, fructose-2,6-bisphosphate falls, PFK-1 slows, and the liver switches
+  to gluconeogenesis.
+- **Pyruvate kinase** — the liver isoenzyme is phosphorylated and
+  inactivated by the glucagon-driven cAMP cascade, reinforcing the
+  fasting-state shutdown; the muscle and brain isoenzymes are not
+  glucagon-sensitive and keep glycolysis running for their own needs.
+
+The unifying idea for the viva: **glycolysis is promoted by insulin and
+inhibited by glucagon in the liver, but is always allowed to run in the
+brain and red cells, which cannot burn anything else.**
 
 ## Clinical Correlations
 

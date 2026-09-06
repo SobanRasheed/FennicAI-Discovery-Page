@@ -2,9 +2,9 @@
 title: 'Cell Injury: Complete Study Notes'
 seoTitle: 'Cell Injury Notes: Causes, Reversible vs Irreversible Change, Necrosis Types, Apoptosis'
 description: >
-  Cell injury study notes covering causes, the mechanisms that decide
-  reversible versus irreversible injury, morphology, the six necrosis types,
-  necrosis versus apoptosis, and the mediators of inflammation.
+  Cell injury notes covering causes, the mechanisms that decide reversible
+  versus irreversible injury, the necrosis patterns, necrosis versus
+  apoptosis, and the mediators of inflammation.
 overview: >
   These notes explain what injures cells, the intracellular mechanisms — ATP
   depletion, calcium influx, free radicals, membrane damage — that tip
@@ -66,9 +66,9 @@ importantPoints:
     damage.
   - The point of no return is severe membrane damage — mitochondrial,
     plasma membrane and lysosomal — releasing enzymes into the serum.
-  - Serum enzyme patterns localize cell death: troponin for myocardium, ALT
-    for hepatocytes, amylase and lipase for pancreas, creatine kinase for
-    muscle.
+  - Serum enzyme patterns localize cell death — troponin for myocardium,
+    ALT for hepatocytes, amylase and lipase for pancreas, creatine kinase
+    for muscle.
   - Coagulative necrosis is the pattern of hypoxic death in all solid organs
     except the brain; the brain liquefies.
   - Granulomas with caseous necrosis are the signature of tuberculosis;

@@ -50,10 +50,10 @@ keyTerms:
     definition: >
       Ptosis, miosis, anhidrosis and enophthalmos from interruption of T1
       sympathetic fibres to the head, seen in some lower trunk lesions.
-  - term: Winging of sternocostal joint sign
+  - term: Regimental badge area
     definition: >
-      A memory hook used in viva: the cords are named by their relation to the
-      axillary artery, not to each other.
+      The skin over the lower deltoid supplied by the axillary nerve; loss of
+      sensation here localizes an axillary nerve injury.
 importantPoints:
   - Roots C5–T1 form three trunks, six divisions, three cords and five main
     terminal branches.
