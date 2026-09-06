@@ -8,28 +8,39 @@
  * of popular topics, a study tip and where to get new articles. The search
  * input filters the cards client-side, so it works instantly and still
  * degrades to the full listing without JavaScript.
+ *
+ * Server-rendered from D1: published article_type='article', newest first.
+ * Cards show the article's featured image when one exists; the decorative
+ * PNGs from the design stand in otherwise.
  */
 import Layout from '../../layouts/Layout.astro';
 import PageHeader from '../../components/PageHeader.astro';
 import Search from '../../components/Search.astro';
 import Icon from '../../components/Icon.astro';
-import { getBlogPosts, getBlogCategories, getCollection } from '../../utils/collections';
+import { getCollection } from '../../utils/collections';
+import { listPublishedArticles, listBlogCategoryCounts } from '../../utils/content';
 
-const [posts, categories, subjects] = await Promise.all([
-  getBlogPosts(),
-  getBlogCategories(),
+export const prerender = false;
+
+const [{ rows: posts, total }, categoryCounts, subjects] = await Promise.all([
+  listPublishedArticles(Astro.locals, { articleType: 'article', perPage: 24 }),
+  listBlogCategoryCounts(Astro.locals),
   getCollection('subjects'),
 ]);
+
+// Edge caching: browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+/** D1 timestamps are UTC without a zone suffix. */
+const asDate = (s: string | null) => (s ? new Date(s + 'Z') : undefined);
 
 const fmt = (d: Date) =>
   d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-/** Reading time at 200 words per minute, from the raw markdown. */
-const readingMinutes = (body: string) =>
-  Math.max(1, Math.round(body.split(/\s+/).filter(Boolean).length / 200));
-
-const featured = posts[0];
-const latest = posts.slice(1);
+// The featured slot goes to the newest article that actually has a featured
+// image; without one, the plain newest article leads.
+const featured = posts.find((p) => p.media_key) ?? posts[0];
+const latest = featured ? posts.filter((p) => p !== featured) : posts;
 
 /** Tab subtitles for the real categories. */
 const categoryBlurbs: Record<string, string> = {
@@ -38,7 +49,7 @@ const categoryBlurbs: Record<string, string> = {
   'subject-guides': 'Study smarter per subject',
 };
 
-const categoryLabel = (slug: string) => slug.replace(/-/g, ' ');
+const categoryLabel = (slug: string | null) => (slug ?? 'article').replace(/-/g, ' ');
 
 /** The design's chip icons, mapped onto the real categories. */
 const categoryIcons: Record<string, string> = {
@@ -48,8 +59,8 @@ const categoryIcons: Record<string, string> = {
 };
 
 /**
- * The blog schema carries no image, so the card illustrations are the
- * decorative PNGs from the design, committed as real assets.
+ * Articles without an uploaded image use the decorative PNGs from the
+ * design, committed as real assets.
  */
 const articleImages = [
   '/assets/icons/blog-article-stethoscope.png',
@@ -111,7 +122,7 @@ const footerSubjects = subjects.map((s) => ({
     </Fragment>
   </PageHeader>
 
-  {categories.length > 0 && (
+  {categoryCounts.length > 0 && (
     <nav class="cats" aria-label="Article categories">
       <div class="container">
         <ul>
@@ -126,7 +137,7 @@ const footerSubjects = subjects.map((s) => ({
               </span>
             </a>
           </li>
-          {categories.map((category) => (
+          {categoryCounts.map(({ category }) => (
             <li>
               <a href={`/blog/category/${category}/`}>
                 <span class="cat-art" aria-hidden="true">
@@ -174,8 +185,8 @@ const footerSubjects = subjects.map((s) => ({
             <a class="featured-card" href={`/blog/${featured.slug}/`} data-article>
               <figure class="featured-art">
                 <img
-                  src="/assets/icons/blog-featured.png"
-                  alt=""
+                  src={featured.media_key ? `/media/${featured.media_key}/` : '/assets/icons/blog-featured.png'}
+                  alt={featured.media_key ? featured.media_alt ?? '' : ''}
                   width="994"
                   height="476"
                   loading="lazy"
@@ -183,19 +194,21 @@ const footerSubjects = subjects.map((s) => ({
                 />
               </figure>
               <div class="featured-copy">
-                <span class="tag-pill">{categoryLabel(featured.data.category)}</span>
-                <span class="featured-title">{featured.data.title}</span>
-                <span class="featured-excerpt">{featured.data.description}</span>
+                <span class="tag-pill">{categoryLabel(featured.category)}</span>
+                <span class="featured-title">{featured.title}</span>
+                <span class="featured-excerpt">{featured.excerpt}</span>
                 <span class="featured-meta">
                   <span class="meta-item">
                     <img src="/assets/icons/calendar.svg" alt="" width="16" height="16" />
-                    <time datetime={featured.data.publishedDate.toISOString()}>
-                      {fmt(featured.data.publishedDate)}
-                    </time>
+                    {asDate(featured.published_at ?? featured.updated_at) && (
+                      <time datetime={asDate(featured.published_at ?? featured.updated_at)!.toISOString()}>
+                        {fmt(asDate(featured.published_at ?? featured.updated_at)!)}
+                      </time>
+                    )}
                   </span>
                   <span class="meta-item">
                     <img src="/assets/icons/clock-icon.svg" alt="" width="16" height="16" />
-                    <span>{readingMinutes(featured.body ?? '')} min read</span>
+                    <span>{featured.reading_minutes} min read</span>
                   </span>
                 </span>
                 <span class="link-arrow featured-cta">Read article</span>
@@ -221,12 +234,12 @@ const footerSubjects = subjects.map((s) => ({
                   class="article-card"
                   href={`/blog/${post.slug}/`}
                   data-article
-                  data-keywords={`${post.data.title} ${post.data.description} ${categoryLabel(post.data.category)}`.toLowerCase()}
+                  data-keywords={`${post.title} ${post.excerpt} ${categoryLabel(post.category)}`.toLowerCase()}
                 >
                   <figure class="article-art">
                     <img
-                      src={articleImage(i)}
-                      alt=""
+                      src={post.media_key ? `/media/${post.media_key}/` : articleImage(i)}
+                      alt={post.media_key ? post.media_alt ?? '' : ''}
                       width="619"
                       height="235"
                       loading="lazy"
@@ -234,19 +247,21 @@ const footerSubjects = subjects.map((s) => ({
                     />
                   </figure>
                   <div class="article-body">
-                    <span class="tag-pill">{categoryLabel(post.data.category)}</span>
-                    <span class="article-title">{post.data.title}</span>
-                    <span class="article-excerpt">{post.data.description}</span>
+                    <span class="tag-pill">{categoryLabel(post.category)}</span>
+                    <span class="article-title">{post.title}</span>
+                    <span class="article-excerpt">{post.excerpt}</span>
                     <span class="article-meta">
                       <span class="meta-item">
                         <img src="/assets/icons/calendar.svg" alt="" width="16" height="16" />
-                        <time datetime={post.data.publishedDate.toISOString()}>
-                          {fmt(post.data.publishedDate)}
-                        </time>
+                        {asDate(post.published_at ?? post.updated_at) && (
+                          <time datetime={asDate(post.published_at ?? post.updated_at)!.toISOString()}>
+                            {fmt(asDate(post.published_at ?? post.updated_at)!)}
+                          </time>
+                        )}
                       </span>
                       <span class="meta-item">
                         <img src="/assets/icons/clock-icon.svg" alt="" width="16" height="16" />
-                        <span>{readingMinutes(post.body ?? '')} min read</span>
+                        <span>{post.reading_minutes} min read</span>
                       </span>
                     </span>
                   </div>
@@ -276,27 +291,24 @@ const footerSubjects = subjects.map((s) => ({
 
       {/* --- rail ---------------------------------------------------------- */}
       <aside class="blog-side" aria-label="Blog links">
-        {categories.length > 0 && (
+        {categoryCounts.length > 0 && (
           <section class="rail-card">
             <h2 class="rail-heading">
               <img src="/assets/icons/bar-chart-24.svg" alt="" width="24" height="24" />
               Popular topics
             </h2>
             <ul class="rail-topics">
-              {categories.map((category) => {
-                const count = posts.filter((p) => p.data.category === category).length;
-                return (
-                  <li>
-                    <a href={`/blog/category/${category}/`}>
-                      <span class="rail-topic-name">{categoryLabel(category)}</span>
-                      <span class="rail-count">{count}</span>
-                      <span class="rail-chev" aria-hidden="true">
-                        <Icon name="chevron-right" size={16} />
-                      </span>
-                    </a>
-                  </li>
-                );
-              })}
+              {categoryCounts.map(({ category, count }) => (
+                <li>
+                  <a href={`/blog/category/${category}/`}>
+                    <span class="rail-topic-name">{categoryLabel(category)}</span>
+                    <span class="rail-count">{count}</span>
+                    <span class="rail-chev" aria-hidden="true">
+                      <Icon name="chevron-right" size={16} />
+                    </span>
+                  </a>
+                </li>
+              ))}
             </ul>
             <a class="link-arrow" href="/blog/archive/">View the archive</a>
           </section>

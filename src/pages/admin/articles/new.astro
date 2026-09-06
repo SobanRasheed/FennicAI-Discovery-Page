@@ -37,6 +37,17 @@ const user = Astro.locals.user!;
       <option value="">— none —</option>
       {subjects.flatMap((s) => s.topics.map((t) => <option value={t.id}>{s.title} → {t.title}</option>))}
     </select>
+    {type === 'article' && (
+      <>
+        <label for="n-category">Category (blog organization)</label>
+        <select id="n-category" name="category">
+          <option value="">— none —</option>
+          <option value="study-techniques">Study techniques</option>
+          <option value="exam-preparation">Exam preparation</option>
+          <option value="subject-guides">Subject guides</option>
+        </select>
+      </>
+    )}
     <label for="n-excerpt">Excerpt</label>
     <textarea id="n-excerpt" name="excerpt" rows="3" maxlength="400"></textarea>
     <button class="btn btn-primary" type="submit" style="margin-top:1rem;">Create draft</button>

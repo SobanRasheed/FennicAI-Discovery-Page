@@ -487,6 +487,8 @@ export function initEditor(articleId: number): void {
       slug: val('slug'),
       excerpt: val('excerpt'),
       articleType: val('articleType'),
+      // Empty select value means "no category"; only sent for articles.
+      category: val('articleType') === 'article' && val('category') ? val('category') : null,
       contentJson: editor.getJSON(),
       subjectId: val('subjectId') ? Number(val('subjectId')) : null,
       topicId: val('topicId') ? Number(val('topicId')) : null,

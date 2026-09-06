@@ -1,23 +1,16 @@
 ---
 /**
- * Shared blog listing used by /blog/ and /blog/page/N/, so both routes render
- * an identical list and differ only in the slice of posts they receive.
+ * Shared blog listing used by /blog/, /blog/page/N/, and the category pages,
+ * so every route renders an identical list and differs only in the slice of
+ * posts it receives. Posts come from D1 (published articles), so dates arrive
+ * as UTC strings and are inflated here.
  */
 import ArticleCard from './ArticleCard.astro';
 import Pagination from './Pagination.astro';
+import type { BlogPostCard } from '../utils/content';
 
 interface Props {
-  posts: {
-    slug: string;
-    data: {
-      title: string;
-      description: string;
-      category: string;
-      publishedDate: Date;
-      updatedDate?: Date;
-      author: string;
-    };
-  }[];
+  posts: BlogPostCard[];
   totalPosts: number;
   currentPage: number;
   basePath?: string;
@@ -31,6 +24,11 @@ const {
   basePath = '/blog',
   perPage = 6,
 } = Astro.props;
+
+/** D1 timestamps are UTC without a zone suffix. */
+const asDate = (s: string | null) => (s ? new Date(s + 'Z') : undefined);
+
+const categoryLabel = (slug: string | null) => (slug ?? 'article').replace(/-/g, ' ');
 ---
 
 {posts.length > 0 ? (
@@ -39,10 +37,11 @@ const {
       <li>
         <ArticleCard
           href={`/blog/${post.slug}/`}
-          title={post.data.title}
-          excerpt={post.data.description}
-          kicker={post.data.category.replace(/-/g, ' ')}
-          date={post.data.publishedDate}
+          title={post.title}
+          excerpt={post.excerpt}
+          kicker={categoryLabel(post.category)}
+          date={asDate(post.published_at ?? post.updated_at)}
+          readingMinutes={post.reading_minutes}
         />
       </li>
     ))}

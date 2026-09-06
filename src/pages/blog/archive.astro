@@ -1,25 +1,50 @@
 ---
+/**
+ * Complete crawlable archive: every published blog article on one page,
+ * newest first, grouped by year. Complements the paginated /blog/ listing.
+ * Server-rendered from D1.
+ */
 import Layout from '../../layouts/Layout.astro';
 import Breadcrumbs from '../../components/Breadcrumbs.astro';
-import { getBlogPosts, getBlogCategories, formatDate } from '../../utils/collections';
+import { getCollection } from '../../utils/collections';
+import { listPublishedArticles, listBlogCategoryCounts } from '../../utils/content';
 
-const [posts, categories] = await Promise.all([getBlogPosts(), getBlogCategories()]);
+export const prerender = false;
 
-// Complete crawlable archive: every article on one page, newest first,
-// grouped by year. Complements the paginated /blog/ listing.
+const [{ rows: posts }, categories, subjects] = await Promise.all([
+  listPublishedArticles(Astro.locals, { articleType: 'article', perPage: 1000 }),
+  listBlogCategoryCounts(Astro.locals),
+  getCollection('subjects'),
+]);
+
+// Edge caching: browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
+/** D1 timestamps are UTC without a zone suffix. */
+const asDate = (s: string | null) => (s ? new Date(s + 'Z') : new Date());
+
+const fmt = (d: Date) =>
+  d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
 const byYear = new Map<number, typeof posts>();
 for (const post of posts) {
-  const year = post.data.publishedDate.getFullYear();
+  const year = asDate(post.published_at ?? post.updated_at).getFullYear();
   if (!byYear.has(year)) byYear.set(year, []);
   byYear.get(year)!.push(post);
 }
 const years = [...byYear.keys()].sort((a, b) => b - a);
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
 ---
 
 <Layout
   title="Article Archive — Every Post Since the Beginning | devsyllabus"
   description="The complete devsyllabus article archive, grouped by year, with categories. Every article ever published, on one crawlable page."
   path="/blog/archive/"
+  footerSubjects={footerSubjects}
 >
   <Breadcrumbs crumbs={[{ label: 'Blog', href: '/blog/' }, { label: 'Archive' }]} />
 
@@ -37,25 +62,27 @@ const years = [...byYear.keys()].sort((a, b) => b - a);
       <ul>
         {byYear.get(year)!.map((post) => (
           <li>
-            <time datetime={post.data.publishedDate.toISOString()}>
-              {formatDate(post.data.publishedDate)}
+            <time datetime={asDate(post.published_at ?? post.updated_at).toISOString()}>
+              {fmt(asDate(post.published_at ?? post.updated_at))}
             </time>
-            — <a href={`/blog/${post.slug}/`}>{post.data.title}</a>
-            <span> ({post.data.category})</span>
+            — <a href={`/blog/${post.slug}/`}>{post.title}</a>
+            {post.category && <span> ({post.category})</span>}
           </li>
         ))}
       </ul>
     </section>
   ))}
 
-  <p>
-    Categories in use:
-    {categories.map((category, i) => (
-      <>
-        {i > 0 && <span>, </span>}
-        <a href={`/blog/category/${category}/`}>{category}</a>
-      </>
-    ))}
-  </p>
+  {categories.length > 0 && (
+    <p>
+      Categories in use:
+      {categories.map(({ category }, i) => (
+        <>
+          {i > 0 && <span>, </span>}
+          <a href={`/blog/category/${category}/`}>{category.replace(/-/g, ' ')}</a>
+        </>
+      ))}
+    </p>
+  )}
   </div>
 </Layout>

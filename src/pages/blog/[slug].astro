@@ -1,67 +1,92 @@
 ---
 /**
  * A blog article. Opens with a band hero — tag pill, serif headline, byline
- * with the author's initials, and hero art — then the same reading shell as a
- * study note. The left rail carries the contents, share links, and a quote;
+ * with the author's initials, and hero art (the article's featured image when
+ * one exists, a decorative asset otherwise) — then the same reading shell as
+ * a study note. The left rail carries the contents, share links, and a quote;
  * the right rail carries related reading and practice links.
+ *
+ * Server-rendered from D1: the published article with article_type='article'.
  */
 import ArticleLayout from '../../layouts/ArticleLayout.astro';
 import TableOfContents from '../../components/TableOfContents.astro';
 import ReferenceList from '../../components/ReferenceList.astro';
-import Faq from '../../components/Faq.astro';
 import JsonLd from '../../components/JsonLd.astro';
 import Icon from '../../components/Icon.astro';
-import { getBlogPosts, getNotes, getCollection, isoDate } from '../../utils/collections';
-import { render } from 'astro:content';
+import { getCollection } from '../../utils/collections';
+import {
+  getPublishedArticleBySlug,
+  getArticleExtras,
+  getPublishedNeighbors,
+  listRelatedByTag,
+  listBlogCategoryCounts,
+  getMediaById,
+} from '../../utils/content';
 
-export async function getStaticPaths() {
-  const posts = await getBlogPosts();
-  return posts.map((post) => ({ params: { slug: post.slug }, props: { post } }));
+export const prerender = false;
+
+const slug = String(Astro.params.slug ?? '');
+
+const article = await getPublishedArticleBySlug(Astro.locals, slug, 'article');
+if (!article) {
+  return new Response('Not found', { status: 404 });
 }
 
-const { post } = Astro.props;
-const { data } = post;
-const { Content: PostBody, headings } = await render(post);
-
-const [authors, allNotes, allPosts, subjects] = await Promise.all([
-  getCollection('authors'),
-  getNotes(),
-  getBlogPosts(),
+const [extras, neighbors, relatedPosts, categoryCounts, subjects, featuredMedia] = await Promise.all([
+  getArticleExtras(Astro.locals, article.id),
+  getPublishedNeighbors(Astro.locals, article.slug, 'article'),
+  listRelatedByTag(Astro.locals, article.id, 'article', 3),
+  listBlogCategoryCounts(Astro.locals),
   getCollection('subjects'),
+  article.featured_media_id
+    ? getMediaById(Astro.locals, article.featured_media_id)
+    : Promise.resolve(null),
 ]);
 
-const author = authors.find((a) => a.slug === data.author);
-const relatedNotes = allNotes.filter((n) => data.relatedNotes.includes(n.slug));
+// The stored HTML is sanitized on save; re-sanitize on output as defense in
+// depth (§17: output sanitization).
+const { sanitizeRichText } = await import('../../utils/richtext');
+let contentHtml = sanitizeRichText(article.content_html ?? '');
 
-// Prev/next in published order.
-const index = allPosts.findIndex((p) => p.slug === post.slug);
-const newer = index > 0 ? allPosts[index - 1] : undefined;
-const older = index < allPosts.length - 1 ? allPosts[index + 1] : undefined;
+/**
+ * Stored headings carry no ids, so inject slug ids at render time and collect
+ * them for the table of contents. The input here is our own sanitized HTML
+ * with a known, small tag set, so a scan over the h2/h3 tags is safe.
+ */
+const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .replace(/<[^>]+>/g, '')
+    .replace(/&[a-z#0-9]+;/g, ' ')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-') || 'section';
 
-const relatedPosts = allPosts
-  .filter((p) => p.slug !== post.slug && p.data.topics.some((t) => data.topics.includes(t)))
-  .slice(0, 3);
-
-const tocHeadings = [
-  ...headings.filter((h) => h.depth === 2 || h.depth === 3),
-  ...(data.references.length > 0
-    ? [{ depth: 2, text: 'References', slug: 'references' }]
+const tocHeadings: { depth: 2 | 3; text: string; slug: string }[] = [];
+const usedSlugs = new Set<string>();
+contentHtml = contentHtml.replace(
+  /<h([23])([^>]*)>([\s\S]*?)<\/h\1>/g,
+  (_m, level: string, attrs: string, inner: string) => {
+    const text = inner.replace(/<[^>]+>/g, '').trim();
+    let id = slugify(inner);
+    while (usedSlugs.has(id)) id = `${id}-x`;
+    usedSlugs.add(id);
+    tocHeadings.push({ depth: Number(level) as 2 | 3, text, slug: id });
+    return `<h${level}${attrs} id="${id}">${inner}</h${level}>`;
+  },
+);
+tocHeadings.push(
+  ...(extras.references.length > 0
+    ? [{ depth: 2 as const, text: 'References', slug: 'references' }]
     : []),
-];
+);
 
-const categoryLabel = data.category.replace(/-/g, ' ');
-const title = data.seoTitle ?? data.title;
-const site = Astro.site!;
-
-const fmt = (d: Date) =>
-  d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
-
-/** Reading time at 200 words per minute, from the raw markdown. */
-const readingMinutesOf = (body: string) =>
-  Math.max(1, Math.round(body.split(/\s+/).filter(Boolean).length / 200));
-const readingMinutes = readingMinutesOf(post.body ?? '');
-
-const initials = (author?.data.title ?? 'Medical Study Notes')
+// Author identity comes from the D1 users table — no public author pages
+// exist, so the name is plain text and no role is invented.
+const authorName = article.author_name;
+const authorBio = article.author_bio || null;
+const initials = (authorName ?? 'Medical Study Notes')
   .split(/\s+/)
   .filter(Boolean)
   .slice(0, 2)
@@ -69,74 +94,83 @@ const initials = (author?.data.title ?? 'Medical Study Notes')
   .join('')
   .toUpperCase();
 
+// Uncategorized articles keep the pill but link back to the blog itself.
+const categoryLabel = (article.category ?? 'article').replace(/-/g, ' ');
+const categoryHref = article.category ? `/blog/category/${article.category}/` : '/blog/';
+
+const title = article.seo_title || article.title;
+const description = article.meta_description || article.excerpt || '';
+const noindex = !article.robots.startsWith('index');
+const site = Astro.site!;
+const publicPath = `/blog/${article.slug}/`;
+const canonical = article.canonical_url || new URL(publicPath, site).href;
+
+/** D1 timestamps are UTC without a zone suffix. */
+const asDate = (d: string | null) => (d ? new Date(d + 'Z') : undefined);
+const fmt = (d: Date) =>
+  d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+const readingMinutes = article.reading_minutes;
+
 // Real share intents for the rail card — only the copy-link button needs JS.
-const canonical = new URL(`/blog/${post.slug}/`, site).href;
-const shareTitle = encodeURIComponent(data.title);
+const shareTitle = encodeURIComponent(article.title);
 const shareUrl = encodeURIComponent(canonical);
 const xShare = `https://twitter.com/intent/tweet?url=${shareUrl}&text=${shareTitle}`;
 const linkedinShare = `https://www.linkedin.com/sharing/share-offsite/?url=${shareUrl}`;
 const facebookShare = `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}`;
 const emailShare = `mailto:?subject=${shareTitle}&body=${shareUrl}`;
 
-// Category counts across all posts, for the Popular topics card.
-const categoryCounts = new Map<string, number>();
-for (const p of allPosts) {
-  categoryCounts.set(p.data.category, (categoryCounts.get(p.data.category) ?? 0) + 1);
-}
-const popularTopics = [...categoryCounts.entries()].sort((a, b) => b[1] - a[1]);
+const popularTopics = categoryCounts;
 
-// Decorative art for the related-article rows (the blog schema has no image
-// field, so committed design assets stand in and are marked presentational).
+// Related study notes come from the editor's related-content picks.
+const relatedNotes = extras.related.filter((r) => r.article_type === 'study-note');
+
+// Decorative art for the related-article rows without an uploaded image.
 const relatedImages = [
   '/assets/icons/related-notes.png',
   '/assets/icons/related-anatomy.png',
   '/assets/icons/related-exam.png',
 ];
+const relatedImage = (i: number) => relatedImages[i % relatedImages.length] ?? '';
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
   label: s.data.title,
 }));
 
+// Edge caching (§16): browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
 const articleSchema = {
   '@context': 'https://schema.org',
   '@type': 'Article',
-  headline: data.title,
-  description: data.description,
-  datePublished: isoDate(data.publishedDate),
-  dateModified: isoDate(data.updatedDate ?? data.publishedDate),
-  author: author
-    ? {
-        '@type': 'Person',
-        name: author.data.title,
-        url: new URL(`/authors/${author.slug}/`, site).href,
-      }
-    : undefined,
+  headline: article.title,
+  description,
+  mainEntityOfPage: canonical,
+  datePublished: asDate(article.published_at)?.toISOString(),
+  dateModified: asDate(article.updated_at)?.toISOString(),
+  author: authorName ? { '@type': 'Person', name: authorName } : undefined,
   publisher: {
     '@type': 'Organization',
     name: 'Medical Study Notes',
     url: site.href,
   },
-  mainEntityOfPage: {
-    '@type': 'WebPage',
-    '@id': canonical,
-  },
-  articleSection: data.category,
+  articleSection: article.category ?? undefined,
+  image: featuredMedia ? new URL(`/media/${featuredMedia.r2_key}/`, site).href : undefined,
 };
 ---
-
 <ArticleLayout
   title={`${title} | Medical Study Notes`}
-  description={data.description}
-  path={`/blog/${post.slug}/`}
-  noindex={data.noindex}
-  publishedTime={data.publishedDate}
-  modifiedTime={data.updatedDate ?? data.publishedDate}
+  description={description}
+  path={publicPath}
+  noindex={noindex}
+  publishedTime={asDate(article.published_at)}
+  modifiedTime={asDate(article.updated_at) ?? asDate(article.published_at)}
   footerSubjects={footerSubjects}
   crumbs={[
     { label: 'Blog', href: '/blog/' },
-    { label: categoryLabel, href: `/blog/category/${data.category}/` },
-    { label: data.title },
+    ...(article.category ? [{ label: categoryLabel, href: categoryHref }] : []),
+    { label: article.title },
   ]}
 >
   <JsonLd data={articleSchema} />
@@ -145,24 +179,27 @@ const articleSchema = {
   <Fragment slot="hero">
     <div class="post-hero">
       <div class="post-hero-copy">
-        <a class="tag-pill" href={`/blog/category/${data.category}/`}>{categoryLabel}</a>
-        <h1 class="post-hero-title">{data.title}</h1>
-        <p class="post-hero-lead">{data.description}</p>
+        <a class="tag-pill" href={categoryHref}>{categoryLabel}</a>
+        <h1 class="post-hero-title">{article.title}</h1>
+        <p class="post-hero-lead">{article.excerpt}</p>
 
         <div class="post-byline">
-          {author && (
+          {authorName && (
             <span class="byline-who">
               <span class="byline-avatar" aria-hidden="true">{initials}</span>
               <span class="byline-text">
-                <a class="byline-name" href={`/authors/${author.slug}/`}>{author.data.title}</a>
-                <span class="byline-role">{author.data.role}</span>
+                <span class="byline-name">{authorName}</span>
               </span>
             </span>
           )}
-          <span class="meta-item">
-            <img src="/assets/icons/calendar.svg" width="16" height="16" alt="" />
-            <time datetime={isoDate(data.publishedDate)}>{fmt(data.publishedDate)}</time>
-          </span>
+          {asDate(article.published_at) && (
+            <span class="meta-item">
+              <img src="/assets/icons/calendar.svg" width="16" height="16" alt="" />
+              <time datetime={asDate(article.published_at)!.toISOString()}>
+                {fmt(asDate(article.published_at)!)}
+              </time>
+            </span>
+          )}
           <span class="meta-item">
             <img src="/assets/icons/clock-icon.svg" width="16" height="16" alt="" />
             {readingMinutes} min read
@@ -171,7 +208,7 @@ const articleSchema = {
             class="save-btn"
             type="button"
             data-action="save"
-            data-save-slug={post.slug}
+            data-save-slug={article.slug}
             aria-pressed="false"
           >
             <Icon name="bookmark" size={15} />
@@ -183,10 +220,10 @@ const articleSchema = {
 
       <img
         class="post-hero-art"
-        src="/assets/icons/blog-article-hero.png"
+        src={featuredMedia ? `/media/${featuredMedia.r2_key}/` : '/assets/icons/blog-article-hero.png'}
         width="326"
         height="320"
-        alt=""
+        alt={featuredMedia?.alt_text ?? ''}
         loading="lazy"
       />
     </div>
@@ -266,41 +303,34 @@ const articleSchema = {
   )}
 
   {/* --- article body ------------------------------------------------------ */}
-  <div class="prose post-body">
-    <PostBody />
-  </div>
+  <div class="prose post-body" set:html={contentHtml} />
 
-  <ReferenceList references={data.references} />
+  <ReferenceList references={extras.references} />
 
-  {(older || newer) && (
+  {(neighbors.older || neighbors.newer) && (
     <nav class="prev-next" aria-label="Article navigation">
-      {older ? (
-        <a class="pn-link pn-prev" href={`/blog/${older.slug}/`} rel="prev">
+      {neighbors.older ? (
+        <a class="pn-link pn-prev" href={`/blog/${neighbors.older.slug}/`} rel="prev">
           <span class="pn-label"><Icon name="chevron-right" size={14} /> Previous</span>
-          <span class="pn-title">{older.data.title}</span>
+          <span class="pn-title">{neighbors.older.title}</span>
         </a>
       ) : <span />}
-      {newer && (
-        <a class="pn-link pn-next" href={`/blog/${newer.slug}/`} rel="next">
+      {neighbors.newer && (
+        <a class="pn-link pn-next" href={`/blog/${neighbors.newer.slug}/`} rel="next">
           <span class="pn-label">Next <Icon name="chevron-right" size={14} /></span>
-          <span class="pn-title">{newer.data.title}</span>
+          <span class="pn-title">{neighbors.newer.title}</span>
         </a>
       )}
     </nav>
   )}
 
-  {author && (
+  {authorName && (
     <section class="author-box" aria-labelledby="about-the-author">
       <h2 id="about-the-author" class="author-heading">About the author</h2>
-      <p class="author-name">
-        <a href={`/authors/${author.slug}/`}>{author.data.title}</a>
-        <span class="author-role">{author.data.role}</span>
-      </p>
-      <p class="author-bio">{author.data.bio}</p>
+      <p class="author-name">{authorName}</p>
+      {authorBio && <p class="author-bio">{authorBio}</p>}
     </section>
   )}
-
-  <Faq faqs={data.faqs} level={2} id="post-faq" />
 
   {/* --- right rail: related reading / topics / practice ------------------- */}
   <Fragment slot="sidebar">
@@ -316,16 +346,16 @@ const articleSchema = {
               <a class="rail-post" href={`/blog/${p.slug}/`}>
                 <img
                   class="rail-post-art"
-                  src={relatedImages[i % relatedImages.length]}
+                  src={p.media_key ? `/media/${p.media_key}/` : relatedImage(i)}
                   width="112"
                   height="96"
-                  alt=""
+                  alt={p.media_key ? p.media_alt ?? '' : ''}
                   loading="lazy"
                 />
                 <span class="rail-post-body">
-                  <span class="tag-pill">{p.data.category.replace(/-/g, ' ')}</span>
-                  <span class="rail-post-title">{p.data.title}</span>
-                  <span class="rail-post-meta">{readingMinutesOf(p.body ?? '')} min read</span>
+                  <span class="tag-pill">{(p.category ?? 'article').replace(/-/g, ' ')}</span>
+                  <span class="rail-post-title">{p.title}</span>
+                  <span class="rail-post-meta">{p.reading_minutes} min read</span>
                 </span>
                 <span class="rail-chev"><Icon name="chevron-right" size={16} /></span>
               </a>
@@ -346,9 +376,9 @@ const articleSchema = {
           {relatedNotes.map((n) => (
             <li>
               <a href={`/notes/${n.slug}/`}>
-                <span class="rail-note-title">{n.data.title}</span>
+                <span class="rail-note-title">{n.title}</span>
                 <span class="rail-note-ctx">
-                  {subjects.find((s) => s.slug === n.data.subject)?.data.title}
+                  {subjects.find((s) => s.slug === n.subject_slug)?.data.title}
                 </span>
               </a>
             </li>
@@ -364,10 +394,10 @@ const articleSchema = {
           Popular topics
         </h2>
         <ul class="rail-topics" role="list">
-          {popularTopics.map(([slug, count]) => (
+          {popularTopics.map(({ category, count }) => (
             <li>
-              <a href={`/blog/category/${slug}/`}>
-                <span class="rail-topic-name">{slug.replace(/-/g, ' ')}</span>
+              <a href={`/blog/category/${category}/`}>
+                <span class="rail-topic-name">{category.replace(/-/g, ' ')}</span>
                 <span class="rail-count">{count}</span>
                 <span class="rail-chev"><Icon name="chevron-right" size={16} /></span>
               </a>
@@ -570,15 +600,6 @@ const articleSchema = {
     font-size: var(--text-body-sm);
     font-weight: var(--weight-semibold);
     text-decoration: none;
-  }
-
-  .byline-name:hover {
-    color: var(--primary);
-  }
-
-  .byline-role {
-    color: var(--mute);
-    font-size: var(--text-caption);
   }
 
   .meta-item {

@@ -41,6 +41,7 @@ export interface ArticleRow {
   content_html: string;
   content_json: string | null;
   article_type: 'article' | 'study-note';
+  category: string | null;
   status: 'draft' | 'review' | 'scheduled' | 'published' | 'unpublished' | 'deleted';
   subject_id: number | null;
   topic_id: number | null;
@@ -93,7 +94,7 @@ export interface MediaRow {
 
 const ARTICLE_SELECT = `
   SELECT id, title, slug, excerpt, content_html, content_json, article_type,
-         status, subject_id, topic_id, author_id, featured_media_id,
+         category, status, subject_id, topic_id, author_id, featured_media_id,
          scheduled_at, published_at, deleted_at, seo_title, meta_description,
          canonical_url, og_title, og_description, og_image_media_id, robots,
          reading_minutes, created_at, updated_at
@@ -105,10 +106,16 @@ export async function getArticleById(locals: App.Locals, id: number): Promise<Ar
 }
 
 const ARTICLE_COLS = `id, title, slug, excerpt, content_html, content_json, article_type,
-  status, subject_id, topic_id, author_id, featured_media_id, scheduled_at,
-  published_at, deleted_at, seo_title, meta_description, canonical_url,
-  og_title, og_description, og_image_media_id, robots, reading_minutes,
-  created_at, updated_at`;
+  category, status, subject_id, topic_id, author_id, featured_media_id,
+  scheduled_at, published_at, deleted_at, seo_title, meta_description,
+  canonical_url, og_title, og_description, og_image_media_id, robots,
+  reading_minutes, created_at, updated_at`;
+
+/** ARTICLE_COLS with every column qualified, for queries that join other
+ *  tables (a bare `id` would be ambiguous against subjects/users). */
+const ARTICLE_COLS_A = ARTICLE_COLS.split(',')
+  .map((c) => `a.${c.trim()}`)
+  .join(', ');
 
 export async function getPublishedArticle(
   locals: App.Locals,
@@ -425,7 +432,7 @@ export async function listPublishedFeed(
     .DB.prepare(
       `SELECT ${CARD_COLS}, m.r2_key AS media_key, m.alt_text AS media_alt,
               (SELECT t.name FROM article_tags at JOIN tags t ON t.id = at.tag_id
-               WHERE at.article_id = a.id ORDER BY at.id LIMIT 1) AS tag_name
+               WHERE at.article_id = a.id ORDER BY at.tag_id LIMIT 1) AS tag_name
        FROM articles a
        LEFT JOIN subjects s ON s.id = a.subject_id
        LEFT JOIN media m ON m.id = a.featured_media_id
@@ -435,6 +442,191 @@ export async function listPublishedFeed(
     )
     .bind(...params, limit)
     .all<PublicFeedCard>();
+  return rows.results;
+}
+
+// ---------------------------------------------------------------------------
+// Blog stream (article_type='article', organized by optional category)
+// ---------------------------------------------------------------------------
+
+/** The three editorial categories a blog article may carry (NULL = none). */
+export const BLOG_CATEGORIES = ['study-techniques', 'exam-preparation', 'subject-guides'] as const;
+export type BlogCategory = (typeof BLOG_CATEGORIES)[number];
+
+/** A feed card plus the blog category, for /blog/ listings. */
+export interface BlogCard extends PublicFeedCard {
+  category: string | null;
+}
+
+/** BlogCard plus the author name, for the post page's related rows. */
+export interface BlogPostCard extends BlogCard {
+  author_name: string | null;
+}
+
+/**
+ * Published articles with pagination and an optional category filter.
+ * `category: null` selects uncategorized articles; leaving `category`
+ * undefined returns every article regardless of category.
+ */
+export async function listPublishedArticles(
+  locals: App.Locals,
+  opts: { articleType?: 'article' | 'study-note'; category?: string | null; page?: number; perPage?: number } = {},
+): Promise<{ rows: BlogPostCard[]; total: number }> {
+  const db = env(locals).DB;
+  const where = [`a.status = 'published'`];
+  const params: unknown[] = [];
+  if (opts.articleType) {
+    where.push('a.article_type = ?');
+    params.push(opts.articleType);
+  }
+  if (opts.category !== undefined) {
+    if (opts.category === null) where.push('a.category IS NULL');
+    else {
+      where.push('a.category = ?');
+      params.push(opts.category);
+    }
+  }
+  const whereSql = where.join(' AND ');
+  const page = Math.max(1, opts.page ?? 1);
+  const perPage = Math.min(100, Math.max(5, opts.perPage ?? 12));
+
+  const total = await db
+    .prepare(`SELECT COUNT(*) AS n FROM articles a WHERE ${whereSql}`)
+    .bind(...params)
+    .first<{ n: number }>();
+  const rows = await db
+    .prepare(
+      `SELECT ${CARD_COLS}, a.category, m.r2_key AS media_key, m.alt_text AS media_alt,
+              u.display_name AS author_name,
+              (SELECT t.name FROM article_tags at JOIN tags t ON t.id = at.tag_id
+               WHERE at.article_id = a.id ORDER BY at.tag_id LIMIT 1) AS tag_name
+       FROM articles a
+       LEFT JOIN subjects s ON s.id = a.subject_id
+       LEFT JOIN media m ON m.id = a.featured_media_id
+       LEFT JOIN users u ON u.id = a.author_id
+       WHERE ${whereSql}
+       ORDER BY COALESCE(a.published_at, a.created_at) DESC
+       LIMIT ? OFFSET ?`,
+    )
+    .bind(...params, perPage, (page - 1) * perPage)
+    .all<BlogPostCard>();
+  return { rows: rows.results, total: total?.n ?? 0 };
+}
+
+/**
+ * Published article by slug alone — blog and note URLs are global
+ * (/blog/[slug]/, /notes/[slug]/), not subject-scoped.
+ */
+export async function getPublishedArticleBySlug(
+  locals: App.Locals,
+  slug: string,
+  articleType?: 'article' | 'study-note',
+): Promise<
+  | (ArticleRow & {
+      subject_title: string | null;
+      subject_slug: string | null;
+      author_name: string | null;
+      author_bio: string | null;
+    })
+  | null
+> {
+  const row = await env(locals)
+    .DB.prepare(
+      `SELECT ${ARTICLE_COLS_A},
+              s.title AS subject_title, s.slug AS subject_slug,
+              u.display_name AS author_name, u.bio AS author_bio
+       FROM articles a
+       LEFT JOIN subjects s ON s.id = a.subject_id
+       LEFT JOIN users u ON u.id = a.author_id
+       WHERE a.slug = ? AND a.status = 'published' ${articleType ? 'AND a.article_type = ?' : ''}`,
+    )
+    .bind(...(articleType ? [slug, articleType] : [slug]))
+    .first<
+      ArticleRow & {
+        subject_title: string | null;
+        subject_slug: string | null;
+        author_name: string | null;
+        author_bio: string | null;
+      }
+    >();
+  return row ?? null;
+}
+
+/** Newest-published neighbours of an article, for prev/next navigation. */
+export async function getPublishedNeighbors(
+  locals: App.Locals,
+  slug: string,
+  articleType?: 'article' | 'study-note',
+): Promise<{ older: { slug: string; title: string } | null; newer: { slug: string; title: string } | null }> {
+  const db = env(locals).DB;
+  const typeSql = articleType ? 'AND article_type = ?' : '';
+  // Bind order follows the SQL text: the type filter's ? appears before the
+  // slug's ? inside the comparison subquery.
+  const params = articleType ? [articleType, slug] : [slug];
+  const [older, newer] = await Promise.all([
+    db
+      .prepare(
+        `SELECT slug, title FROM articles
+         WHERE status = 'published' ${typeSql}
+           AND COALESCE(published_at, created_at) <
+               (SELECT COALESCE(published_at, created_at) FROM articles
+                WHERE slug = ? AND status = 'published')
+         ORDER BY COALESCE(published_at, created_at) DESC LIMIT 1`,
+      )
+      .bind(...params)
+      .first<{ slug: string; title: string }>(),
+    db
+      .prepare(
+        `SELECT slug, title FROM articles
+         WHERE status = 'published' ${typeSql}
+           AND COALESCE(published_at, created_at) >
+               (SELECT COALESCE(published_at, created_at) FROM articles
+                WHERE slug = ? AND status = 'published')
+         ORDER BY COALESCE(published_at, created_at) ASC LIMIT 1`,
+      )
+      .bind(...params)
+      .first<{ slug: string; title: string }>(),
+  ]);
+  return { older: older ?? null, newer: newer ?? null };
+}
+
+/** Published-article counts per category, for the blog chips and rail. */
+export async function listBlogCategoryCounts(
+  locals: App.Locals,
+): Promise<{ category: string; count: number }[]> {
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT a.category, COUNT(*) AS count FROM articles a
+       WHERE a.article_type = 'article' AND a.status = 'published' AND a.category IS NOT NULL
+       GROUP BY a.category ORDER BY count DESC, a.category`,
+    )
+    .all<{ category: string; count: number }>();
+  return rows.results;
+}
+
+/** Same-type published articles sharing at least one tag, newest first. */
+export async function listRelatedByTag(
+  locals: App.Locals,
+  articleId: number,
+  articleType: 'article' | 'study-note',
+  limit = 3,
+): Promise<BlogPostCard[]> {
+  const rows = await env(locals)
+    .DB.prepare(
+      `SELECT ${CARD_COLS}, a.category, m.r2_key AS media_key, m.alt_text AS media_alt,
+              u.display_name AS author_name
+       FROM articles a
+       LEFT JOIN subjects s ON s.id = a.subject_id
+       LEFT JOIN media m ON m.id = a.featured_media_id
+       LEFT JOIN users u ON u.id = a.author_id
+       WHERE a.status = 'published' AND a.article_type = ? AND a.id != ?
+         AND a.id IN (SELECT at2.article_id FROM article_tags at1
+                      JOIN article_tags at2 ON at2.tag_id = at1.tag_id
+                      WHERE at1.article_id = ?)
+       ORDER BY COALESCE(a.published_at, a.created_at) DESC LIMIT ?`,
+    )
+    .bind(articleType, articleId, articleId, Math.min(10, Math.max(1, limit)))
+    .all<BlogPostCard>();
   return rows.results;
 }
 

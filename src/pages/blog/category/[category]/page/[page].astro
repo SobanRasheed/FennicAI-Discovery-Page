@@ -2,36 +2,45 @@
 import Layout from '../../../../../layouts/Layout.astro';
 import PageHeader from '../../../../../components/PageHeader.astro';
 import BlogListing from '../../../../../components/BlogListing.astro';
-import { getPostsByCategory, getCollection } from '../../../../../utils/collections';
+import { getCollection } from '../../../../../utils/collections';
+import { BLOG_CATEGORIES, listPublishedArticles } from '../../../../../utils/content';
+
+export const prerender = false;
 
 const POSTS_PER_PAGE = 6;
 
-export async function getStaticPaths() {
-  // getStaticPaths is hoisted into its own module and cannot see the
-  // component-scope constant above, so it gets its own copy.
-  const POSTS_PER_PAGE = 6;
-  const categories = ['study-techniques', 'exam-preparation', 'subject-guides'];
-  const paths = [];
-  for (const category of categories) {
-    const posts = await getPostsByCategory(category);
-    const totalPages = Math.ceil(posts.length / POSTS_PER_PAGE);
-    for (let page = 2; page <= totalPages; page++) {
-      paths.push({ params: { category, page: String(page) }, props: { category, page } });
-    }
-  }
-  return paths;
+const category = String(Astro.params.category ?? '');
+const currentPage = Number(Astro.params.page);
+
+// Only the known blog categories resolve.
+if (!(BLOG_CATEGORIES as readonly string[]).includes(category)) {
+  return new Response('Not found', { status: 404 });
 }
 
-const { category, page } = Astro.props;
-const currentPage = Number(page);
-const [posts, subjects] = await Promise.all([
-  getPostsByCategory(category),
+// Page 1 lives at the category root.
+if (!Number.isInteger(currentPage) || currentPage < 2) {
+  return Astro.redirect(`/blog/category/${category}/`, 301);
+}
+
+const [{ rows: posts, total }, subjects] = await Promise.all([
+  listPublishedArticles(Astro.locals, {
+    articleType: 'article',
+    category,
+    page: currentPage,
+    perPage: POSTS_PER_PAGE,
+  }),
   getCollection('subjects'),
 ]);
-const pagePosts = posts.slice(
-  (currentPage - 1) * POSTS_PER_PAGE,
-  currentPage * POSTS_PER_PAGE,
-);
+
+// Out-of-range pages don't exist.
+const totalPages = Math.ceil(total / POSTS_PER_PAGE);
+if (total === 0 || currentPage > totalPages) {
+  return new Response('Not found', { status: 404 });
+}
+
+// Edge caching: browsers get 5 min, Cloudflare revalidates daily.
+Astro.response.headers.set('Cache-Control', 'public, max-age=300, s-maxage=86400');
+
 const label = category.replace(/-/g, ' ');
 
 const footerSubjects = subjects.map((s) => ({
@@ -59,8 +68,8 @@ const footerSubjects = subjects.map((s) => ({
 
   <div class="container listing">
     <BlogListing
-      posts={pagePosts}
-      totalPosts={posts.length}
+      posts={posts}
+      totalPosts={total}
       currentPage={currentPage}
       basePath={`/blog/category/${category}`}
       perPage={POSTS_PER_PAGE}

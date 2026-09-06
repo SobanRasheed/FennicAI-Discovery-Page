@@ -138,6 +138,18 @@ const editorData = {
         <option value="study-note" selected={article.article_type === 'study-note'}>Study note</option>
       </select>
 
+      <label for="f-category">Category (articles only — organizes the blog)</label>
+      <select id="f-category" name="category">
+        <option value="" selected={!article.category}>— none —</option>
+        {[
+          ['study-techniques', 'Study techniques'],
+          ['exam-preparation', 'Exam preparation'],
+          ['subject-guides', 'Subject guides'],
+        ].map(([value, label]) => (
+          <option value={value} selected={article.category === value}>{label}</option>
+        ))}
+      </select>
+
       <label for="f-subject">Subject</label>
       <select id="f-subject" name="subjectId">
         <option value="">— none —</option>

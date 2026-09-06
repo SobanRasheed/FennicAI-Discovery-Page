@@ -61,11 +61,11 @@ export const POST: APIRoute = async ({ request, locals }) => {
     const result = await db
       .prepare(
         `INSERT INTO articles
-           (title, slug, excerpt, content_json, content_html, article_type, status,
-            subject_id, topic_id, author_id, featured_media_id, scheduled_at,
+           (title, slug, excerpt, content_json, content_html, article_type, category,
+            status, subject_id, topic_id, author_id, featured_media_id, scheduled_at,
             seo_title, meta_description, canonical_url, og_title, og_description,
             og_image_media_id, robots, reading_minutes)
-         VALUES (?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         input.title,
@@ -74,6 +74,8 @@ export const POST: APIRoute = async ({ request, locals }) => {
         input.contentJson ? JSON.stringify(input.contentJson) : null,
         contentHtml,
         input.articleType,
+        // Categories only organize blog articles, never study notes.
+        input.articleType === 'article' ? input.category : null,
         input.subjectId ?? null,
         input.topicId ?? null,
         input.authorId ?? user.id,

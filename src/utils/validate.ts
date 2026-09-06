@@ -35,6 +35,8 @@ export const articleInputSchema = z.object({
   slug: slugSchema,
   excerpt: z.string().max(400).default(''),
   articleType: z.enum(['article', 'study-note']).default('article'),
+  /** Blog category — only meaningful for articleType='article'. */
+  category: z.enum(['study-techniques', 'exam-preparation', 'subject-guides']).nullable().default(null),
   contentJson: z.record(z.string(), z.unknown()).nullable().default(null),
   subjectId: z.number().int().positive().nullable(),
   topicId: z.number().int().positive().nullable(),

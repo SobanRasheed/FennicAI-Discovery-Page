@@ -93,7 +93,7 @@ export const PUT: APIRoute = async ({ request, locals, params }) => {
     await db
       .prepare(
         `UPDATE articles SET
-           title = ?, slug = ?, excerpt = ?, article_type = ?, subject_id = ?, topic_id = ?,
+           title = ?, slug = ?, excerpt = ?, article_type = ?, category = ?, subject_id = ?, topic_id = ?,
            author_id = ?, featured_media_id = ?, scheduled_at = ?, seo_title = ?,
            meta_description = ?, canonical_url = ?, og_title = ?, og_description = ?,
            og_image_media_id = ?, robots = ?, updated_at = datetime('now')
@@ -104,6 +104,8 @@ export const PUT: APIRoute = async ({ request, locals, params }) => {
         input.slug,
         input.excerpt,
         input.articleType,
+        // Categories only organize blog articles, never study notes.
+        input.articleType === 'article' ? input.category : null,
         input.subjectId ?? null,
         input.topicId ?? null,
         input.authorId ?? null,
