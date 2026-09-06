@@ -44,7 +44,7 @@ export const GET: APIRoute = async ({ locals, site }) => {
     listSubjects(locals).catch(() => []),
   ]);
 
-  const base = site?.toString() ?? 'https://devsyllabus.com/';
+  const base = site?.toString() ?? 'https://medicalstudynotes.tech/';
   const now = new Date().toISOString().slice(0, 10);
 
   const urls = [

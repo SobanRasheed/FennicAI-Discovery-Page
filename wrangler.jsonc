@@ -12,7 +12,7 @@
     {
       "binding": "DB",
       "database_name": "medical-study-notes",
-      "database_id": "REPLACE_WITH_YOUR_D1_DATABASE_ID",
+      "database_id": "bcc136ba-8933-42c1-be61-705030835497",
       "migrations_dir": "migrations"
     }
   ],
@@ -22,8 +22,21 @@
       "bucket_name": "medical-study-notes-media"
     }
   ],
+  "kv_namespaces": [
+    {
+      "binding": "SESSION",
+      "id": "30213ff2c3f840708d64ada78ada5905"
+    }
+  ],
+  // Serve the Worker on the site's own domain (creates/owns the DNS record).
+  "routes": [
+    {
+      "pattern": "medicalstudynotes.tech",
+      "custom_domain": true
+    }
+  ],
   "vars": {
-    "SITE_URL": "https://devsyllabus.com"
+    "SITE_URL": "https://medicalstudynotes.tech"
   }
   // Secrets (set with `wrangler secret put`, never committed):
   //   ADMIN_INITIAL_EMAIL    — bootstrap admin login
