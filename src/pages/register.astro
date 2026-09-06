@@ -1,0 +1,196 @@
+---
+/**
+ * /register/ — the public "Create account" screen. Presentational for now:
+ * student accounts aren't provisioned yet, so the form posts nowhere and the
+ * page is noindexed.
+ */
+import AuthLayout from '../layouts/AuthLayout.astro';
+import Icon from '../components/Icon.astro';
+
+const social = ['Google', 'Apple', 'Microsoft'];
+---
+
+<AuthLayout
+  title="Create account"
+  description="Create a free Medical Study Notes account to save notes, track your quiz performance, and personalize your learning experience."
+  path="/register/"
+  kicker="Create account"
+  headingLines={['Start Your Medical', 'Learning Journey']}
+  lead="Create a free account to save notes, track your quiz performance, and personalize your learning experience."
+  quote="Every expert was once a beginner. Start today, stay consistent, and keep going."
+  quoteAttribution="Join thousands of medical students"
+>
+  <div class="panel panel-pad auth-card">
+    <h2 class="auth-card-title">Create your account</h2>
+    <p class="auth-card-sub">Join a community of medical students.</p>
+
+    <form class="auth-form" action="/register/" method="get">
+      <div class="field">
+        <label for="name">Full name <span aria-hidden="true">*</span></label>
+        <input id="name" name="name" type="text" placeholder="Enter your full name" autocomplete="name" required />
+      </div>
+
+      <div class="field">
+        <label for="email">Email address <span aria-hidden="true">*</span></label>
+        <input id="email" name="email" type="email" placeholder="Enter your email address" autocomplete="email" required />
+      </div>
+
+      <div class="field">
+        <label for="password">Password <span aria-hidden="true">*</span></label>
+        <input id="password" name="password" type="password" placeholder="Create a password" autocomplete="new-password" minlength="8" required />
+      </div>
+
+      <div class="field">
+        <label for="confirm">Confirm password <span aria-hidden="true">*</span></label>
+        <input id="confirm" name="confirm" type="password" placeholder="Confirm your password" autocomplete="new-password" required />
+      </div>
+
+      <label class="auth-consent" for="agree">
+        <input id="agree" name="agree" type="checkbox" required />
+        <span>
+          I agree to the <a href="/terms-of-use/">Terms of Use</a> and{' '}
+          <a href="/privacy-policy/">Privacy Policy</a>
+        </span>
+      </label>
+
+      <button class="btn btn-primary btn-lg auth-submit" type="submit">Create Account</button>
+    </form>
+
+    <p class="auth-or"><span>OR</span></p>
+
+    <div class="auth-social">
+      {social.map((name) => (
+        <button class="btn btn-secondary auth-social-btn" type="button">Continue with {name}</button>
+      ))}
+    </div>
+
+    <p class="auth-switch">
+      Already have an account? <a href="/login/">Log in →</a>
+    </p>
+  </div>
+
+  <p class="auth-secure">
+    <Icon name="shield" size={14} />
+    <span><strong>Your data is secure</strong> — we use industry-standard encryption to keep your information safe.</span>
+  </p>
+</AuthLayout>
+
+<style>
+  .auth-card {
+    padding: var(--space-8);
+  }
+
+  .auth-card-title {
+    font-size: var(--text-display-sm);
+  }
+
+  .auth-card-sub {
+    margin-top: var(--space-2);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .auth-form {
+    display: grid;
+    gap: var(--space-5);
+    margin-top: var(--space-6);
+  }
+
+  .auth-form .field > label span {
+    color: var(--danger);
+  }
+
+  .auth-consent {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    margin-top: var(--space-1);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+
+  .auth-consent input {
+    margin-top: 0.2em;
+    accent-color: var(--primary);
+  }
+
+  .auth-consent a {
+    color: var(--primary);
+    text-decoration: none;
+  }
+
+  .auth-consent a:hover {
+    text-decoration: underline;
+  }
+
+  .auth-submit {
+    width: 100%;
+  }
+
+  .auth-or {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    margin: var(--space-6) 0;
+    color: var(--faint);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    text-align: center;
+  }
+
+  .auth-or::before,
+  .auth-or::after {
+    content: '';
+    flex: 1;
+    border-top: 1px solid var(--border);
+  }
+
+  .auth-social {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .auth-social-btn {
+    width: 100%;
+  }
+
+  .auth-switch {
+    margin: var(--space-6) 0 0;
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    text-align: center;
+  }
+
+  .auth-switch a {
+    color: var(--primary);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+  }
+
+  .auth-switch a:hover {
+    text-decoration: underline;
+  }
+
+  .auth-secure {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin-top: var(--space-5);
+    padding: var(--space-4);
+    border: 1px solid var(--primary-border);
+    border-radius: var(--radius-md);
+    background: var(--primary-surface);
+    color: var(--mute);
+    font-size: var(--text-caption);
+  }
+
+  .auth-secure svg {
+    flex-shrink: 0;
+    margin-top: 0.15em;
+    color: var(--primary);
+  }
+
+  .auth-secure strong {
+    color: var(--ink);
+  }
+</style>

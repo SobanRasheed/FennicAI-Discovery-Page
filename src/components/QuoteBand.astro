@@ -1,0 +1,127 @@
+---
+/**
+ * QuoteBand: the tinted pull-quote strip that appears once per page in the
+ * Figma designs — a large serif italic line, an optional mono attribution, and
+ * an optional right-hand stack of short lines ("Learn today / Build a
+ * healthier tomorrow").
+ *
+ * It is decorative editorial furniture, so it is a <figure>, not a section
+ * with a heading, and the oversized quote mark is hidden from assistive tech.
+ */
+import Icon from './Icon.astro';
+import type { IconName } from './Icon.astro';
+
+interface Props {
+  quote: string;
+  /** Small caps mono line under the quote, e.g. "B.B. KING". */
+  attribution?: string;
+  /** Short stacked lines on the right, each rendered on its own row. */
+  stack?: string[];
+  icon?: IconName;
+  /** `plain` drops the tint for pages that already sit on a tinted band. */
+  variant?: 'tint' | 'plain';
+}
+
+const { quote, attribution, stack = [], icon = 'bulb', variant = 'tint' } = Astro.props;
+---
+
+<figure class:list={['qband', variant === 'plain' && 'qband-plain']}>
+  <div class="container qband-inner">
+    <div class="qband-main">
+      <span class="qband-icon" aria-hidden="true"><Icon name={icon} size={22} /></span>
+      <blockquote class="qband-quote">
+        <p>{quote}</p>
+      </blockquote>
+      {attribution && <figcaption class="qband-attr">{attribution}</figcaption>}
+    </div>
+
+    {stack.length > 0 && (
+      <p class="qband-stack" aria-hidden="true">
+        {stack.map((line) => <span>{line}</span>)}
+      </p>
+    )}
+  </div>
+</figure>
+
+<style>
+  .qband {
+    margin: 0;
+    border-block: 1px solid var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  .qband-plain {
+    border-block-color: var(--border);
+    background: var(--surface-sunken);
+  }
+
+  .qband-inner {
+    display: grid;
+    gap: var(--space-6);
+    padding-block: var(--space-8);
+  }
+
+  @media (min-width: 900px) {
+    .qband-inner {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--space-16);
+      align-items: center;
+    }
+  }
+
+  .qband-main {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-2) var(--space-4);
+    align-items: start;
+  }
+
+  .qband-icon {
+    display: inline-flex;
+    grid-row: span 2;
+    color: var(--primary);
+  }
+
+  .qband-quote {
+    margin: 0;
+    max-width: 52ch;
+  }
+
+  .qband-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: clamp(1.0625rem, 1rem + 0.5vw, 1.25rem);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.45;
+    text-wrap: balance;
+  }
+
+  .qband-attr {
+    grid-column: 2;
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  /* The right-hand stack reads as a small typographic mark, not a sentence. */
+  .qband-stack {
+    display: grid;
+    gap: var(--space-1);
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  @media (min-width: 900px) {
+    .qband-stack {
+      text-align: right;
+    }
+  }
+</style>

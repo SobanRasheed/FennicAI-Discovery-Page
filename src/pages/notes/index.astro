@@ -1,9 +1,23 @@
 ---
+/**
+ * /notes/ — the study note index.
+ *
+ * The full note list is rendered as real links (so every note is crawlable
+ * from here), with the design's filter bar layered on top as client-side
+ * filtering: subject, level, sort, and the hero search field all narrow the
+ * list in place. Without JavaScript the hero search still submits to /search/.
+ *
+ * Subject pages link here as /notes/#subject-{slug}; a matching hash
+ * pre-selects that subject in the filter. The rail's per-subject rows carry
+ * the anchor targets, so the browser has something real to scroll to.
+ */
 import Layout from '../../layouts/Layout.astro';
 import PageHeader from '../../components/PageHeader.astro';
-import ArticleCard from '../../components/ArticleCard.astro';
-import SubjectCard from '../../components/SubjectCard.astro';
-import { getNotes, getCollection } from '../../utils/collections';
+import Search from '../../components/Search.astro';
+import SidebarPanel from '../../components/SidebarPanel.astro';
+import JsonLd from '../../components/JsonLd.astro';
+import Icon from '../../components/Icon.astro';
+import { getNotes, getCollection, isoDate } from '../../utils/collections';
 
 const [notes, subjects, levels] = await Promise.all([
   getNotes(),
@@ -14,56 +28,209 @@ const [notes, subjects, levels] = await Promise.all([
 const subjectLabel = (slug: string) =>
   subjects.find((s) => s.slug === slug)?.data.title ?? slug;
 
-/** Notes grouped by subject, so the index reads as a table of contents. */
-const bySubject = subjects
+/** Most recent first — the server-rendered order and the JS default sort. */
+const recent = [...notes].sort(
+  (a, b) => b.data.updatedDate.valueOf() - a.data.updatedDate.valueOf(),
+);
+
+const fmt = (d: Date) =>
+  d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+/** Rail: every subject that has notes, busiest first, with real counts. */
+const subjectRows = subjects
   .map((subject) => ({
     subject,
-    notes: notes.filter((n) => n.data.subject === subject.slug),
+    count: notes.filter((n) => n.data.subject === subject.slug).length,
   }))
-  .filter((group) => group.notes.length > 0);
+  .filter((row) => row.count > 0)
+  .sort((a, b) => b.count - a.count);
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
   label: s.data.title,
 }));
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'All study notes',
+  description:
+    'Browse our complete collection of medical study notes — clear explanations, diagrams and exam-focused content for medical students.',
+  url: new URL('/notes/', Astro.site).href,
+  isPartOf: { '@type': 'WebSite', name: 'Medical Study Notes', url: Astro.site!.href },
+  mainEntity: {
+    '@type': 'ItemList',
+    itemListElement: recent.map((note, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: note.data.title,
+      url: new URL(`/notes/${note.slug}/`, Astro.site).href,
+    })),
+  },
+};
 ---
 
 <Layout
-  title="Study Notes — All Subjects | Medical Study Notes"
-  description="Every study note, organised by subject and chapter. Each note lists its objectives, defines key terms, works through the material, and cites its sources."
+  title="All Study Notes | Medical Study Notes"
+  description="Browse our complete collection of medical study notes — clear explanations, diagrams and exam-focused content for medical students, organised by subject and level."
   path="/notes/"
   footerSubjects={footerSubjects}
   wide
 >
+  <JsonLd data={jsonLd} />
+
   <PageHeader
-    kicker="Study notes"
-    title="Study notes"
-    lead="Structured revision notes. Every note opens with its learning objectives, defines the key terms, works through the material, and ends with a summary and references."
-    crumbs={[{ label: 'Study Notes' }]}
-    stats={[
-      { value: notes.length, label: 'Published notes', icon: 'notes' },
-      { value: subjects.length, label: 'Subjects', icon: 'book' },
-      { value: levels.length, label: 'Education levels', icon: 'layers' },
-    ]}
-  />
+    kicker="Study Notes"
+    title="All study notes"
+    lead="Browse our complete collection of medical study notes. Clear explanations, diagrams and exam-focused content for medical students."
+    crumbs={[{ href: '/', label: 'Home' }, { label: 'Study Notes' }]}
+  >
+    <div class="notes-hero">
+      <Search
+        variant="hero"
+        id="notes-search"
+        placeholder="Search study notes (e.g. cranial nerves, gram staining, cardiac cycle...)"
+        label="Search study notes"
+      />
+    </div>
+
+    <Fragment slot="aside">
+      <figure class="notes-quote">
+        <blockquote>
+          <p>The more you learn, the more you realize how much there is to learn.</p>
+        </blockquote>
+        <figcaption>Sir William Osler</figcaption>
+      </figure>
+    </Fragment>
+  </PageHeader>
 
   <div class="container page-body">
-    <section class="section section-plain" aria-labelledby="by-subject">
-      <div class="section-head">
-        <h2 id="by-subject">Browse by subject</h2>
-        <p>Each subject hub groups its notes by chapter and links its question bank.</p>
-      </div>
-      <div class="grid grid-4 subject-grid">
-        {subjects.map((subject) => (
-          <SubjectCard
-            href={`/subjects/${subject.slug}/`}
-            title={subject.data.title}
-            count={notes.filter((n) => n.data.subject === subject.slug).length}
-          />
-        ))}
-      </div>
-    </section>
+    <div class="notes-layout">
+      <div class="notes-main">
+        {/* --- filter bar -------------------------------------------------- */}
+        <section class="panel panel-pad filter-panel" aria-labelledby="filter-title">
+          <h2 id="filter-title" class="filter-title">
+            <Icon name="filter" size={15} />
+            Filter notes
+          </h2>
+          <div class="filter-grid">
+            <div class="field">
+              <label for="notes-subject">Subject</label>
+              <select id="notes-subject">
+                <option value="">All Subjects</option>
+                {subjectRows.map(({ subject }) => (
+                  <option value={subject.slug}>{subject.data.title}</option>
+                ))}
+              </select>
+            </div>
+            <div class="field">
+              <label for="notes-level">Level</label>
+              <select id="notes-level">
+                <option value="">All Levels</option>
+                {levels.map((level) => (
+                  <option value={level.slug}>{level.data.title}</option>
+                ))}
+              </select>
+            </div>
+            <div class="field">
+              <label for="notes-sort">Sort by</label>
+              <select id="notes-sort">
+                <option value="recent">Most Recent</option>
+                <option value="oldest">Oldest First</option>
+                <option value="title">Title A–Z</option>
+              </select>
+            </div>
+            <div class="field filter-reset">
+              <button class="btn btn-secondary" id="notes-reset" type="button">
+                <Icon name="refresh" size={15} />
+                Reset filters
+              </button>
+            </div>
+          </div>
+        </section>
 
+        {/* --- toolbar + list ---------------------------------------------- */}
+        <div class="notes-results" id="notes-results">
+          <div class="notes-toolbar">
+            <p class="notes-count" id="notes-count" aria-live="polite">
+              {recent.length} study note{recent.length === 1 ? '' : 's'}
+            </p>
+            <div class="view-toggle" role="group" aria-label="Choose a view">
+              <button class="view-btn" type="button" data-view="list" aria-pressed="true">
+                List view
+              </button>
+              <button class="view-btn" type="button" data-view="grid" aria-pressed="false">
+                Grid view
+              </button>
+            </div>
+          </div>
+
+          <ol class="note-list" id="note-list">
+            {recent.map((note) => (
+              <li
+                class="note-row"
+                data-subject={note.data.subject}
+                data-level={note.data.level}
+                data-date={isoDate(note.data.updatedDate)}
+                data-title={note.data.title.toLowerCase()}
+                data-search={`${note.data.title} ${note.data.description} ${subjectLabel(note.data.subject)}`
+                  .toLowerCase()}
+              >
+                <a href={`/notes/${note.slug}/`}>
+                  <span class="row-main">
+                    <span class="row-kicker">{subjectLabel(note.data.subject)}</span>
+                    <span class="row-title">{note.data.title}</span>
+                    <span class="row-desc">{note.data.description}</span>
+                  </span>
+                  <time class="row-date" datetime={isoDate(note.data.updatedDate)}>
+                    {fmt(note.data.updatedDate)}
+                  </time>
+                </a>
+              </li>
+            ))}
+          </ol>
+
+          <div class="empty-state" id="notes-empty" hidden>
+            <h3>No notes match your filters</h3>
+            <p>Try a different search term, or reset the filters to see every study note.</p>
+            <button class="btn btn-secondary" id="notes-empty-reset" type="button">
+              Reset filters
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* --- rail ---------------------------------------------------------- */}
+      <aside class="notes-side" aria-label="Study notes links">
+        <SidebarPanel heading="Popular subjects" icon="book">
+          <ul class="rail-subjects">
+            {subjectRows.map(({ subject, count }) => (
+              <li id={`subject-${subject.slug}`}>
+                <a href={`/subjects/${subject.slug}/`}>
+                  <span>{subject.data.title}</span>
+                  <span class="rail-count">{count} note{count === 1 ? '' : 's'}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+          <a class="link-arrow" href="/subjects/">View all subjects</a>
+        </SidebarPanel>
+
+        <SidebarPanel variant="tint" heading="Study tip" icon="bulb">
+          <blockquote class="rail-quote">
+            <p>“Active recall and spaced repetition are more effective than passive reading.”</p>
+          </blockquote>
+          <p class="rail-quote-attr">Study Smarter<br />Remember Longer</p>
+        </SidebarPanel>
+
+        <SidebarPanel heading="Need something specific?" icon="search">
+          <p class="rail-help">Use search to quickly find notes on any topic.</p>
+          <a class="btn btn-secondary rail-help-btn" href="/search/">Search study notes</a>
+        </SidebarPanel>
+      </aside>
+    </div>
+
+    {/* --- levels ---------------------------------------------------------- */}
     <section class="section" aria-labelledby="by-level">
       <div class="section-head">
         <h2 id="by-level">Browse by education level</h2>
@@ -81,44 +248,406 @@ const footerSubjects = subjects.map((s) => ({
         ))}
       </ul>
     </section>
-
-    {bySubject.map(({ subject, notes: subjectNotes }) => (
-      <section class="section" aria-labelledby={`s-${subject.slug}`}>
-        <div class="section-head-row">
-          <div>
-            <p class="eyebrow">{subjectNotes.length} note{subjectNotes.length === 1 ? '' : 's'}</p>
-            <h2 id={`s-${subject.slug}`}>{subject.data.title}</h2>
-            <p>{subject.data.description}</p>
-          </div>
-          <a class="link-arrow" href={`/subjects/${subject.slug}/`}>Subject hub</a>
-        </div>
-        <ul class="entry-list">
-          {subjectNotes.map((note) => (
-            <li>
-              <ArticleCard
-                href={`/notes/${note.slug}/`}
-                title={note.data.title}
-                excerpt={note.data.description}
-                kicker={subjectLabel(note.data.subject)}
-                date={note.data.updatedDate}
-                dateLabel="Updated"
-              />
-            </li>
-          ))}
-        </ul>
-      </section>
-    ))}
   </div>
 </Layout>
 
 <style>
-  .page-body {
-    padding-bottom: var(--space-16);
+  .notes-hero {
+    margin-top: var(--space-6);
+    max-width: 36rem;
   }
 
-  @media (min-width: 640px) {
-    .subject-grid {
-      gap: var(--space-3);
+  /* The Osler pull-quote in the header aside. */
+  .notes-quote {
+    margin: 0;
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+  }
+
+  .notes-quote blockquote {
+    margin: 0;
+  }
+
+  .notes-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  .notes-quote figcaption {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .page-body {
+    padding-block: var(--space-12) var(--space-16);
+  }
+
+  /* --- main + rail layout ---------------------------------------------- */
+  .notes-layout {
+    display: grid;
+    gap: var(--space-8);
+  }
+
+  .notes-main,
+  .notes-side {
+    min-width: 0;
+  }
+
+  @media (min-width: 1024px) {
+    .notes-layout {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+      gap: var(--space-12);
     }
   }
+
+  /* --- filter bar ------------------------------------------------------- */
+  .filter-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--ink);
+    font-size: var(--text-body-lg);
+  }
+
+  .filter-title svg {
+    color: var(--primary);
+  }
+
+  .filter-grid {
+    display: grid;
+    gap: var(--space-4);
+    margin-top: var(--space-5);
+  }
+
+  @media (min-width: 700px) {
+    .filter-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+      align-items: end;
+    }
+  }
+
+  .filter-reset {
+    justify-self: start;
+  }
+
+  @media (min-width: 700px) {
+    .filter-reset {
+      justify-self: end;
+    }
+  }
+
+  /* --- toolbar ---------------------------------------------------------- */
+  .notes-results {
+    margin-top: var(--space-8);
+  }
+
+  .notes-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  .notes-count {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .view-toggle {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+  }
+
+  .view-btn {
+    padding: var(--space-2) var(--space-4);
+    border: 0;
+    background: var(--surface);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    transition: background-color 0.15s var(--ease), color 0.15s var(--ease);
+  }
+
+  .view-btn[aria-pressed='true'] {
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  /* --- note rows -------------------------------------------------------- */
+  .note-list {
+    display: grid;
+    gap: var(--space-3);
+    margin: var(--space-5) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .note-row[hidden] {
+    display: none;
+  }
+
+  .note-row a {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-6);
+    padding: var(--space-5) var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    text-decoration: none;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .note-row a:hover {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  .row-main {
+    display: grid;
+    gap: var(--space-1);
+    min-width: 0;
+  }
+
+  .row-kicker {
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .row-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    transition: color 0.15s var(--ease);
+  }
+
+  .note-row a:hover .row-title {
+    color: var(--primary);
+  }
+
+  .row-desc {
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .row-date {
+    flex-shrink: 0;
+    padding-top: 0.3em;
+    color: var(--faint);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* Grid view: the same rows, stacked vertically as tiles. */
+  @media (min-width: 640px) {
+    .note-list.view-grid {
+      grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+      gap: var(--space-4);
+    }
+  }
+
+  .note-list.view-grid .note-row a {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .note-list.view-grid .row-date {
+    padding-top: 0;
+  }
+
+  #notes-empty {
+    margin-top: var(--space-5);
+  }
+
+  #notes-empty .btn {
+    margin-top: var(--space-4);
+  }
+
+  /* --- rail -------------------------------------------------------------- */
+  .rail-subjects {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rail-subjects li + li {
+    border-top: 1px solid var(--border);
+  }
+
+  .rail-subjects a {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+  }
+
+  .rail-subjects a:hover {
+    color: var(--primary);
+  }
+
+  .rail-count {
+    flex-shrink: 0;
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--weight-body);
+  }
+
+  .rail-quote {
+    margin: 0;
+  }
+
+  .rail-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.4;
+    text-wrap: balance;
+  }
+
+  .rail-quote-attr {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    line-height: 1.7;
+    text-transform: uppercase;
+  }
+
+  .rail-help {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+
+  .rail-help-btn {
+    margin-top: var(--space-4);
+  }
 </style>
+
+<script>
+  // Client-side filtering over the prerendered list. Everything still works
+  // without this script: the full list is server-rendered and the hero search
+  // submits to /search/ as a plain GET form.
+  const heroForm = document.querySelector<HTMLFormElement>('.notes-hero form');
+  const queryInput = heroForm?.querySelector<HTMLInputElement>('input[name="q"]') ?? null;
+  const subjectSel = document.getElementById('notes-subject') as HTMLSelectElement;
+  const levelSel = document.getElementById('notes-level') as HTMLSelectElement;
+  const sortSel = document.getElementById('notes-sort') as HTMLSelectElement;
+  const countEl = document.getElementById('notes-count');
+  const emptyEl = document.getElementById('notes-empty');
+  const list = document.getElementById('note-list');
+
+  if (list && subjectSel && levelSel && sortSel && countEl && emptyEl) {
+    const rows = Array.from(list.querySelectorAll<HTMLElement>('.note-row'));
+
+    const comparators: Record<string, (a: HTMLElement, b: HTMLElement) => number> = {
+      recent: (a, b) => b.dataset.date!.localeCompare(a.dataset.date!),
+      oldest: (a, b) => a.dataset.date!.localeCompare(b.dataset.date!),
+      title: (a, b) => a.dataset.title!.localeCompare(b.dataset.title!, 'en'),
+    };
+
+    function apply() {
+      const q = (queryInput?.value ?? '').trim().toLowerCase();
+      const subject = subjectSel.value;
+      const level = levelSel.value;
+
+      let visible = 0;
+      rows.forEach((row) => {
+        const matches =
+          (!q || row.dataset.search!.includes(q)) &&
+          (!subject || row.dataset.subject === subject) &&
+          (!level || row.dataset.level === level);
+        row.hidden = !matches;
+        if (matches) visible++;
+      });
+
+      const compare = comparators[sortSel.value] ?? comparators.recent;
+      [...rows].sort(compare).forEach((row) => list.appendChild(row));
+
+      countEl.textContent = `${visible} study note${visible === 1 ? '' : 's'}`;
+      emptyEl.hidden = visible > 0;
+    }
+
+    function reset() {
+      if (queryInput) queryInput.value = '';
+      subjectSel.value = '';
+      levelSel.value = '';
+      sortSel.value = 'recent';
+      apply();
+    }
+
+    subjectSel.addEventListener('change', apply);
+    levelSel.addEventListener('change', apply);
+    sortSel.addEventListener('change', apply);
+    queryInput?.addEventListener('input', apply);
+    document.getElementById('notes-reset')?.addEventListener('click', reset);
+    document.getElementById('notes-empty-reset')?.addEventListener('click', reset);
+
+    // The hero search filters this page's list in place; without JS it falls
+    // through to /search/?q=... as a real form submission.
+    heroForm?.addEventListener('submit', (event) => {
+      event.preventDefault();
+      apply();
+      document.getElementById('notes-results')?.scrollIntoView({ behavior: 'smooth' });
+    });
+
+    // Subject pages link here as /notes/#subject-{slug}: pre-select that
+    // subject and bring the list into view.
+    function fromHash() {
+      const match = location.hash.match(/^#subject-([a-z0-9-]+)$/);
+      if (!match) return;
+      if (!subjectSel.querySelector(`option[value="${match[1]}"]`)) return;
+      subjectSel.value = match[1];
+      apply();
+      document.getElementById('notes-results')?.scrollIntoView();
+    }
+
+    window.addEventListener('hashchange', fromHash);
+    fromHash();
+
+    // List / Grid view toggle.
+    document.querySelectorAll<HTMLButtonElement>('[data-view]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll<HTMLButtonElement>('[data-view]').forEach((other) => {
+          other.setAttribute('aria-pressed', String(other === btn));
+        });
+        list.classList.toggle('view-grid', btn.dataset.view === 'grid');
+      });
+    });
+  }
+</script>

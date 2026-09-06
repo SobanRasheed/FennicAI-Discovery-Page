@@ -55,6 +55,12 @@ const categoryLabel = data.category.replace(/-/g, ' ');
 const title = data.seoTitle ?? data.title;
 const site = Astro.site!;
 
+/** Reading time at 200 words per minute, from the raw markdown. */
+const readingMinutes = Math.max(
+  1,
+  Math.round((post.body ?? '').split(/\s+/).filter(Boolean).length / 200),
+);
+
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
   label: s.data.title,
@@ -109,6 +115,24 @@ const articleSchema = {
     </Fragment>
   )}
 
+  {/* --- article actions: share / print / save --------------------------- */}
+  <div class="article-actions" role="group" aria-label="Article actions">
+    <button class="action-btn" type="button" data-action="share">
+      <Icon name="share" size={15} />
+      <span>Share</span>
+      <span class="action-feedback" data-feedback="share" role="status"></span>
+    </button>
+    <button class="action-btn" type="button" data-action="print">
+      <Icon name="print" size={15} />
+      <span>Print</span>
+    </button>
+    <button class="action-btn" type="button" data-action="save" data-save-slug={post.slug}>
+      <Icon name="bookmark" size={15} />
+      <span data-save-label>Save article</span>
+      <span class="action-feedback" data-feedback="save" role="status"></span>
+    </button>
+  </div>
+
   <ArticleHeader
     title={data.title}
     kicker={categoryLabel}
@@ -116,6 +140,7 @@ const articleSchema = {
     standfirst={data.description}
     published={data.publishedDate}
     updated={data.updatedDate}
+    readingMinutes={readingMinutes}
     author={author?.data.title}
     authorHref={author ? `/authors/${author.slug}/` : undefined}
   />
@@ -174,7 +199,7 @@ const articleSchema = {
     )}
 
     {relatedPosts.length > 0 && (
-      <SidebarPanel heading="More on this topic" icon="notes">
+      <SidebarPanel heading="Related articles" icon="notes">
         <RelatedContent
           items={relatedPosts.map((p) => ({
             href: `/blog/${p.slug}/`,
@@ -189,6 +214,13 @@ const articleSchema = {
       </SidebarPanel>
     )}
 
+    <SidebarPanel variant="tint" heading="Practice what you learn" icon="question">
+      <p class="practice-copy">
+        Test your knowledge with subject-wise MCQs and track your progress.
+      </p>
+      <a class="btn btn-secondary practice-btn" href="/practice/">Start Practicing</a>
+    </SidebarPanel>
+
     <SidebarPanel heading="Keep reading" icon="link">
       <ul class="chevron-list">
         <li><a href="/blog/">All articles</a></li>
@@ -198,9 +230,171 @@ const articleSchema = {
       </ul>
     </SidebarPanel>
   </Fragment>
+
+  <script>
+    const actions = document.querySelector<HTMLElement>('[data-action]')?.parentElement;
+    const SAVE_KEY = 'msn:saved-articles';
+
+    const savedList = (): { slug: string; title: string; href: string }[] => {
+      try {
+        return JSON.parse(localStorage.getItem(SAVE_KEY) ?? '[]');
+      } catch {
+        return [];
+      }
+    };
+
+    const writeSaved = (list: { slug: string; title: string; href: string }[]) => {
+      try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(list));
+      } catch {
+        /* storage unavailable (private mode, disabled) — saving just won't persist */
+      }
+    };
+
+    const flash = (key: string, message: string) => {
+      const el = document.querySelector<HTMLElement>(`[data-feedback="${key}"]`);
+      if (!el) return;
+      el.textContent = message;
+      window.setTimeout(() => {
+        el.textContent = '';
+      }, 2000);
+    };
+
+    const saveBtn = document.querySelector<HTMLButtonElement>('[data-action="save"]');
+    const saveLabel = document.querySelector<HTMLElement>('[data-save-label]');
+
+    const syncSaveState = () => {
+      if (!saveBtn || !saveLabel) return;
+      const slug = saveBtn.dataset.saveSlug!;
+      const isSaved = savedList().some((item) => item.slug === slug);
+      saveBtn.classList.toggle('is-saved', isSaved);
+      saveBtn.setAttribute('aria-pressed', String(isSaved));
+      saveLabel.textContent = isSaved ? 'Saved' : 'Save article';
+    };
+
+    actions?.addEventListener('click', async (event) => {
+      const btn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-action]');
+      if (!btn) return;
+
+      const action = btn.dataset.action;
+
+      if (action === 'print') {
+        window.print();
+        return;
+      }
+
+      if (action === 'share') {
+        const url = location.href;
+        try {
+          if (navigator.share) {
+            await navigator.share({ title: document.title, url });
+            return;
+          }
+          await navigator.clipboard.writeText(url);
+          flash('share', 'Link copied!');
+        } catch {
+          /* user cancelled the share sheet, or clipboard denied */
+        }
+        return;
+      }
+
+      if (action === 'save') {
+        const slug = btn.dataset.saveSlug!;
+        const list = savedList();
+        if (list.some((item) => item.slug === slug)) {
+          writeSaved(list.filter((item) => item.slug !== slug));
+          flash('save', 'Removed');
+        } else {
+          writeSaved([
+            ...list,
+            {
+              slug,
+              title: document.querySelector('h1')?.textContent?.trim() ?? slug,
+              href: location.pathname,
+            },
+          ]);
+          flash('save', 'Saved!');
+        }
+        syncSaveState();
+      }
+    });
+
+    syncSaveState();
+  </script>
 </ArticleLayout>
 
 <style>
+  /* --- article actions --------------------------------------------------- */
+  .article-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-6);
+  }
+
+  .action-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--body);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease),
+      color 0.15s var(--ease);
+  }
+
+  .action-btn:hover {
+    border-color: var(--border-strong);
+    color: var(--ink);
+  }
+
+  .action-btn svg {
+    color: var(--primary);
+  }
+
+  .action-btn.is-saved {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .action-btn:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  .action-feedback {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    padding-top: var(--space-1);
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  /* --- practice panel ------------------------------------------------------ */
+  .practice-copy {
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .practice-btn {
+    margin-top: var(--space-4);
+  }
+
   .post-body {
     margin-top: var(--space-8);
   }

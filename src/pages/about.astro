@@ -1,89 +1,502 @@
 ---
+/**
+ * About: mission, method, and the site's editorial stance.
+ *
+ * The Figma stats (100,000+ students, 1,500+ MCQs) are placeholder
+ * marketing numbers — the stat row below reports the real content counts
+ * instead, and every claim in the copy matches what the site actually does.
+ */
 import Layout from '../layouts/Layout.astro';
-import Breadcrumbs from '../components/Breadcrumbs.astro';
+import PageHeader from '../components/PageHeader.astro';
+import StatCards from '../components/StatCards.astro';
+import SidebarPanel from '../components/SidebarPanel.astro';
+import Icon from '../components/Icon.astro';
 import JsonLd from '../components/JsonLd.astro';
+import { getNotes, getQuestions, getBlogPosts, getCollection } from '../utils/collections';
+
+const [notes, questions, posts, subjects] = await Promise.all([
+  getNotes(),
+  getQuestions(),
+  getBlogPosts(),
+  getCollection('subjects'),
+]);
+
+const pillars = [
+  {
+    icon: 'book-open',
+    title: 'Learn',
+    text: 'Clear explanations, structured the way revision works.',
+  },
+  {
+    icon: 'target',
+    title: 'Study',
+    text: 'Exam-focused content with worked practice questions.',
+  },
+  {
+    icon: 'star',
+    title: 'Succeed',
+    text: 'Build a stronger understanding, not just a score.',
+  },
+] as const;
+
+const choices = [
+  {
+    icon: 'shield',
+    title: 'Accurate & Reliable',
+    text: 'Content is carefully researched and reviewed for accuracy, and each study note lists its sources in a references section.',
+  },
+  {
+    icon: 'users',
+    title: 'Student Focused',
+    text: 'Designed for students, to meet real learning needs — objectives first, then explanation, then self-test.',
+  },
+  {
+    icon: 'layers',
+    title: 'Comprehensive Resources',
+    text: 'Study notes, practice questions, and articles — all in one place, organized by subject and chapter.',
+  },
+  {
+    icon: 'refresh',
+    title: 'Always Improving',
+    text: 'Content is updated when material changes or corrections land, and every page shows its published and last-updated dates.',
+  },
+] as const;
+
+const values = [
+  { icon: 'star', title: 'Excellence', text: 'Strive for the highest quality in our content.' },
+  { icon: 'globe', title: 'Accessibility', text: 'Keep every resource free and available to all.' },
+  { icon: 'shield', title: 'Integrity', text: 'Provide honest and reliable information.' },
+  { icon: 'heart', title: 'Community', text: 'Support and grow with our learner community.' },
+] as const;
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
 
 const site = Astro.site!;
 
-const orgSchema = {
+const aboutSchema = {
   '@context': 'https://schema.org',
-  '@type': 'Organization',
-  name: 'devsyllabus',
-  url: site.href,
-  description:
-    'Study notes, practice questions, and exam guides for computer science subjects.',
+  '@type': 'AboutPage',
+  name: 'About Medical Study Notes',
+  url: new URL('/about/', site).href,
+  mainEntity: {
+    '@type': 'Organization',
+    name: 'Medical Study Notes',
+    url: site.href,
+    description:
+      'Study notes, practice questions, and articles for the subjects we cover, structured for efficient revision.',
+  },
+  isPartOf: { '@type': 'WebSite', name: 'Medical Study Notes', url: site.href },
 };
 ---
-
 <Layout
-  title="About devsyllabus — Our Mission and Method"
-  description="Who we are, why devsyllabus exists, and how our study notes are structured to make revision efficient for computer science students."
+  title="About — Our Mission and Method | Medical Study Notes"
+  description="Who we are, why Medical Study Notes exists, and how our study notes, practice questions, and articles are structured to make revision efficient."
   path="/about/"
+  footerSubjects={footerSubjects}
+  wide
 >
-  <JsonLd data={orgSchema} />
-  <Breadcrumbs crumbs={[{ label: 'About' }]} />
+  <JsonLd data={aboutSchema} />
 
-  <div class="doc">
-  <h1>About devsyllabus</h1>
+  <PageHeader
+    kicker="About Us"
+    title="Our Mission is to Support Your Study Journey"
+    lead="A student-focused platform providing high-quality study notes, practice questions, and educational resources — free, structured for revision, and organized the way courses actually run."
+    crumbs={[{ label: 'Home', href: '/' }, { label: 'About' }]}
+  >
+    <Fragment slot="aside">
+      <figure class="about-quote">
+        <blockquote>
+          <p>Education is the most powerful weapon which you can use to change the world.</p>
+        </blockquote>
+        <figcaption>Nelson Mandela</figcaption>
+      </figure>
+    </Fragment>
+  </PageHeader>
 
-  <h2>Why this site exists</h2>
-  <p>
-    Most students preparing for computer science exams face the same
-    problem: the material exists, but it is scattered across textbook
-    chapters, lecture slides, and forum threads, each written for a
-    different audience. devsyllabus puts it in one place, structured the
-    way revision actually works: objectives first, then explanation, then
-    self-test.
-  </p>
+  <div class="container page-body">
+    {/* --- learn · study · succeed ---------------------------------------- */}
+    <section class="section" aria-label="Learn, study, succeed">
+      <div class="grid grid-3 pillar-grid">
+        {pillars.map((pillar) => (
+          <div class="pillar-card">
+            <span class="pillar-icon" aria-hidden="true"><Icon name={pillar.icon} size={22} /></span>
+            <h2 class="pillar-title">{pillar.title}</h2>
+            <p class="pillar-text">{pillar.text}</p>
+          </div>
+        ))}
+      </div>
+    </section>
 
-  <h2>What we publish</h2>
-  <ul>
-    <li>
-      <strong><a href="/notes/">Study notes</a></strong> — complete chapter
-      coverage for each subject, with key terms, worked examples, formulas,
-      and summary sections.
-    </li>
-    <li>
-      <strong><a href="/practice/">Practice questions</a></strong> — MCQs,
-      short and long answers, and numerical problems, every one with a
-      worked explanation, not just a final answer.
-    </li>
-    <li>
-      <strong><a href="/blog/">Articles</a></strong> — exam technique, study
-      methods, and practical guides on the subjects we cover.
-    </li>
-    <li>
-      <strong><a href="/topics/">Topic hubs</a></strong> — one page per
-      topic collecting every note, article, and question on it.
-    </li>
-  </ul>
+    {/* --- story / mission / vision ----------------------------------------- */}
+    <section class="section" aria-labelledby="story-mission-vision">
+      <div class="section-head">
+        <h2 id="story-mission-vision">Our story, mission, and vision</h2>
+      </div>
 
-  <h2>How the site is organized</h2>
-  <p>
-    Content follows two hierarchies. Study notes run from
-    <a href="/levels/">education level</a> to
-    <a href="/subjects/">subject</a> to chapter to note, so you can start
-    from your class or course. Blog articles run from
-    <a href="/blog/">category</a> to topic to article. Topic hubs connect
-    the two, linking related material across both trees.
-  </p>
+      <div class="grid grid-3 smv-grid">
+        <div class="smv-card">
+          <h3>Our Story</h3>
+          <p>
+            This site was created with a simple idea — to make high-quality,
+            reliable, and easy-to-understand study material accessible to
+            everyone. The material for most courses exists, but it is scattered
+            across textbook chapters, lecture slides, and forum threads, each
+            written for a different audience. We put it in one place, structured
+            the way revision actually works: objectives first, then explanation,
+            then self-test.
+          </p>
+        </div>
+        <div class="smv-card">
+          <h3>Our Mission</h3>
+          <p>
+            To empower students with accurate, high-quality, and accessible
+            study resources — notes, worked practice questions, and practical
+            guides, all free to read.
+          </p>
+        </div>
+        <div class="smv-card">
+          <h3>Our Vision</h3>
+          <p>
+            To become a trusted and comprehensive platform for the subjects we
+            cover, helping students build lasting understanding rather than
+            last-minute recall.
+          </p>
+        </div>
+      </div>
+    </section>
 
-  <h2>Editorial standards</h2>
-  <p>
-    Every page is written by a named author whose credentials appear on
-    their <a href="/authors/">profile page</a>, and reviewed before
-    publication. Technical claims are checked against primary sources,
-    which are listed in each note's references section. When material
-    becomes outdated we update it and the page shows both its published
-    and last-updated dates. Read the full
-    <a href="/editorial-policy/">editorial policy</a> for how we write,
-    review, and correct content.
-  </p>
+    {/* --- real content counts ------------------------------------------------ */}
+    <section class="section" aria-labelledby="what-we-publish">
+      <div class="section-head">
+        <h2 id="what-we-publish">What we publish today</h2>
+        <p>Everything below is live on the site right now.</p>
+      </div>
 
-  <h2>Contact</h2>
-  <p>
-    Corrections, suggestions, and questions are welcome — see the
-    <a href="/contact/">contact page</a>.
-  </p>
+      <StatCards
+        stats={[
+          { value: notes.length, label: 'Study notes', icon: 'notes' },
+          { value: questions.length, label: 'Practice questions', icon: 'question' },
+          { value: subjects.length, label: 'Subjects', icon: 'book' },
+          { value: posts.length, label: 'Articles', icon: 'notes' },
+        ]}
+      />
+
+      <p class="publish-note">
+        Browse the <a href="/notes/">study notes</a>, try the
+        <a href="/practice/">practice questions</a>, or read the
+        <a href="/blog/">articles</a>.
+      </p>
+    </section>
+
+    {/* --- why choose ------------------------------------------------------------ */}
+    <section class="section" aria-labelledby="why-choose">
+      <div class="section-head">
+        <h2 id="why-choose">Why choose Medical Study Notes?</h2>
+        <p>We are committed to providing the best learning experience for students.</p>
+      </div>
+
+      <div class="grid grid-4 why-grid">
+        {choices.map((choice) => (
+          <div class="why-card">
+            <span class="why-icon" aria-hidden="true"><Icon name={choice.icon} size={20} /></span>
+            <h3>{choice.title}</h3>
+            <p>{choice.text}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    {/* --- values ------------------------------------------------------------------- */}
+    <section class="section" aria-labelledby="our-values">
+      <div class="section-head">
+        <h2 id="our-values">Our values</h2>
+        <p>The principles that guide everything we do.</p>
+      </div>
+
+      <div class="grid grid-4 value-grid">
+        {values.map((value) => (
+          <div class="value-card">
+            <span class="value-icon" aria-hidden="true"><Icon name={value.icon} size={20} /></span>
+            <h3>{value.title}</h3>
+            <p>{value.text}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    {/* --- editorial standards --------------------------------------------------------- */}
+    <section class="section" aria-labelledby="editorial-standards">
+      <div class="section-head">
+        <h2 id="editorial-standards">Editorial standards</h2>
+      </div>
+
+      <div class="editorial-grid">
+        <div class="prose">
+          <p>
+            Every page is written by a named author whose credentials appear on
+            their <a href="/authors/">profile page</a>, and reviewed before
+            publication. Technical claims are checked against primary sources,
+            which are listed in each note's references section. When material
+            becomes outdated we update it and the page shows both its published
+            and last-updated dates.
+          </p>
+          <p>
+            Read the full <a href="/editorial-policy/">editorial policy</a> for
+            how we write, review, and correct content, and the
+            <a href="/corrections/">corrections policy</a> for how error reports
+            are handled.
+          </p>
+        </div>
+
+        <SidebarPanel heading="Explore the site" icon="link">
+          <ul class="chevron-list">
+            <li><a href="/subjects/">Subjects</a></li>
+            <li><a href="/notes/">Study notes</a></li>
+            <li><a href="/practice/">Practice questions</a></li>
+            <li><a href="/past-papers/">Past papers</a></li>
+            <li><a href="/blog/">Blog</a></li>
+            <li><a href="/topics/">Topic hubs</a></li>
+          </ul>
+        </SidebarPanel>
+      </div>
+    </section>
+
+    {/* --- CTA --------------------------------------------------------------------------- */}
+    <section class="cta panel panel-pad" aria-labelledby="start-learning">
+      <div>
+        <h2 id="start-learning">Start Learning Today</h2>
+        <p>
+          Be part of a community of students learning, sharing, and succeeding
+          together. Everything on the site is free to read, with no account
+          required.
+        </p>
+      </div>
+      <div class="cta-actions">
+        <a class="btn btn-primary" href="/subjects/">Browse subjects</a>
+        <a class="btn btn-secondary" href="/notes/">Read the notes</a>
+      </div>
+    </section>
   </div>
 </Layout>
+
+<style>
+  .about-quote {
+    margin: 0;
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+  }
+
+  .about-quote blockquote {
+    margin: 0;
+  }
+
+  .about-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  .about-quote figcaption {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .page-body {
+    padding-block: var(--space-12) var(--space-16);
+  }
+
+  /* --- learn · study · succeed ------------------------------------------ */
+  .pillar-grid {
+    gap: var(--space-4);
+  }
+
+  .pillar-card {
+    display: grid;
+    gap: var(--space-2);
+    justify-items: center;
+    padding: var(--space-8) var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    text-align: center;
+  }
+
+  .pillar-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-sm);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .pillar-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  .pillar-text {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  /* --- story / mission / vision ------------------------------------------ */
+  .smv-grid {
+    gap: var(--space-4);
+  }
+
+  .smv-card {
+    padding: var(--space-6) var(--space-7);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .smv-card h3 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .smv-card h3::after {
+    display: block;
+    width: 2.5rem;
+    height: 2px;
+    margin-top: var(--space-3);
+    margin-bottom: var(--space-4);
+    background: var(--primary);
+    content: '';
+  }
+
+  .smv-card p {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-prose);
+  }
+
+  /* --- counts --------------------------------------------------------------- */
+  .publish-note {
+    margin-top: var(--space-5);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+
+  /* --- why choose / values ---------------------------------------------------- */
+  .why-grid,
+  .value-grid {
+    gap: var(--space-4);
+  }
+
+  .why-card,
+  .value-card {
+    display: grid;
+    gap: var(--space-2);
+    align-content: start;
+    padding: var(--space-5) var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .why-icon,
+  .value-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .why-card h3,
+  .value-card h3 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+  }
+
+  .why-card p,
+  .value-card p {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .value-card {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  /* --- editorial standards -------------------------------------------------------- */
+  .editorial-grid {
+    display: grid;
+    gap: var(--space-8);
+    align-items: start;
+  }
+
+  @media (min-width: 900px) {
+    .editorial-grid {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+      gap: var(--space-12);
+    }
+  }
+
+  .editorial-grid .prose p {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-prose);
+  }
+
+  /* --- CTA ------------------------------------------------------------------------------ */
+  .cta {
+    display: grid;
+    gap: var(--space-6);
+    margin-top: var(--space-8);
+    text-align: center;
+    justify-items: center;
+  }
+
+  .cta h2 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-md);
+    font-weight: var(--weight-semibold);
+    text-wrap: balance;
+  }
+
+  .cta p {
+    max-width: 52ch;
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .cta-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-3);
+  }
+</style>

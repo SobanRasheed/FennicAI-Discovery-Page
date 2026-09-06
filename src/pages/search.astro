@@ -1,10 +1,4 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import PageHeader from '../components/PageHeader.astro';
-import Search from '../components/Search.astro';
-import Icon from '../components/Icon.astro';
-import { getNotes, getBlogPosts, getQuestions, getCollection } from '../utils/collections';
-
 /**
  * Site search.
  *
@@ -12,11 +6,19 @@ import { getNotes, getBlogPosts, getQuestions, getCollection } from '../utils/co
  * backend. The form is a real GET to /search/, which means a shared
  * /search/?q=... URL reproduces the result and the page still works with
  * JavaScript disabled — in that case the full index renders as a browsable
- * list grouped by type, which is a usable fallback rather than a dead end.
+ * list, which is a usable fallback rather than a dead end.
  *
- * Type filters are radio inputs styled as a segmented control, so filtering by
- * category is also JS-free.
+ * The filter panel narrows by content type (radios) and subject (select);
+ * results carry a trailing meta line ("Microbiology · Updated 4 Sep 2026")
+ * like the design's typed result rows.
  */
+import Layout from '../layouts/Layout.astro';
+import PageHeader from '../components/PageHeader.astro';
+import Search from '../components/Search.astro';
+import SidebarPanel from '../components/SidebarPanel.astro';
+import Icon from '../components/Icon.astro';
+import { getNotes, getBlogPosts, getQuestions, getCollection } from '../utils/collections';
+
 const [notes, posts, questions, subjects, topics, levels] = await Promise.all([
   getNotes(),
   getBlogPosts(),
@@ -25,6 +27,12 @@ const [notes, posts, questions, subjects, topics, levels] = await Promise.all([
   getCollection('topics'),
   getCollection('levels'),
 ]);
+
+const subjectLabel = (slug: string) =>
+  subjects.find((s) => s.slug === slug)?.data.title ?? slug;
+
+const fmt = (d: Date) =>
+  d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
 type Kind = 'note' | 'article' | 'mcq' | 'subject' | 'topic' | 'level';
 
@@ -35,6 +43,10 @@ interface Entry {
   kind: Kind;
   label: string;
   keywords: string;
+  /** Subject slug, for the subject filter. */
+  subject: string;
+  /** Trailing meta line, e.g. "Microbiology · Updated 4 Sep 2026". */
+  meta: string;
 }
 
 const searchIndex: Entry[] = [
@@ -46,6 +58,8 @@ const searchIndex: Entry[] = [
     label: 'Study note',
     keywords:
       `${note.data.title} ${note.data.description} ${note.data.overview} ${note.data.summary} ${note.data.keyTerms.map((t) => t.term).join(' ')}`.toLowerCase(),
+    subject: note.data.subject,
+    meta: `${subjectLabel(note.data.subject)} · Updated ${fmt(note.data.updatedDate)}`,
   })),
   ...posts.map((post) => ({
     title: post.data.title,
@@ -54,6 +68,8 @@ const searchIndex: Entry[] = [
     kind: 'article' as const,
     label: 'Article',
     keywords: `${post.data.title} ${post.data.description} ${post.data.category}`.toLowerCase(),
+    subject: '',
+    meta: `${post.data.category} · ${fmt(post.data.publishedDate)}`,
   })),
   ...questions.map((q) => ({
     title: q.data.question,
@@ -62,6 +78,8 @@ const searchIndex: Entry[] = [
     kind: 'mcq' as const,
     label: q.data.type === 'mcq' ? 'MCQ' : 'Practice question',
     keywords: `${q.data.question} ${q.data.answer} ${q.data.explanation}`.toLowerCase(),
+    subject: q.data.subject,
+    meta: subjectLabel(q.data.subject),
   })),
   ...subjects.map((subject) => ({
     title: `${subject.data.title} study notes`,
@@ -71,6 +89,8 @@ const searchIndex: Entry[] = [
     label: 'Subject',
     keywords:
       `${subject.data.title} ${subject.data.description} ${subject.data.chapters.map((c) => c.title).join(' ')}`.toLowerCase(),
+    subject: subject.slug,
+    meta: 'Subject hub',
   })),
   ...topics.map((topic) => ({
     title: topic.data.title,
@@ -80,6 +100,8 @@ const searchIndex: Entry[] = [
     label: 'Topic',
     keywords:
       `${topic.data.title} ${topic.data.description} ${topic.data.beginnerExplanation}`.toLowerCase(),
+    subject: '',
+    meta: 'Topic hub',
   })),
   ...levels.map((level) => ({
     title: level.data.title,
@@ -88,17 +110,38 @@ const searchIndex: Entry[] = [
     kind: 'level' as const,
     label: 'Education level',
     keywords: `${level.data.title} ${level.data.description}`.toLowerCase(),
+    subject: '',
+    meta: 'Level overview',
   })),
 ];
 
-const filters = [
-  { value: 'all', label: 'All' },
-  { value: 'note', label: 'Study Notes' },
-  { value: 'article', label: 'Articles' },
-  { value: 'mcq', label: 'MCQs' },
-  { value: 'subject', label: 'Subjects' },
-  { value: 'topic', label: 'Topics' },
-];
+/** Filter labels with real counts from the index. */
+const filters = (['note', 'article', 'mcq', 'subject', 'topic'] as const).map((kind) => ({
+  value: kind,
+  label:
+    {
+      note: 'Study Notes',
+      article: 'Articles',
+      mcq: 'MCQs',
+      subject: 'Subjects',
+      topic: 'Topics',
+    }[kind],
+  count: searchIndex.filter((entry) => entry.kind === kind).length,
+}));
+
+/** Subjects with at least one indexed entry, for the subject filter. */
+const filterSubjects = subjects.filter((subject) =>
+  searchIndex.some((entry) => entry.subject === subject.slug),
+);
+
+/** Rail: subjects by how much material they have, with real counts. */
+const railSubjects = subjects
+  .map((subject) => ({
+    subject,
+    noteCount: notes.filter((n) => n.data.subject === subject.slug).length,
+    mcqCount: questions.filter((q) => q.data.subject === subject.slug).length,
+  }))
+  .sort((a, b) => b.noteCount - a.noteCount);
 
 const initialQuery = Astro.url.searchParams.get('q') ?? '';
 
@@ -117,79 +160,153 @@ const footerSubjects = subjects.map((s) => ({
   wide
 >
   <PageHeader
-    kicker="Search"
-    title="Search the site"
-    lead="Study notes, articles, MCQs, subjects, and topic hubs, all in one index."
-    crumbs={[{ label: 'Search' }]}
+    kicker="Search Results"
+    title="Search Medical Study Notes"
+    lead="Find study notes, MCQs, articles and more."
+    crumbs={[{ href: '/', label: 'Home' }, { label: 'Search' }]}
   >
     <div class="srch-wrap">
       <Search
         variant="hero"
         id="search-input"
         value={initialQuery}
-        placeholder="Search anatomy, microbiology, pharmacology..."
+        placeholder="Search study notes, MCQs, articles…"
+        label="Search Medical Study Notes"
         autofocus
       />
     </div>
+
+    <Fragment slot="aside">
+      <figure class="search-quote">
+        <blockquote>
+          <p>In the fields of observation, chance favors only the prepared mind.</p>
+        </blockquote>
+        <figcaption>
+          Louis Pasteur<br />French Microbiologist
+        </figcaption>
+      </figure>
+    </Fragment>
   </PageHeader>
 
   <div class="container results-wrap">
-    {/* Segmented type filter. Radios keep it functional without JS: each
-        label toggles a CSS class on the results list via :has(). */}
-    <div class="filters" data-filters>
-      <fieldset>
-        <legend class="visually-hidden">Filter results by type</legend>
-        {filters.map((filter, i) => (
-          <>
-            <input
-              type="radio"
-              name="kind"
-              id={`kind-${filter.value}`}
-              value={filter.value}
-              checked={i === 0}
-              hidden
-            />
-            <label for={`kind-${filter.value}`}>{filter.label}</label>
-          </>
-        ))}
-      </fieldset>
-    </div>
+    <div class="results-layout">
+      <div class="results-main">
+        {/* --- filter panel ------------------------------------------------ */}
+        <section class="panel panel-pad filter-panel" aria-labelledby="filter-title">
+          <h2 id="filter-title" class="filter-title">
+            <Icon name="filter" size={15} />
+            Filter results
+          </h2>
 
-    <p class="results-status" data-status aria-live="polite"></p>
+          <fieldset class="filter-kind">
+            <legend>Content type</legend>
+            <input type="radio" name="kind" id="kind-all" value="all" checked hidden />
+            <label for="kind-all">All types ({searchIndex.length})</label>
+            {filters.map((filter) => (
+              <>
+                <input
+                  type="radio"
+                  name="kind"
+                  id={`kind-${filter.value}`}
+                  value={filter.value}
+                  hidden
+                />
+                <label for={`kind-${filter.value}`}>
+                  {filter.label} ({filter.count})
+                </label>
+              </>
+            ))}
+          </fieldset>
 
-    <ul class="entry-list results" data-results></ul>
+          <div class="filter-row">
+            <div class="field">
+              <label for="search-subject">Subject</label>
+              <select id="search-subject">
+                <option value="">All Subjects</option>
+                {filterSubjects.map((subject) => (
+                  <option value={subject.slug}>{subject.data.title}</option>
+                ))}
+              </select>
+            </div>
+            <div class="field filter-reset">
+              <button class="btn btn-secondary" id="search-reset" type="button">
+                <Icon name="refresh" size={15} />
+                Reset filters
+              </button>
+            </div>
+          </div>
+        </section>
 
-    <div class="results-empty" data-empty hidden>
-      <div class="empty-state">
-        <h3>No matches</h3>
-        <p>
-          Try a shorter query or a different term, or browse
-          <a href="/notes/">all study notes</a>,
-          <a href="/subjects/">subjects</a>, or
-          <a href="/practice/">practice questions</a>.
-        </p>
+        <p class="results-status" data-status aria-live="polite"></p>
+
+        <ul class="entry-list results" data-results></ul>
+
+        <div class="results-empty" data-empty hidden>
+          <div class="empty-state">
+            <h3>No matches</h3>
+            <p>
+              Try a shorter query or a different term, or browse
+              <a href="/notes/">all study notes</a>,
+              <a href="/subjects/">subjects</a>, or
+              <a href="/practice/">practice questions</a>.
+            </p>
+          </div>
+        </div>
+
+        {/* Without JS the whole index renders as a real, browsable list. */}
+        <noscript>
+          <div class="notice notice-info nojs-notice">
+            Live filtering needs JavaScript. The complete index is listed below.
+          </div>
+          <ul class="entry-list">
+            {searchIndex.map((entry) => (
+              <li>
+                <a class="entry entry-cols" href={entry.url}>
+                  <span class="kicker">{entry.label}</span>
+                  <span>
+                    <span class="entry-title">{entry.title}</span>
+                    <span class="entry-excerpt">{entry.excerpt}</span>
+                  </span>
+                  {entry.meta && <span class="entry-meta">{entry.meta}</span>}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </noscript>
       </div>
-    </div>
 
-    {/* Without JS the whole index renders as a real, browsable list. */}
-    <noscript>
-      <div class="notice notice-info nojs-notice">
-        Live filtering needs JavaScript. The complete index is listed below.
-      </div>
-      <ul class="entry-list">
-        {searchIndex.map((entry) => (
-          <li>
-            <a class="entry entry-cols" href={entry.url}>
-              <span class="kicker">{entry.label}</span>
-              <span>
-                <span class="entry-title">{entry.title}</span>
-                <span class="entry-excerpt">{entry.excerpt}</span>
-              </span>
-            </a>
-          </li>
-        ))}
-      </ul>
-    </noscript>
+      {/* --- rail ---------------------------------------------------------- */}
+      <aside class="results-side" aria-label="Search links">
+        <SidebarPanel heading="Related subjects" icon="book">
+          <ul class="rail-subjects">
+            {railSubjects.map(({ subject, noteCount, mcqCount }) => (
+              <li>
+                <a href={`/subjects/${subject.slug}/`}>
+                  <span>{subject.data.title}</span>
+                  <span class="rail-count">
+                    {noteCount > 0 ? `${noteCount} note${noteCount === 1 ? '' : 's'}` : 'Notes'}
+                    {mcqCount > 0 ? ` · ${mcqCount} MCQs` : ''}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+          <a class="link-arrow" href="/subjects/">View all subjects</a>
+        </SidebarPanel>
+
+        <SidebarPanel variant="tint" heading="Study tip" icon="bulb">
+          <blockquote class="rail-quote">
+            <p>“Review your notes regularly. Consistent revision improves long-term retention.”</p>
+          </blockquote>
+          <p class="rail-quote-attr">Study Smarter<br />Remember Longer</p>
+        </SidebarPanel>
+
+        <SidebarPanel heading="Can’t find what you’re looking for?" icon="search">
+          <p class="rail-help">Try different keywords or browse our subjects.</p>
+          <a class="btn btn-secondary rail-help-btn" href="/subjects/">Browse all subjects</a>
+        </SidebarPanel>
+      </aside>
+    </div>
   </div>
 
   <script type="application/json" id="search-data" set:html={JSON.stringify(searchIndex)} is:inline />
@@ -202,6 +319,8 @@ const footerSubjects = subjects.map((s) => ({
       kind: string;
       label: string;
       keywords: string;
+      subject: string;
+      meta: string;
     }
 
     const dataEl = document.getElementById('search-data');
@@ -209,9 +328,9 @@ const footerSubjects = subjects.map((s) => ({
     const results = document.querySelector<HTMLElement>('[data-results]');
     const status = document.querySelector<HTMLElement>('[data-status]');
     const empty = document.querySelector<HTMLElement>('[data-empty]');
-    const filterBox = document.querySelector<HTMLElement>('[data-filters]');
+    const subjectSel = document.getElementById('search-subject') as HTMLSelectElement | null;
 
-    if (dataEl && input && results && status && empty && filterBox) {
+    if (dataEl && input && results && status && empty) {
       const index: Entry[] = JSON.parse(dataEl.textContent ?? '[]');
       let kind = 'all';
 
@@ -223,9 +342,11 @@ const footerSubjects = subjects.map((s) => ({
       function render() {
         const query = input!.value.trim().toLowerCase();
         const words = query ? query.split(/\s+/) : [];
+        const subject = subjectSel?.value ?? '';
 
         const matches = index.filter((entry) => {
           if (kind !== 'all' && entry.kind !== kind) return false;
+          if (subject && entry.subject !== subject) return false;
           return words.every((word) => entry.keywords.includes(word));
         });
 
@@ -241,6 +362,7 @@ const footerSubjects = subjects.map((s) => ({
                     <span class="entry-title">${escape(entry.title)}</span>
                     <span class="entry-excerpt">${escape(entry.excerpt)}</span>
                   </span>
+                  ${entry.meta ? `<span class="entry-meta">${escape(entry.meta)}</span>` : ''}
                 </a>
               </li>`,
           )
@@ -259,9 +381,20 @@ const footerSubjects = subjects.map((s) => ({
         }
       }
 
-      input.addEventListener('input', render);
+      function reset() {
+        input!.value = '';
+        if (subjectSel) subjectSel.value = '';
+        const all = document.getElementById('kind-all') as HTMLInputElement | null;
+        if (all) all.checked = true;
+        kind = 'all';
+        render();
+      }
 
-      filterBox.addEventListener('change', (event) => {
+      input.addEventListener('input', render);
+      subjectSel?.addEventListener('change', render);
+      document.getElementById('search-reset')?.addEventListener('click', reset);
+
+      document.addEventListener('change', (event) => {
         const target = event.target as HTMLInputElement;
         if (target.name === 'kind') {
           kind = target.value;
@@ -281,23 +414,96 @@ const footerSubjects = subjects.map((s) => ({
 <style>
   .srch-wrap {
     margin-top: var(--space-6);
+    max-width: 36rem;
+  }
+
+  /* The Pasteur pull-quote in the header aside. */
+  .search-quote {
+    margin: 0;
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+  }
+
+  .search-quote blockquote {
+    margin: 0;
+  }
+
+  .search-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  .search-quote figcaption {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    line-height: 1.7;
+    text-transform: uppercase;
   }
 
   .results-wrap {
-    padding-block: var(--space-8) var(--space-16);
+    padding-block: var(--space-12) var(--space-16);
   }
 
-  /* --- segmented filter ------------------------------------------------ */
-  .filters fieldset {
+  /* --- main + rail layout ----------------------------------------------- */
+  .results-layout {
+    display: grid;
+    gap: var(--space-8);
+  }
+
+  .results-main,
+  .results-side {
+    min-width: 0;
+  }
+
+  @media (min-width: 1024px) {
+    .results-layout {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+      gap: var(--space-12);
+    }
+  }
+
+  /* --- filter panel ------------------------------------------------------ */
+  .filter-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--ink);
+    font-size: var(--text-body-lg);
+  }
+
+  .filter-title svg {
+    color: var(--primary);
+  }
+
+  .filter-kind {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-1);
-    margin: 0;
+    margin: var(--space-5) 0 0;
     padding: 0;
     border: 0;
   }
 
-  .filters label {
+  .filter-kind legend {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .filter-kind label {
     display: inline-flex;
     align-items: center;
     height: 34px;
@@ -313,23 +519,37 @@ const footerSubjects = subjects.map((s) => ({
       color 0.15s var(--ease);
   }
 
-  .filters label:hover {
+  .filter-kind label:hover {
     border-color: var(--border-strong);
     color: var(--ink);
   }
 
-  .filters input:checked + label {
+  .filter-kind input:checked + label {
     border-color: var(--primary-border);
     background: var(--primary-surface);
     color: var(--primary);
   }
 
-  .filters input:focus-visible + label {
+  .filter-kind input:focus-visible + label {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
   }
 
-  /* --- results --------------------------------------------------------- */
+  .filter-row {
+    display: grid;
+    gap: var(--space-4);
+    margin-top: var(--space-5);
+  }
+
+  @media (min-width: 700px) {
+    .filter-row {
+      grid-template-columns: minmax(0, 16rem) auto;
+      align-items: end;
+      justify-content: space-between;
+    }
+  }
+
+  /* --- results ----------------------------------------------------------- */
   .results-status {
     margin-block: var(--space-6) var(--space-4);
     color: var(--mute);
@@ -346,5 +566,74 @@ const footerSubjects = subjects.map((s) => ({
 
   .nojs-notice {
     margin-block: var(--space-4);
+  }
+
+  /* --- rail --------------------------------------------------------------- */
+  .rail-subjects {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rail-subjects li + li {
+    border-top: 1px solid var(--border);
+  }
+
+  .rail-subjects a {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+  }
+
+  .rail-subjects a:hover {
+    color: var(--primary);
+  }
+
+  .rail-count {
+    flex-shrink: 0;
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--weight-body);
+  }
+
+  .rail-quote {
+    margin: 0;
+  }
+
+  .rail-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.4;
+    text-wrap: balance;
+  }
+
+  .rail-quote-attr {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    line-height: 1.7;
+    text-transform: uppercase;
+  }
+
+  .rail-help {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+
+  .rail-help-btn {
+    margin-top: var(--space-4);
   }
 </style>

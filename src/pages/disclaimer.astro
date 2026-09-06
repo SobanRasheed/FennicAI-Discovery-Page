@@ -1,51 +1,175 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Breadcrumbs from '../components/Breadcrumbs.astro';
+import LegalLayout, { legalSectionId } from '../layouts/LegalLayout.astro';
+import Icon from '../components/Icon.astro';
+import { getCollection } from '../utils/collections';
+
+const subjects = await getCollection('subjects');
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
+
+const sections = [
+  { heading: '1. No Medical Advice' },
+  { heading: '2. Consult a Qualified Professional' },
+  { heading: '3. Accuracy of Information' },
+  { heading: '4. Use at Your Own Risk' },
+  { heading: '5. Educational Use Only' },
+  { heading: '6. External Links' },
+  { heading: '7. Changes to This Disclaimer' },
+];
+
+const id = (n: number) => legalSectionId(sections[n - 1].heading);
+
+/** The three points the design pulls out of the body into the hero. */
+const pillars = [
+  { icon: 'book' as const, label: 'Educational Purpose Only' },
+  { icon: 'alert' as const, label: 'Use at Your Own Risk' },
+  { icon: 'stethoscope' as const, label: 'Consult a Professional' },
+];
 ---
 
-<Layout
-  title="Disclaimer | devsyllabus"
-  description="devsyllabus disclaimer: study material provided as-is, verify exam-critical details against your course's prescribed materials."
+<LegalLayout
+  title="Medical Disclaimer | Medical Study Notes"
+  description="Content on Medical Study Notes is educational only and is not a substitute for professional medical advice, diagnosis, or treatment. Always consult a qualified clinician."
   path="/disclaimer/"
+  kicker="Important"
+  standfirst="The information provided on Medical Study Notes is for educational and informational purposes only and is not intended as a substitute for professional medical advice, diagnosis, or treatment."
+  updated={new Date('2026-09-04')}
+  readingTime="4 min read"
+  {sections}
+  quote="Information educates; professionals diagnose and heal."
+  quoteAttribution="Better knowledge, better questions, better care"
+  contactPrompt="Need clarification about this disclaimer?"
+  {footerSubjects}
 >
-  <Breadcrumbs crumbs={[{ label: 'Disclaimer' }]} />
+  <ul class="pillars">
+    {pillars.map((p) => (
+      <li class="pillar">
+        <Icon name={p.icon} size={18} />
+        {p.label}
+      </li>
+    ))}
+  </ul>
 
-  <div class="doc">
-  <h1>Disclaimer</h1>
+  <section>
+    <h2 id={id(1)}>{sections[0].heading}</h2>
+    <p>
+      The content on Medical Study Notes is provided for general educational
+      purposes only and should not be considered medical advice, diagnosis, or
+      treatment. Nothing here creates a doctor-patient relationship.
+    </p>
+  </section>
 
-  <h2>Educational purpose</h2>
-  <p>
-    All content on devsyllabus is published for educational purposes. It
-    is a study aid, not an official syllabus document. Always check
-    requirements against your own course's prescribed materials, past
-    papers, and examiner guidance.
-  </p>
+  <section>
+    <h2 id={id(2)}>{sections[1].heading}</h2>
+    <p>
+      Always seek advice from a qualified healthcare professional for any
+      questions regarding a medical condition, diagnosis, or treatment. Never
+      delay seeking care because of something you have read on this site.
+    </p>
+  </section>
 
-  <h2>Syllabus variation</h2>
-  <p>
-    Courses differ in what they include and how they define terms. Where
-    conventions vary, our notes flag it, but your examiner's convention
-    wins in the exam room.
-  </p>
+  <section>
+    <h2 id={id(3)}>{sections[2].heading}</h2>
+    <p>
+      We strive to ensure accurate, up-to-date information, but medical
+      knowledge evolves and no guarantee of completeness or suitability is made.
+      Every note lists the sources it draws on so any statement can be traced
+      back and checked against current guidance.
+    </p>
+  </section>
 
-  <h2>External links</h2>
-  <p>
-    Links to external sites (RFCs, documentation, textbook publishers) are
-    provided for reference. We do not control and are not responsible for
-    their content or availability.
-  </p>
+  <section>
+    <h2 id={id(4)}>{sections[3].heading}</h2>
+    <p>
+      Any reliance on the information provided is strictly at your own risk.
+      Drug doses, protocols, and reference ranges must be verified against local
+      formularies and current guidelines before clinical use.
+    </p>
+  </section>
 
-  <h2>Accuracy</h2>
-  <p>
-    Content is fact-checked and corrected under our
-    <a href="/editorial-policy/">editorial policy</a>, but provided as-is
-    with no guarantee. Report suspected errors via the
-    <a href="/contact/">contact page</a>.
-  </p>
+  <section>
+    <h2 id={id(5)}>{sections[4].heading}</h2>
+    <p>
+      These resources support students and educators and should be used as
+      supplementary learning tools alongside prescribed textbooks and course
+      teaching, not instead of them.
+    </p>
+  </section>
 
-  <p>
-    Related: <a href="/terms-of-use/">terms of use</a>,
-    <a href="/privacy-policy/">privacy policy</a>.
-  </p>
-  </div>
-</Layout>
+  <section>
+    <h2 id={id(6)}>{sections[5].heading}</h2>
+    <p>
+      We are not responsible for external websites linked from our content, or
+      for the accuracy of information published on them.
+    </p>
+  </section>
+
+  <section>
+    <h2 id={id(7)}>{sections[6].heading}</h2>
+    <p>
+      We may update this disclaimer from time to time and will post the revised
+      date at the top of this page. See also our{' '}
+      <a href="/terms-of-use/">terms of use</a> and{' '}
+      <a href="/privacy-policy/">privacy policy</a>.
+    </p>
+
+    <aside class="notice notice-info ack">
+      <p>
+        <Icon name="shield" size={15} />
+        By using Medical Study Notes, you acknowledge and accept this Medical
+        Disclaimer.
+      </p>
+    </aside>
+  </section>
+</LegalLayout>
+
+<style>
+  /* The three pull-out points: a compact tinted row above the clauses. */
+  .pillars {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-8);
+    padding: 0;
+    list-style: none;
+  }
+
+  @media (min-width: 640px) {
+    .pillars {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  .pillar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--primary-border);
+    border-radius: var(--radius-md);
+    background: var(--primary-surface);
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+  }
+
+  .pillar svg {
+    color: var(--primary);
+  }
+
+  .ack {
+    margin-top: var(--space-6);
+  }
+
+  .ack p {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  .ack svg {
+    margin-top: 0.15em;
+    color: var(--primary);
+  }
+</style>

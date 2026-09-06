@@ -1,0 +1,182 @@
+---
+/**
+ * AuthLayout: the shared shell for /login/ and /register/. Both designs are a
+ * two-column band — a narrative panel on the left (kicker, H1, lead, the four
+ * benefit rows, and on register a closing quote) and the form card on the right
+ * — over a plain page with the standard header/footer.
+ *
+ * These are utility pages: always noindex.
+ */
+import Layout from './Layout.astro';
+import Breadcrumbs from '../components/Breadcrumbs.astro';
+import QuoteBand from '../components/QuoteBand.astro';
+import Icon from '../components/Icon.astro';
+import { getCollection } from '../utils/collections';
+
+interface Benefit {
+  icon: Parameters<typeof Icon>[0]['name'];
+  title: string;
+  body: string;
+}
+
+interface Props {
+  title: string;
+  description: string;
+  path: string;
+  kicker: string;
+  /** H1 lines, rendered with a <br> between them. */
+  headingLines: string[];
+  lead: string;
+  /** Optional closing quote under the benefits (register only). */
+  quote?: string;
+  quoteAttribution?: string;
+}
+
+const subjects = await getCollection('subjects');
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
+
+const { title, description, path, kicker, headingLines, lead, quote, quoteAttribution } =
+  Astro.props;
+
+/** The same four rows both designs promise above the form. */
+const benefits: Benefit[] = [
+  { icon: 'book', title: 'Save Your Notes', body: 'Keep your favorite study notes for quick access.' },
+  { icon: 'chart', title: 'Track Your Progress', body: 'Monitor your MCQ performance and improvement.' },
+  { icon: 'star', title: 'Personalized Experience', body: 'Get recommendations based on your interests.' },
+  { icon: 'globe', title: 'Learn Anywhere', body: 'Access your account from any device, anytime.' },
+];
+---
+
+<Layout {title} {description} {path} noindex {footerSubjects} wide>
+  <div class="auth-band">
+    <div class="container auth-grid">
+      <div class="auth-hero">
+        <Breadcrumbs crumbs={[{ href: '/', label: 'Home' }, { label: title }]} />
+        <p class="kicker">{kicker}</p>
+        <h1>{headingLines.join(' ')}</h1>
+        <p class="lead auth-lead">{lead}</p>
+
+        <ul class="auth-benefits">
+          {benefits.map((b) => (
+            <li class="auth-benefit">
+              <span class="auth-benefit-icon" aria-hidden="true"><Icon name={b.icon} size={18} /></span>
+              <div>
+                <h2 class="auth-benefit-title">{b.title}</h2>
+                <p class="auth-benefit-body">{b.body}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        {quote && (
+          <figure class="auth-quote">
+            <blockquote>“{quote}”</blockquote>
+            {quoteAttribution && <figcaption>{quoteAttribution}</figcaption>}
+          </figure>
+        )}
+      </div>
+
+      <div class="auth-form-col">
+        <slot />
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<style>
+  .auth-band {
+    padding-block: var(--space-4) var(--space-16);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  .auth-grid {
+    display: grid;
+    gap: var(--space-12);
+    padding-block: var(--space-8) var(--space-12);
+  }
+
+  @media (min-width: 1024px) {
+    .auth-grid {
+      grid-template-columns: minmax(0, 1fr) 26rem;
+      gap: var(--space-16);
+      align-items: start;
+    }
+  }
+
+  .auth-hero h1 {
+    margin-top: var(--space-2);
+    max-width: 20ch;
+  }
+
+  .auth-lead {
+    margin-top: var(--space-4);
+    max-width: 48ch;
+  }
+
+  .auth-benefits {
+    display: grid;
+    gap: var(--space-4);
+    margin: var(--space-8) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .auth-benefit {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-4);
+  }
+
+  .auth-benefit-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border: 1px solid var(--primary-border);
+    border-radius: var(--radius-sm);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .auth-benefit-title {
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+  }
+
+  .auth-benefit-body {
+    margin-top: var(--space-1);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .auth-quote {
+    margin: var(--space-10) 0 0;
+    padding: 0;
+    border-top: 1px solid var(--border);
+    padding-top: var(--space-6);
+  }
+
+  .auth-quote blockquote {
+    margin: 0;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: var(--text-display-sm);
+    line-height: var(--leading-display);
+    color: var(--ink);
+  }
+
+  .auth-quote figcaption {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+</style>

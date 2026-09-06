@@ -1,0 +1,272 @@
+---
+/**
+ * The saved-items page (Figma's "Saved Notes" screen). The design shows 48
+ * saved notes across fake collections with a streak counter; what actually
+ * exists is a single browser-local bookmark list shared by study notes and
+ * blog articles. This page renders that list honestly — counts, mixed
+ * content and all — and drops everything that isn't real.
+ */
+import Layout from '../../layouts/Layout.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import StatCards from '../../components/StatCards.astro';
+import SidebarPanel from '../../components/SidebarPanel.astro';
+import { getCollection } from '../../utils/collections';
+
+const subjects = await getCollection('subjects');
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
+---
+<Layout
+  title="Saved Items | Medical Study Notes"
+  description="Everything you've bookmarked — study notes and articles — kept in this browser."
+  path="/dashboard/saved/"
+  noindex
+  footerSubjects={footerSubjects}
+  wide
+>
+  <PageHeader
+    kicker="Saved Notes"
+    title="Your Saved Notes"
+    lead="All the notes and articles you've bookmarked, in one place — ready when you are. The list lives in this browser; there's no account and nothing is stored on our servers."
+    crumbs={[
+      { label: 'Home', href: '/' },
+      { label: 'Dashboard', href: '/dashboard/' },
+      { label: 'Saved' },
+    ]}
+  />
+
+  <div class="container page-body">
+    <section class="section" aria-label="Saved items summary">
+      <div data-saved-stats>
+        <StatCards
+          stats={[
+            { value: '—', label: 'Items saved', icon: 'bookmark' },
+            { value: '—', label: 'Study notes', icon: 'notes' },
+            { value: '—', label: 'Articles', icon: 'book-open' },
+            { value: '—', label: 'Subjects covered', icon: 'book' },
+          ]}
+        />
+      </div>
+    </section>
+
+    <div class="saved-layout">
+      {/* --- the list itself ------------------------------------------------- */}
+      <section class="section" aria-labelledby="saved-list-title">
+        <div class="section-head">
+          <h2 id="saved-list-title">Everything you've saved</h2>
+          <p>Study notes and articles together, most recently saved first.</p>
+        </div>
+
+        <ul class="saved-list" data-saved-list></ul>
+
+        <div class="empty-state panel panel-pad" data-saved-empty hidden>
+          <h3>Nothing saved yet</h3>
+          <p>
+            Use the <strong>Save</strong> button on any study note or article
+            and it will appear here.
+          </p>
+          <div class="empty-actions">
+            <a class="btn btn-primary" href="/notes/">Browse study notes</a>
+            <a class="btn btn-secondary" href="/blog/">Read the blog</a>
+          </div>
+        </div>
+      </section>
+
+      {/* --- rail --------------------------------------------------------------- */}
+      <div class="saved-rail">
+        <SidebarPanel variant="tint" heading="Study tip" icon="bulb">
+          <p class="rail-copy">
+            Review saved notes within 24 hours to boost long-term retention.
+          </p>
+        </SidebarPanel>
+
+        <SidebarPanel heading="Where things live" icon="shield">
+          <p class="rail-copy">
+            Saved items are stored only in this browser. Clearing site data
+            clears the list — there is no account to recover it from.
+          </p>
+        </SidebarPanel>
+
+        <SidebarPanel heading="Keep going" icon="target">
+          <ul class="chevron-list">
+            <li><a href="/dashboard/">Your dashboard</a></li>
+            <li><a href="/dashboard/quiz-history/">Quiz history</a></li>
+            <li><a href="/practice/">Practice questions</a></li>
+          </ul>
+        </SidebarPanel>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { readSaved, removeSaved } from '../../scripts/local-data';
+
+  const escape = (value: string) =>
+    value.replace(/[&<>"']/g, (ch) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!,
+    );
+
+  const isNote = (href: string) => href.startsWith('/notes/');
+
+  /** Label for where an item came from — its route, honestly described. */
+  const kindLabel = (href: string) => (isNote(href) ? 'Study note' : 'Article');
+
+  const list = document.querySelector<HTMLUListElement>('[data-saved-list]');
+  const empty = document.querySelector<HTMLElement>('[data-saved-empty]');
+  const tiles = document.querySelectorAll<HTMLElement>('[data-saved-stats] .stat-value');
+
+  const render = (items: { slug: string; title: string; href: string }[]) => {
+    // stats
+    const noteCount = items.filter((i) => isNote(i.href)).length;
+    const values = [
+      String(items.length),
+      String(noteCount),
+      String(items.length - noteCount),
+      String(new Set(items.filter((i) => isNote(i.href)).map((i) => i.href.split('/')[2])).size),
+    ];
+    tiles.forEach((tile, i) => {
+      tile.textContent = values[i] ?? '—';
+    });
+
+    if (!list) return;
+
+    if (items.length === 0) {
+      list.hidden = true;
+      empty?.removeAttribute('hidden');
+      return;
+    }
+
+    list.removeAttribute('hidden');
+    empty?.setAttribute('hidden', '');
+    list.innerHTML = items
+      .map(
+        (item) => `
+        <li class="saved-row panel" data-item-slug="${escape(item.slug)}">
+          <div>
+            <h3><a href="${escape(item.href)}">${escape(item.title)}</a></h3>
+            <p class="saved-meta">${kindLabel(item.href)} · <span class="saved-path">${escape(item.href)}</span></p>
+          </div>
+          <button
+            class="btn btn-sm btn-secondary"
+            type="button"
+            data-remove-slug="${escape(item.slug)}"
+          >
+            Remove
+          </button>
+        </li>`,
+      )
+      .join('');
+  };
+
+  render(readSaved());
+
+  // Removing an item: update the store, then re-render from what's left.
+  document.addEventListener('click', (event) => {
+    const btn = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-remove-slug]');
+    if (!btn) return;
+    render(removeSaved(btn.dataset.removeSlug!));
+  });
+</script>
+
+<style>
+  .page-body {
+    padding-block: var(--space-12) var(--space-16);
+  }
+
+  .saved-layout {
+    display: grid;
+    gap: var(--space-10);
+    align-items: start;
+  }
+
+  @media (min-width: 1024px) {
+    .saved-layout {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+    }
+  }
+
+  .saved-rail {
+    display: grid;
+    gap: var(--space-5);
+  }
+
+  .rail-copy {
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .saved-list {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .saved-list[hidden] {
+    display: none;
+  }
+
+  .saved-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  .saved-row h3 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+  }
+
+  .saved-row h3 a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .saved-row h3 a:hover {
+    color: var(--primary);
+    text-decoration: underline;
+  }
+
+  .saved-meta {
+    margin-top: var(--space-1);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .saved-path {
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+  }
+
+  .empty-state[hidden] {
+    display: none;
+  }
+
+  .empty-state h3 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .empty-state p {
+    margin: var(--space-2) 0 var(--space-4);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+
+  .empty-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+</style>

@@ -1,0 +1,98 @@
+---
+/**
+ * StatCards: the row of bordered figure tiles that opens the dashboard, saved
+ * notes, and quiz history screens — an icon in a tinted square, a large value,
+ * a small label.
+ *
+ * It renders a <dl> because each tile is a label/value pair, not a heading.
+ */
+import Icon from './Icon.astro';
+import type { IconName } from './Icon.astro';
+
+export interface Stat {
+  value: string | number;
+  label: string;
+  icon?: IconName;
+}
+
+interface Props {
+  stats: Stat[];
+  /** 4 by default; 3 and 2 are used by narrower sections. */
+  columns?: 2 | 3 | 4;
+}
+
+const { stats, columns = 4 } = Astro.props;
+---
+
+<dl class:list={['stats', `stats-${columns}`]}>
+  {stats.map((stat) => (
+    <div class="stat">
+      {stat.icon && (
+        <span class="stat-icon" aria-hidden="true"><Icon name={stat.icon} size={20} /></span>
+      )}
+      <div class="stat-text">
+        <dt class="stat-value">{stat.value}</dt>
+        <dd class="stat-label">{stat.label}</dd>
+      </div>
+    </div>
+  ))}
+</dl>
+
+<style>
+  .stats {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @media (min-width: 768px) {
+    .stats-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    .stats-4 {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  .stat {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .stat-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .stat-text {
+    min-width: 0;
+  }
+
+  .stat-value {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-md);
+    font-weight: var(--weight-display);
+    line-height: 1.15;
+  }
+
+  .stat-label {
+    margin: 0;
+    color: var(--mute);
+    font-size: var(--text-caption);
+    line-height: var(--leading-snug);
+  }
+</style>

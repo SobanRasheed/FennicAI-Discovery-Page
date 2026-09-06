@@ -1,7 +1,19 @@
 ---
+/**
+ * MCQs hub: the front door to practice.
+ *
+ * Everything on this page is derived from the real question collection —
+ * counts are real, subject cards link to the per-subject practice pages,
+ * and featured sets are the chapters with the most questions. The design's
+ * "latest questions" rows are renamed "try a question" because the
+ * collection has no per-question dates to sort by.
+ */
 import Layout from '../../layouts/Layout.astro';
 import PageHeader from '../../components/PageHeader.astro';
-import QuestionList from '../../components/QuestionList.astro';
+import Search from '../../components/Search.astro';
+import SidebarPanel from '../../components/SidebarPanel.astro';
+import JsonLd from '../../components/JsonLd.astro';
+import Icon from '../../components/Icon.astro';
 import { getQuestions, getCollection } from '../../utils/collections';
 
 const [questions, subjects, levels] = await Promise.all([
@@ -17,110 +29,447 @@ const typeOptions = [
   { slug: 'numerical', label: 'Numerical' },
 ];
 
-/** The unfiltered index groups by subject; filter pages live one level down. */
-const grouped = subjects
+/** Subjects with questions, sorted by how many they carry. */
+const rows = subjects
   .map((subject) => ({
     subject,
-    questions: questions.filter((q) => q.data.subject === subject.slug),
+    count: questions.filter((q) => q.data.subject === subject.slug).length,
+    mcqCount: questions.filter(
+      (q) => q.data.subject === subject.slug && q.data.options.length > 0,
+    ).length,
+    chapters: new Set(
+      questions
+        .filter((q) => q.data.subject === subject.slug && q.data.chapter)
+        .map((q) => q.data.chapter),
+    ).size,
   }))
-  .filter((group) => group.questions.length > 0);
+  .filter((row) => row.count > 0)
+  .sort((a, b) => b.count - a.count);
+
+/** Chapter-level sets with the most questions — the "featured sets". */
+const sets = subjects
+  .flatMap((subject) =>
+    [...new Set(questions.filter((q) => q.data.subject === subject.slug && q.data.chapter).map((q) => q.data.chapter!))]
+      .map((chapterSlug) => {
+        const chapter = subject.data.chapters.find((c) => c.slug === chapterSlug);
+        const setQuestions = questions.filter(
+          (q) => q.data.subject === subject.slug && q.data.chapter === chapterSlug,
+        );
+        return {
+          subject,
+          chapter: chapter?.title ?? chapterSlug,
+          count: setQuestions.length,
+        };
+      }),
+  )
+  .filter((set) => set.count > 0)
+  .sort((a, b) => b.count - a.count)
+  .slice(0, 4);
+
+/** A handful of MCQs to try straight from the index. */
+const tryQuestions = questions
+  .filter((q) => q.data.options.length > 0)
+  .slice(0, 5);
+
+/** Subjects that have an interactive quiz (MCQ-style questions with options). */
+const quizSubjects = rows.filter((row) => row.mcqCount > 0);
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
   label: s.data.title,
 }));
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'Medical MCQs and practice questions',
+  description:
+    'Practice questions with full answers and explanations, filterable by subject, level, and type.',
+  url: new URL('/practice/', Astro.site).href,
+  isPartOf: { '@type': 'WebSite', name: 'Medical Study Notes', url: Astro.site!.href },
+  mainEntity: {
+    '@type': 'ItemList',
+    itemListElement: rows.map((row, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: `${row.subject.data.title} practice questions`,
+      url: new URL(`/practice/subject/${row.subject.slug}/`, Astro.site).href,
+    })),
+  },
+};
 ---
 
 <Layout
-  title="MCQs and Practice Questions with Worked Answers | Medical Study Notes"
-  description="Practice questions with full answers and explanations: MCQs, short and long answer questions, and numerical problems, filterable by subject, level, and type."
+  title="Medical MCQs — Practice Questions with Explanations | Medical Study Notes"
+  description="Test your knowledge with high-yield MCQs organized by subject. Every question includes the full answer and a worked explanation."
   path="/practice/"
   footerSubjects={footerSubjects}
   wide
 >
+  <JsonLd data={jsonLd} />
+
   <PageHeader
-    kicker="MCQs and practice"
-    title="Practice questions"
-    lead="Every question includes the full answer and a worked explanation, not just a letter. Practise by subject, level, or question type."
-    crumbs={[{ label: 'Practice Questions' }]}
+    kicker="Practice &amp; Learn"
+    title="Medical MCQs"
+    lead="Test your knowledge with high-yield multiple choice questions organized by subject. Improve your understanding with detailed explanations."
+    crumbs={[{ label: 'Home', href: '/' }, { label: 'MCQs' }]}
     stats={[
-      { value: questions.length, label: 'Questions', icon: 'question' },
-      { value: grouped.length, label: 'Subjects covered', icon: 'book' },
-      { value: typeOptions.length, label: 'Question types', icon: 'list' },
+      { value: questions.length, label: 'Practice questions', icon: 'question' },
+      { value: rows.length, label: 'Subjects covered', icon: 'book' },
+      { value: 'Every question', label: 'Answered and explained', icon: 'check' },
     ]}
-  />
+  >
+    <div class="mcqs-search">
+      <Search
+        variant="hero"
+        id="mcqs-search"
+        placeholder="Search MCQs (e.g. gram positive, cranial nerves, pharmacology…)"
+        label="Search MCQs"
+      />
+    </div>
+
+    <Fragment slot="aside">
+      <figure class="mcqs-quote">
+        <blockquote>
+          <p>Practice is the bridge between knowing and doing.</p>
+        </blockquote>
+        <figcaption>Sir William Osler</figcaption>
+      </figure>
+    </Fragment>
+  </PageHeader>
 
   <div class="container page-body">
-    {/* Filters: three plain link groups rather than a filter widget, so each
-        combination is a real crawlable URL. */}
-    <section class="section section-plain" aria-labelledby="filters">
-      <div class="section-head">
-        <h2 id="filters">Filter questions</h2>
-      </div>
-      <div class="grid grid-3">
-        <div class="filter-col">
-          <h3 class="filter-title">By subject</h3>
-          <ul class="chevron-list">
-            {subjects.map((subject) => (
-              <li>
-                <a href={`/practice/subject/${subject.slug}/`}>{subject.data.title}</a>
-              </li>
+    <div class="mcqs-layout">
+      <div class="mcqs-main">
+        {/* --- browse by subject ------------------------------------------ */}
+        <section class="section section-plain" aria-labelledby="by-subject">
+          <div class="section-head-row">
+            <div>
+              <h2 id="by-subject">Browse MCQs by subject</h2>
+              <p>
+                Choose a subject to start practicing. Each subject contains
+                carefully curated questions with explanations.
+              </p>
+            </div>
+            <a class="link-arrow" href="/subjects/">View all subjects</a>
+          </div>
+
+          <div class="grid grid-3 subject-grid">
+            {rows.map(({ subject, count }) => (
+              <a class="set-card" href={`/practice/subject/${subject.slug}/`}>
+                <span class="set-kicker">{subject.data.title}</span>
+                <span class="set-title">{subject.data.title} MCQs</span>
+                <span class="set-meta">
+                  {count} question{count === 1 ? '' : 's'}
+                </span>
+                <span class="set-desc">{subject.data.description}</span>
+              </a>
             ))}
-          </ul>
-        </div>
-        <div class="filter-col">
-          <h3 class="filter-title">By level</h3>
+          </div>
+        </section>
+
+        {/* --- featured sets ------------------------------------------------ */}
+        {sets.length > 0 && (
+          <section class="section" aria-labelledby="featured-sets">
+            <div class="section-head-row">
+              <div>
+                <h2 id="featured-sets">Featured MCQ sets</h2>
+                <p>Handpicked sets to help you practice key areas.</p>
+              </div>
+              <a class="link-arrow" href="#by-subject">View all MCQs</a>
+            </div>
+
+            <div class="grid grid-4 set-grid">
+              {sets.map(({ subject, chapter, count }) => (
+                <a class="set-card" href={`/practice/subject/${subject.slug}/`}>
+                  <span class="set-kicker">{subject.data.title}</span>
+                  <span class="set-title">{chapter} MCQs</span>
+                  <span class="set-meta">
+                    {count} question{count === 1 ? '' : 's'}
+                  </span>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* --- interactive quiz mode ---------------------------------------- */}
+        {quizSubjects.length > 0 && (
+          <section class="section" aria-labelledby="quiz-mode">
+            <div class="quiz-cta panel panel-pad">
+              <div class="quiz-cta-head">
+                <Icon name="clipboard-check" size={20} />
+                <h2 id="quiz-mode">Prefer an interactive quiz?</h2>
+              </div>
+              <p>
+                Take a timed quiz for a subject: answer one question at a time,
+                check each answer, and see your score, time, and performance by
+                topic at the end.
+              </p>
+              <div class="quiz-cta-actions">
+                {quizSubjects.map(({ subject, mcqCount }) => (
+                  <a class="btn btn-sm btn-secondary" href={`/practice/quiz/${subject.slug}/`}>
+                    {subject.data.title} quiz ({mcqCount})
+                  </a>
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* --- try a question ------------------------------------------------ */}
+        {tryQuestions.length > 0 && (
+          <section class="section" aria-labelledby="try-one">
+            <div class="section-head-row">
+              <div>
+                <h2 id="try-one">Try a question</h2>
+                <p>A sample of what practice looks like. Every answer is worked in full.</p>
+              </div>
+              <a class="link-arrow" href="#by-subject">View all MCQs</a>
+            </div>
+
+            <ul class="entry-list try-list">
+              {tryQuestions.map((q) => (
+                <li>
+                  <a class="entry entry-cols" href={`/practice/${q.slug}/`}>
+                    <span class="kicker">
+                      {subjects.find((s) => s.slug === q.data.subject)?.data.title ?? q.data.subject}
+                    </span>
+                    <span class="entry-title try-title">{q.data.question}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+      </div>
+
+      {/* --- rail ---------------------------------------------------------- */}
+      <aside class="mcqs-side" aria-label="Practice links">
+        <SidebarPanel heading="Study tip" icon="bulb" variant="tint">
+          <blockquote class="rail-quote">
+            <p>“Don’t just practice MCQs. Read the explanations to build lasting understanding.”</p>
+          </blockquote>
+          <p class="rail-quote-attr">Study Smarter<br />Not Harder</p>
+        </SidebarPanel>
+
+        <SidebarPanel heading="Browse by level" icon="layers">
           <ul class="chevron-list">
             {levels.map((level) => (
               <li><a href={`/practice/level/${level.slug}/`}>{level.data.title}</a></li>
             ))}
           </ul>
-        </div>
-        <div class="filter-col">
-          <h3 class="filter-title">By type</h3>
+        </SidebarPanel>
+
+        <SidebarPanel heading="Browse by type" icon="list">
           <ul class="chevron-list">
             {typeOptions.map((option) => (
               <li><a href={`/practice/type/${option.slug}/`}>{option.label}</a></li>
             ))}
           </ul>
-        </div>
-      </div>
-    </section>
+        </SidebarPanel>
 
-    {grouped.map(({ subject, questions: subjectQuestions }) => (
-      <section class="section" aria-labelledby={`q-${subject.slug}`}>
-        <div class="section-head-row">
-          <div>
-            <p class="eyebrow">
-              {subjectQuestions.length} question{subjectQuestions.length === 1 ? '' : 's'}
-            </p>
-            <h2 id={`q-${subject.slug}`}>{subject.data.title}</h2>
-          </div>
-          <a class="link-arrow" href={`/practice/subject/${subject.slug}/`}>
-            Practise {subject.data.title}
-          </a>
-        </div>
-        <QuestionList questions={subjectQuestions} />
-      </section>
-    ))}
+        <SidebarPanel heading="New to MCQs?" icon="question">
+          <p class="rail-help">
+            Learn how to make the most of MCQ practice with our study guides.
+          </p>
+          <a class="btn btn-secondary rail-help-btn" href="/blog/">Read our study guides</a>
+        </SidebarPanel>
+      </aside>
+    </div>
   </div>
 </Layout>
 
 <style>
-  .page-body {
-    padding-bottom: var(--space-16);
+  .mcqs-search {
+    margin-top: var(--space-6);
+    max-width: 36rem;
   }
 
-  .filter-col {
-    padding: var(--space-4) var(--space-6);
+  /* The Osler pull-quote in the header aside. */
+  .mcqs-quote {
+    margin: 0;
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+  }
+
+  .mcqs-quote blockquote {
+    margin: 0;
+  }
+
+  .mcqs-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  .mcqs-quote figcaption {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .page-body {
+    padding-block: var(--space-12) var(--space-16);
+  }
+
+  /* --- main + rail layout ----------------------------------------------- */
+  .mcqs-layout {
+    display: grid;
+    gap: var(--space-8);
+  }
+
+  .mcqs-main,
+  .mcqs-side {
+    min-width: 0;
+  }
+
+  @media (min-width: 1024px) {
+    .mcqs-layout {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+      gap: var(--space-12);
+    }
+  }
+
+  .subject-grid {
+    gap: var(--space-4);
+  }
+
+  /* --- set / subject cards ------------------------------------------------ */
+  .set-grid {
+    gap: var(--space-4);
+  }
+
+  .set-card {
+    display: grid;
+    gap: var(--space-1);
+    padding: var(--space-5) var(--space-6);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--surface);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
   }
 
-  .filter-title {
-    margin-bottom: var(--space-2);
-    font-size: var(--text-body);
+  .set-card:hover {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  .set-kicker {
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .set-title {
+    margin-top: var(--space-1);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
     font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    transition: color 0.15s var(--ease);
+  }
+
+  .set-card:hover .set-title {
+    color: var(--primary);
+  }
+
+  .set-meta {
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .set-desc {
+    margin-top: var(--space-2);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  /* --- interactive quiz CTA ------------------------------------------------ */
+  .quiz-cta-head {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .quiz-cta-head svg {
+    color: var(--primary);
+  }
+
+  .quiz-cta-head h2 {
+    font-size: var(--text-body-lg);
+  }
+
+  .quiz-cta p {
+    margin-top: var(--space-3);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+    max-width: 60ch;
+  }
+
+  .quiz-cta-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-5);
+  }
+
+  /* --- try-a-question list ------------------------------------------------- */
+  .try-list .try-title {
+    font-size: var(--text-body);
+    font-weight: var(--weight-medium);
+    font-family: var(--font-sans);
+  }
+
+  /* --- rail ------------------------------------------------------------------ */
+  .rail-quote {
+    margin: 0;
+  }
+
+  .rail-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.4;
+    text-wrap: balance;
+  }
+
+  .rail-quote-attr {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    line-height: 1.7;
+    text-transform: uppercase;
+  }
+
+  .rail-help {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+
+  .rail-help-btn {
+    margin-top: var(--space-4);
   }
 </style>

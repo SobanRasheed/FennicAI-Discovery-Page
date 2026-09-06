@@ -1,0 +1,395 @@
+---
+/**
+ * The student dashboard. The Figma screen assumes an account with server-side
+ * progress tracking ("Ayesha", 72%-complete courses, a weekly-activity chart);
+ * none of that exists, so this page is honest about what it is: a view of the
+ * visitor's own activity stored in their browser — saved items and quiz
+ * results — plus genuinely fresh content from the site. Stats render as
+ * placeholders server-side and are filled in by the script.
+ */
+import Layout from '../../layouts/Layout.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import StatCards from '../../components/StatCards.astro';
+import SidebarPanel from '../../components/SidebarPanel.astro';
+import RelatedContent from '../../components/RelatedContent.astro';
+import Icon from '../../components/Icon.astro';
+import { getNotes, getBlogPosts, getCollection, isoDate } from '../../utils/collections';
+
+const [notes, posts, subjects] = await Promise.all([
+  getNotes(),
+  getBlogPosts(),
+  getCollection('subjects'),
+]);
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
+
+/** Reading time at 200 wpm, same rule as everywhere else. */
+const minutes = (body: string | undefined) =>
+  Math.max(1, Math.round((body ?? '').split(/\s+/).filter(Boolean).length / 200));
+
+/** Freshest notes first — what "continue learning" honestly becomes. */
+const freshNotes = [...notes]
+  .sort((a, b) => b.data.updatedDate.valueOf() - a.data.updatedDate.valueOf())
+  .slice(0, 3);
+
+const freshPosts = posts.slice(0, 3);
+---
+<Layout
+  title="Dashboard | Medical Study Notes"
+  description="Your study activity: saved notes, quiz results, and the latest study material."
+  path="/dashboard/"
+  noindex
+  footerSubjects={footerSubjects}
+  wide
+>
+  <PageHeader
+    kicker="Student Dashboard"
+    title="Welcome back"
+    lead="Your study activity — saved items and quiz results — lives in this browser. There's no account and nothing is tracked on our servers."
+    crumbs={[{ label: 'Home', href: '/' }, { label: 'Dashboard' }]}
+  >
+    <Fragment slot="aside">
+      <figure class="dash-quote">
+        <blockquote>
+          <p>Consistency beats intensity. A little every day grows into mastery.</p>
+        </blockquote>
+        <figcaption>LEARN DAILY · GROW DAILY</figcaption>
+      </figure>
+    </Fragment>
+  </PageHeader>
+
+  <div class="container page-body">
+    {/* --- activity stats (filled in client-side) ------------------------- */}
+    <section class="section" aria-label="Your activity">
+      <div data-dash-stats>
+        <StatCards
+          stats={[
+            { value: '—', label: 'Items saved', icon: 'bookmark' },
+            { value: '—', label: 'Quizzes taken', icon: 'question' },
+            { value: '—', label: 'Average score', icon: 'chart' },
+            { value: '—', label: 'Best score', icon: 'star' },
+          ]}
+        />
+      </div>
+      <p class="stats-note">
+        Counted from this browser's saved list and quiz history —
+        <a href="/dashboard/saved/">see saved items</a> or
+        <a href="/dashboard/quiz-history/">see quiz history</a>.
+      </p>
+    </section>
+
+    <div class="dash-layout">
+      {/* --- main column -------------------------------------------------- */}
+      <div class="dash-main">
+        <section class="section" aria-labelledby="fresh-notes">
+          <div class="section-head">
+            <h2 id="fresh-notes">Keep learning</h2>
+            <p>The most recently updated study notes — a good place to pick things back up.</p>
+          </div>
+
+          <ul class="continue-list">
+            {freshNotes.map((note) => (
+              <li class="continue-item panel">
+                <div>
+                  <h3><a href={`/notes/${note.slug}/`}>{note.data.title}</a></h3>
+                  <p class="continue-meta">
+                    {subjects.find((s) => s.slug === note.data.subject)?.data.title}
+                    · Updated {isoDate(note.data.updatedDate)}
+                    · {minutes(note.body)} min read
+                  </p>
+                </div>
+                <a class="btn btn-sm btn-secondary" href={`/notes/${note.slug}/`}>
+                  Read <Icon name="arrow-right" size={13} />
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section class="section" aria-labelledby="recent-quizzes">
+          <div class="section-head">
+            <h2 id="recent-quizzes">Recent quiz results</h2>
+            <a class="link-arrow" href="/dashboard/quiz-history/">View all <Icon name="arrow-right" size={14} /></a>
+          </div>
+
+          <ul class="quiz-list" data-quiz-list></ul>
+
+          <div class="empty-state panel panel-pad" data-quiz-empty hidden>
+            <h3>No quizzes yet</h3>
+            <p>Take a subject quiz and your results will show up here.</p>
+            <a class="btn btn-primary" href="/practice/">Start practicing</a>
+          </div>
+        </section>
+      </div>
+
+      {/* --- rail ----------------------------------------------------------- */}
+      <div class="dash-rail">
+        <SidebarPanel heading="Recommended reading" icon="notes">
+          <RelatedContent
+            items={freshPosts.map((post) => ({
+              href: `/blog/${post.slug}/`,
+              title: post.data.title,
+              context: post.data.category.replace(/-/g, ' '),
+            }))}
+            variant="list"
+            heading=""
+            level={3}
+            id="dash-posts"
+          />
+        </SidebarPanel>
+
+        <SidebarPanel variant="tint" heading="Where things live" icon="shield">
+          <p class="privacy-copy">
+            Saved items and quiz results are stored only in this browser. Clearing
+            site data clears them — there is no account to recover them from.
+          </p>
+        </SidebarPanel>
+
+        <SidebarPanel heading="Quick links" icon="link">
+          <ul class="chevron-list">
+            <li><a href="/dashboard/saved/">Saved items</a></li>
+            <li><a href="/dashboard/quiz-history/">Quiz history</a></li>
+            <li><a href="/practice/">Practice questions</a></li>
+            <li><a href="/past-papers/">Past papers</a></li>
+          </ul>
+        </SidebarPanel>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { readSaved, readQuizHistory, fmtDate } from '../../scripts/local-data';
+
+  const escape = (value: string) =>
+    value.replace(/[&<>"']/g, (ch) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!,
+    );
+
+  // --- stats ------------------------------------------------------------
+  const saved = readSaved();
+  const history = readQuizHistory();
+
+  const tiles = document.querySelectorAll<HTMLElement>('[data-dash-stats] .stat-value');
+  const avg = history.length
+    ? Math.round(history.reduce((sum, r) => sum + r.pct, 0) / history.length)
+    : null;
+
+  const values = [
+    String(saved.length),
+    String(history.length),
+    history.length ? `${avg}%` : '—',
+    history.length ? `${Math.max(...history.map((r) => r.pct))}%` : '—',
+  ];
+  tiles.forEach((tile, i) => {
+    tile.textContent = values[i] ?? '—';
+  });
+
+  // --- recent quizzes -----------------------------------------------------
+  const list = document.querySelector<HTMLElement>('[data-quiz-list]');
+  const empty = document.querySelector<HTMLElement>('[data-quiz-empty]');
+
+  if (list) {
+    const recent = history.slice(0, 3);
+    if (recent.length === 0) {
+      list.hidden = true;
+      empty?.removeAttribute('hidden');
+    } else {
+      list.innerHTML = recent
+        .map(
+          (r) => `
+          <li class="quiz-row panel">
+            <div>
+              <h3>${escape(r.subject)} MCQs</h3>
+              <p class="quiz-meta">${fmtDate(r.date)} · ${r.total} question${r.total === 1 ? '' : 's'} · ${r.correct}/${r.total} correct</p>
+            </div>
+            <div class="quiz-row-side">
+              <span class="quiz-score ${r.pct >= 80 ? 'score-high' : r.pct >= 50 ? 'score-mid' : 'score-low'}">${r.pct}%</span>
+              <a class="btn btn-sm btn-secondary" href="/practice/quiz/${encodeURIComponent(r.subjectSlug)}/">Retake</a>
+            </div>
+          </li>`,
+        )
+        .join('');
+    }
+  }
+</script>
+
+<style>
+  .dash-quote {
+    margin: 0;
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+  }
+
+  .dash-quote blockquote {
+    margin: 0;
+  }
+
+  .dash-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  .dash-quote figcaption {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .page-body {
+    padding-block: var(--space-12) var(--space-16);
+  }
+
+  .stats-note {
+    margin-top: var(--space-4);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  /* --- layout ---------------------------------------------------------------- */
+  .dash-layout {
+    display: grid;
+    gap: var(--space-10);
+    align-items: start;
+  }
+
+  @media (min-width: 1024px) {
+    .dash-layout {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+    }
+  }
+
+  .dash-rail {
+    display: grid;
+    gap: var(--space-5);
+  }
+
+  .privacy-copy {
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  /* --- keep learning ------------------------------------------------------------ */
+  .continue-list {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .continue-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  .continue-item h3 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+  }
+
+  .continue-item h3 a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .continue-item h3 a:hover {
+    color: var(--primary);
+    text-decoration: underline;
+  }
+
+  .continue-meta {
+    margin-top: var(--space-1);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  /* --- quiz rows -------------------------------------------------------------------- */
+  .quiz-list {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .quiz-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  .quiz-row h3 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+  }
+
+  .quiz-meta {
+    margin-top: var(--space-1);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .quiz-row-side {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-shrink: 0;
+  }
+
+  .quiz-score {
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-display);
+  }
+
+  .score-high {
+    color: var(--primary);
+  }
+
+  .score-mid {
+    color: var(--ink);
+  }
+
+  .score-low {
+    color: var(--mute);
+  }
+
+  .empty-state h3 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .empty-state p {
+    margin: var(--space-2) 0 var(--space-4);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+
+  .empty-state[hidden] {
+    display: none;
+  }
+</style>

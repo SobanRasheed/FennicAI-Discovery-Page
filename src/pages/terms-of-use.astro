@@ -1,61 +1,160 @@
 ---
-import Layout from '../layouts/Layout.astro';
-import Breadcrumbs from '../components/Breadcrumbs.astro';
+import LegalLayout, { legalSectionId } from '../layouts/LegalLayout.astro';
+import Icon from '../components/Icon.astro';
+import { getCollection } from '../utils/collections';
+
+const subjects = await getCollection('subjects');
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
+
+const sections = [
+  { heading: '1. Acceptance of Terms' },
+  { heading: '2. About Our Services' },
+  { heading: '3. Acceptable Use' },
+  { heading: '4. Intellectual Property' },
+  { heading: '5. User Contributions' },
+  { heading: '6. Third-Party Links' },
+  { heading: '7. Disclaimers' },
+  { heading: '8. Limitation of Liability' },
+  { heading: '9. Changes to Terms' },
+  { heading: '10. Contact Us' },
+];
+
+const id = (n: number) => legalSectionId(sections[n - 1].heading);
 ---
 
-<Layout
-  title="Terms of Use | devsyllabus"
-  description="Terms of use for devsyllabus: permitted use of study notes and questions, intellectual property, and limitations of liability."
+<LegalLayout
+  title="Terms of Use | Medical Study Notes"
+  description="The terms that govern your use of Medical Study Notes — acceptable use, intellectual property, user contributions, and the limits of our liability."
   path="/terms-of-use/"
+  kicker="Legal"
+  standfirst="By accessing and using Medical Study Notes, you agree to be bound by these Terms of Use. Please read them carefully."
+  updated={new Date('2026-09-04')}
+  readingTime="8 min read"
+  {sections}
+  quote="Good learners respect rules, because they protect the learning community."
+  quoteAttribution="Clear guidelines · responsible use"
+  contactPrompt="Need clarification about these Terms?"
+  {footerSubjects}
 >
-  <Breadcrumbs crumbs={[{ label: 'Terms of Use' }]} />
+  <section>
+    <h2 id={id(1)}>{sections[0].heading}</h2>
+    <p>
+      By accessing or using Medical Study Notes (medicalstudynotes.tech), you
+      agree to be bound by these Terms of Use and our{' '}
+      <a href="/privacy-policy/">privacy policy</a>. If you do not agree with
+      them, please stop using the site.
+    </p>
+  </section>
 
-  <div class="doc">
-  <h1>Terms of use</h1>
-  <p>Last updated: 2026-09-04</p>
+  <section>
+    <h2 id={id(2)}>{sections[1].heading}</h2>
+    <p>
+      Medical Study Notes provides educational content including study notes,
+      MCQs, articles, past papers, and other resources. The service is offered
+      free of charge and may change as content is added or revised.
+    </p>
+  </section>
 
-  <h2>Using the site</h2>
-  <p>
-    You may read, print, and share devsyllabus pages freely, and use them
-    for personal study, classroom teaching, and study groups, provided
-    you attribute the source. You may not republish our content wholesale
-    or present it as your own.
-  </p>
+  <section>
+    <h2 id={id(3)}>{sections[2].heading}</h2>
+    <p>
+      Use the website only for lawful purposes. You agree not to infringe the
+      rights of others, distribute harmful content, scrape the site at a scale
+      that degrades it for other readers, or attempt unauthorized access to any
+      part of the service.
+    </p>
+  </section>
 
-  <h2>Intellectual property</h2>
-  <p>
-    Original content on this site — study notes, articles, and practice
-    questions — is the property of devsyllabus and its authors. Cited
-    external sources remain the property of their publishers and are
-    linked, not reproduced, wherever the source is publicly available.
-  </p>
+  <section>
+    <h2 id={id(4)}>{sections[3].heading}</h2>
+    <p>
+      All content including text, diagrams, notes, and MCQs is protected by
+      copyright and may not be reproduced or redistributed without permission.
+      You are welcome to quote short passages for study or teaching with a
+      credit and a link back to the source page.
+    </p>
+  </section>
 
-  <h2>Accuracy</h2>
-  <p>
-    We work hard to keep content correct — see the
-    <a href="/editorial-policy/">editorial policy</a> and
-    <a href="/corrections/">corrections policy</a> — but content is
-    provided as-is. Always verify exam-critical details against your
-    course's prescribed materials. See the
-    <a href="/disclaimer/">disclaimer</a>.
-  </p>
+  <section>
+    <h2 id={id(5)}>{sections[4].heading}</h2>
+    <p>
+      You remain responsible for comments, feedback, and content you submit, and
+      must ensure it does not violate laws or third-party rights. We may remove
+      contributions that are inaccurate, unlawful, or off-topic.
+    </p>
+  </section>
 
-  <h2>No warranty, limited liability</h2>
-  <p>
-    The site is provided without warranty of any kind. devsyllabus is not
-    liable for any loss arising from use of the site, including
-    examination outcomes.
-  </p>
+  <section>
+    <h2 id={id(6)}>{sections[5].heading}</h2>
+    <p>
+      Our pages link to external websites such as journals, guidelines, and
+      textbooks. Those sites have their own terms and practices, which we do not
+      control or endorse.
+    </p>
+  </section>
 
-  <h2>Changes</h2>
-  <p>
-    These terms may change; the date above reflects the last revision.
-    Continued use after a change constitutes acceptance.
-  </p>
+  <section>
+    <h2 id={id(7)}>{sections[6].heading}</h2>
+    <p>
+      Content is provided for education only and is not medical advice. We do
+      not guarantee that every page is complete, current, or suitable for a
+      particular purpose. Read the full{' '}
+      <a href="/disclaimer/">medical disclaimer</a> before relying on anything
+      here.
+    </p>
+  </section>
 
-  <p>
-    Related: <a href="/privacy-policy/">privacy policy</a>,
-    <a href="/cookie-policy/">cookie policy</a>.
-  </p>
-  </div>
-</Layout>
+  <section>
+    <h2 id={id(8)}>{sections[7].heading}</h2>
+    <p>
+      To the extent permitted by law, Medical Study Notes is not liable for any
+      loss or damage arising from your use of the site or reliance on its
+      content.
+    </p>
+  </section>
+
+  <section>
+    <h2 id={id(9)}>{sections[8].heading}</h2>
+    <p>
+      We may update these Terms from time to time. Continued use of the site
+      after a change constitutes acceptance of the revised Terms.
+    </p>
+  </section>
+
+  <section>
+    <h2 id={id(10)}>{sections[9].heading}</h2>
+    <p>
+      Questions about these Terms are welcome at{' '}
+      <a href="mailto:support@medicalstudynotes.tech">support@medicalstudynotes.tech</a>{' '}
+      or through our <a href="/contact/">contact page</a>.
+    </p>
+
+    <aside class="notice notice-info terms-ack">
+      <p>
+        <Icon name="shield" size={15} />
+        By continuing to use Medical Study Notes, you acknowledge that you have
+        read, understood, and agree to these Terms of Use.
+      </p>
+    </aside>
+  </section>
+</LegalLayout>
+
+<style>
+  .terms-ack {
+    margin-top: var(--space-6);
+  }
+
+  .terms-ack p {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+  }
+
+  .terms-ack svg {
+    margin-top: 0.15em;
+    color: var(--primary);
+  }
+</style>

@@ -12,6 +12,7 @@ const STATIC_PATHS = [
   '/blog/',
   '/notes/',
   '/practice/',
+  '/past-papers/',
   '/subjects/',
   '/topics/',
   '/levels/',
@@ -21,6 +22,15 @@ const STATIC_PATHS = [
   '/faq/',
   '/resources/',
   '/contact/',
+  // Legal & trust pages — indexable policy content.
+  '/privacy-policy/',
+  '/terms-of-use/',
+  '/disclaimer/',
+  '/cookie-policy/',
+  '/corrections/',
+  '/fact-checking/',
+  '/sources/',
+  '/update-log/',
 ];
 
 export const GET: APIRoute = async ({ locals, site }) => {

@@ -45,7 +45,8 @@ export type IconName =
   | 'filter'
   | 'grid'
   | 'check'
-  | 'refresh';
+  | 'refresh'
+  | 'bookmark';
 
 interface Props {
   name: IconName;
@@ -129,6 +130,7 @@ const paths: Record<IconName, string> = {
   check: '<path d="M4.5 12.5l5 5L19.5 6.5"/>',
   refresh:
     '<path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M20 3.5V8h-4.5"/>',
+  bookmark: '<path d="M6 3.75h12a.75.75 0 0 1 .75.75v16.5L12 16.3l-6.75 4.7V4.5a.75.75 0 0 1 .75-.75z"/>',
 };
 ---
 

@@ -1,64 +1,519 @@
 ---
+/**
+ * Contact. The Figma design pairs a form with a phone number, a street
+ * address, social links, and a map — none of which are real, so none are
+ * rendered. Email is the real channel: the form's subject select routes the
+ * message to the right inbox, and JavaScript assembles a mailto: link on
+ * submit (there is no form backend). Without JavaScript the page falls back
+ * to plain email links.
+ */
 import Layout from '../layouts/Layout.astro';
-import Breadcrumbs from '../components/Breadcrumbs.astro';
+import PageHeader from '../components/PageHeader.astro';
 import Faq from '../components/Faq.astro';
+import Icon from '../components/Icon.astro';
+import JsonLd from '../components/JsonLd.astro';
+import { getCollection } from '../utils/collections';
+
+const subjects = await getCollection('subjects');
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
+
+const CORRECTIONS = 'corrections@devsyllabus.com';
+const SUGGESTIONS = 'suggestions@devsyllabus.com';
+const GENERAL = 'hello@devsyllabus.com';
+
+/** Subject select → the inbox that owns that kind of message. */
+const ROUTES: Record<string, { label: string; email: string }> = {
+  correction: { label: 'Report a correction', email: CORRECTIONS },
+  suggestion: { label: 'Suggest a topic', email: SUGGESTIONS },
+  contribution: { label: 'Content contribution', email: SUGGESTIONS },
+  general: { label: 'General question', email: GENERAL },
+};
+
+const features = [
+  {
+    icon: 'clock',
+    title: 'Quick Response',
+    text: 'We read every message and aim to reply within a few days.',
+  },
+  {
+    icon: 'users',
+    title: 'Student Focused',
+    text: 'Your feedback shapes what we publish — corrections and topic suggestions both land with the editors.',
+  },
+  {
+    icon: 'chat',
+    title: 'Support & Guidance',
+    text: 'Questions about the site or its content are welcome, however small.',
+  },
+] as const;
 
 const contactFaqs = [
   {
-    question: 'How fast do you respond to messages?',
+    question: 'How quickly will I get a response?',
     answer:
-      'We aim to respond to corrections within two business days, and to other messages within a week.',
+      'We read every message and aim to reply within a few days. Correction reports are prioritised, since accuracy issues affect every reader until they are fixed.',
   },
   {
-    question: 'Can I suggest a topic for a study note?',
+    question: 'Can I suggest a topic for a study note or article?',
     answer:
-      'Yes, please do. Suggestions from students tell us what to write next. Include the subject and the chapter or topic you need covered.',
+      'Yes — suggestions are exactly what the suggestions inbox is for. Tell us the subject, the topic, and what you are trying to learn from it, and we will consider it for the publishing queue.',
   },
 ];
+
+const site = Astro.site!;
+
+const contactSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'ContactPage',
+  name: 'Contact Medical Study Notes',
+  url: new URL('/contact/', site).href,
+  mainEntity: {
+    '@type': 'Organization',
+    name: 'Medical Study Notes',
+    url: site.href,
+    email: GENERAL,
+  },
+  isPartOf: { '@type': 'WebSite', name: 'Medical Study Notes', url: site.href },
+};
 ---
-
 <Layout
-  title="Contact devsyllabus — Corrections, Suggestions, and Questions"
-  description="Contact devsyllabus to report an error, suggest a study note, ask about the site, or discuss content contributions."
+  title="Contact Us — Corrections, Suggestions, and Questions | Medical Study Notes"
+  description="Get in touch: report a correction, suggest a topic, contribute content, or ask a general question. Email is the fastest way to reach us."
   path="/contact/"
+  footerSubjects={footerSubjects}
+  wide
 >
-  <Breadcrumbs crumbs={[{ label: 'Contact' }]} />
+  <JsonLd data={contactSchema} />
 
-  <div class="doc">
-  <h1>Contact</h1>
+  <PageHeader
+    kicker="Contact Us"
+    title="We'd Love to Hear from You"
+    lead="Found something wrong, want a topic covered, or have a question about the site? Send us a message — we read everything."
+    crumbs={[{ label: 'Home', href: '/' }, { label: 'Contact' }]}
+  >
+    <Fragment slot="aside">
+      <figure class="contact-quote">
+        <blockquote>
+          <p>Good communication builds stronger learning communities.</p>
+        </blockquote>
+        <figcaption>Medical Study Notes</figcaption>
+      </figure>
+    </Fragment>
+  </PageHeader>
 
-  <h2>Report a correction</h2>
-  <p>
-    Found an error in a note, article, or practice question? Send the page
-    URL and the error to
-    <a href="mailto:corrections@devsyllabus.com">corrections@devsyllabus.com</a>.
-    See the <a href="/corrections/">corrections policy</a> for how reports
-    are handled.
-  </p>
+  <div class="container page-body">
+    {/* --- what to expect --------------------------------------------------- */}
+    <section class="section" aria-label="What to expect">
+      <div class="grid grid-3 feature-grid">
+        {features.map((feature) => (
+          <div class="feature-card">
+            <span class="feature-icon" aria-hidden="true"><Icon name={feature.icon} size={20} /></span>
+            <h2>{feature.title}</h2>
+            <p>{feature.text}</p>
+          </div>
+        ))}
+      </div>
+    </section>
 
-  <h2>Suggest a topic</h2>
-  <p>
-    Missing a subject, chapter, or topic you need for your course? Write to
-    <a href="mailto:suggestions@devsyllabus.com">suggestions@devsyllabus.com</a>
-    with your level (class, course, or exam) and what you need covered.
-  </p>
+    {/* --- form + contact information ----------------------------------------- */}
+    <div class="contact-layout">
+      <section class="panel panel-pad" aria-labelledby="send-a-message">
+        <h2 id="send-a-message" class="panel-title">Send a message</h2>
+        <p class="panel-intro">
+          The subject you pick decides which inbox your message goes to. Your
+          email app opens with everything pre-filled — you just press send.
+        </p>
 
-  <h2>General questions</h2>
-  <p>
-    For anything else about the site, use
-    <a href="mailto:hello@devsyllabus.com">hello@devsyllabus.com</a>.
-  </p>
+        <noscript>
+          <div class="notice notice-info">
+            <p>
+              The form needs JavaScript to assemble your message. You can email
+              us directly instead:
+              <a href={`mailto:${CORRECTIONS}`}>{CORRECTIONS}</a> for corrections,
+              <a href={`mailto:${SUGGESTIONS}`}>{SUGGESTIONS}</a> for suggestions,
+              or <a href={`mailto:${GENERAL}`}>{GENERAL}</a> for anything else.
+            </p>
+          </div>
+        </noscript>
 
-  <h2>Content contributions</h2>
-  <p>
-    We occasionally publish guest-authored notes when the author can
-    demonstrate subject expertise. Send a short background note and a
-    sample of your writing to
-    <a href="mailto:hello@devsyllabus.com">hello@devsyllabus.com</a>.
-    Everything we publish follows our
-    <a href="/editorial-policy/">editorial policy</a>.
-  </p>
+        <form class="contact-form" data-contact-form>
+          <div class="field">
+            <label class="label" for="cf-name">Your name <span aria-hidden="true">*</span></label>
+            <input class="input" type="text" id="cf-name" name="name" autocomplete="name" required />
+          </div>
 
-  <Faq faqs={contactFaqs} />
+          <div class="field">
+            <label class="label" for="cf-email">Your email <span aria-hidden="true">*</span></label>
+            <input class="input" type="email" id="cf-email" name="email" autocomplete="email" required />
+          </div>
+
+          <div class="field">
+            <label class="label" for="cf-subject">Subject <span aria-hidden="true">*</span></label>
+            <select class="input" id="cf-subject" name="route" required>
+              {Object.entries(ROUTES).map(([value, route]) => (
+                <option value={value}>{route.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="label" for="cf-message">Message <span aria-hidden="true">*</span></label>
+            <textarea class="input" id="cf-message" name="message" rows="7" required></textarea>
+          </div>
+
+          <button class="btn btn-primary send-btn" type="submit">
+            <Icon name="envelope" size={15} />
+            Send Message
+          </button>
+          <p class="form-note" role="status" data-form-note></p>
+        </form>
+      </section>
+
+      <aside class="contact-info">
+        <h2 class="info-title">Contact information</h2>
+        <p class="info-intro">Email is the only channel we run — no phone lines, no offices, no ticket queues.</p>
+
+        <ul class="info-list">
+          <li class="info-item">
+            <span class="info-icon" aria-hidden="true"><Icon name="alert" size={18} /></span>
+            <div>
+              <h3>Corrections</h3>
+              <p>Something wrong or outdated on a page? Tell us where and what.</p>
+              <a class="info-mail" href={`mailto:${CORRECTIONS}`}>{CORRECTIONS}</a>
+            </div>
+          </li>
+          <li class="info-item">
+            <span class="info-icon" aria-hidden="true"><Icon name="bulb" size={18} /></span>
+            <div>
+              <h3>Suggestions</h3>
+              <p>Topic requests and content ideas — including contributions you'd like to write.</p>
+              <a class="info-mail" href={`mailto:${SUGGESTIONS}`}>{SUGGESTIONS}</a>
+            </div>
+          </li>
+          <li class="info-item">
+            <span class="info-icon" aria-hidden="true"><Icon name="envelope" size={18} /></span>
+            <div>
+              <h3>Everything else</h3>
+              <p>Questions about the site, its policies, or its content.</p>
+              <a class="info-mail" href={`mailto:${GENERAL}`}>{GENERAL}</a>
+            </div>
+          </li>
+        </ul>
+
+        <p class="info-foot">
+          Before writing, check the <a href="/faq/">FAQ</a> — the answer may
+          already be there.
+        </p>
+      </aside>
+    </div>
+
+    {/* --- FAQ --------------------------------------------------------------- */}
+    <section class="section" aria-labelledby="contact-faqs">
+      <div class="section-head">
+        <h2 id="contact-faqs">Frequently asked questions</h2>
+        <a class="link-arrow" href="/faq/">View all FAQs <Icon name="arrow-right" size={14} /></a>
+      </div>
+      <Faq faqs={contactFaqs} level={3} id="contact-faq-list" schema={false} />
+    </section>
   </div>
+  {/* Route map for the mailto script — the form's subject select keys. */}
+  <script
+    is:inline
+    type="application/json"
+    id="contact-routes"
+    data-contact-routes
+    set:html={JSON.stringify(Object.fromEntries(Object.entries(ROUTES).map(([k, v]) => [k, v.email])))}
+  />
 </Layout>
+
+<script>
+  // The form has no backend: on submit, assemble a mailto: URL from the
+  // fields and hand the message to the visitor's email app.
+  const ROUTES: Record<string, string> = JSON.parse(
+    document.querySelector('[data-contact-routes]')?.textContent ?? '{}',
+  );
+
+  const form = document.querySelector<HTMLFormElement>('[data-contact-form]');
+  const note = document.querySelector<HTMLElement>('[data-form-note]');
+
+  form?.addEventListener('submit', (event) => {
+    event.preventDefault();
+
+    const data = new FormData(form);
+    const to = ROUTES[String(data.get('route'))] ?? '';
+    const name = String(data.get('name') ?? '').trim();
+    const from = String(data.get('email') ?? '').trim();
+    const body = String(data.get('message') ?? '').trim();
+
+    if (!to || !from || !body) return;
+
+    const subject = `[${name || 'Website'}] via Medical Study Notes contact form`;
+    const message = `${body}\n\n— ${name} (${from})`;
+
+    if (note) {
+      note.textContent = 'Opening your email app…';
+    }
+
+    window.location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(message)}`;
+  });
+</script>
+
+<style>
+  .contact-quote {
+    margin: 0;
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+  }
+
+  .contact-quote blockquote {
+    margin: 0;
+  }
+
+  .contact-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  .contact-quote figcaption {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .page-body {
+    padding-block: var(--space-12) var(--space-16);
+  }
+
+  /* --- what to expect ------------------------------------------------------ */
+  .feature-grid {
+    gap: var(--space-4);
+  }
+
+  .feature-card {
+    display: grid;
+    gap: var(--space-2);
+    align-content: start;
+    padding: var(--space-5) var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .feature-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius-sm);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .feature-card h2 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+  }
+
+  .feature-card p {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  /* --- form + info layout ----------------------------------------------------- */
+  .contact-layout {
+    display: grid;
+    gap: var(--space-8);
+    align-items: start;
+  }
+
+  @media (min-width: 1024px) {
+    .contact-layout {
+      grid-template-columns: minmax(0, 1fr) 22rem;
+      gap: var(--space-10);
+    }
+  }
+
+  .panel-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  .panel-intro {
+    margin-top: var(--space-2);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .contact-form {
+    display: grid;
+    gap: var(--space-4);
+    margin-top: var(--space-6);
+  }
+
+  .contact-form .field {
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .label {
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+  }
+
+  .label [aria-hidden] {
+    color: var(--primary);
+  }
+
+  .input {
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-sm);
+    transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+  }
+
+  .input:focus-visible {
+    border-color: var(--primary);
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
+  textarea.input {
+    resize: vertical;
+    min-height: 8rem;
+  }
+
+  .send-btn {
+    justify-self: start;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .form-note {
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .notice {
+    margin-bottom: var(--space-4);
+  }
+
+  /* --- contact information ------------------------------------------------------- */
+  .info-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  .info-intro {
+    margin-top: var(--space-2);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .info-list {
+    display: grid;
+    gap: var(--space-4);
+    margin: var(--space-6) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .info-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--space-3);
+    padding: var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+  }
+
+  .info-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: var(--radius-sm);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .info-item h3 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  .info-item p {
+    margin-top: var(--space-1);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .info-mail {
+    display: inline-block;
+    margin-top: var(--space-2);
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-body-sm);
+    word-break: break-all;
+  }
+
+  .info-foot {
+    margin-top: var(--space-5);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+
+  /* --- FAQ section ------------------------------------------------------------ */
+  .section-head .link-arrow {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--primary);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+  }
+
+  .section-head .link-arrow:hover {
+    text-decoration: underline;
+  }
+</style>

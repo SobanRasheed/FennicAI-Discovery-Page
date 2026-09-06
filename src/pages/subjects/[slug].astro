@@ -74,6 +74,22 @@ const otherSubjects = subjects
 const groupsWithNotes = grouped.filter((g) => g.notes.length > 0);
 const featuredNote = subjectNotes.find((n) => n.data.popular) ?? subjectNotes[0];
 
+/** The serif line in the hero aside — one per core subject, Osler otherwise. */
+const subjectQuotes: Record<string, string> = {
+  anatomy: 'Structure is the language of the body; learn to read it.',
+  physiology: 'To heal the body, first understand how it works.',
+  biochemistry: 'Life is chemistry, and chemistry is life.',
+  pharmacology: 'The right dose separates a remedy from a poison.',
+  pathology: 'Every disease tells a story in the tissue.',
+  microbiology: 'To understand disease, we must first understand the unseen.',
+  'forensic-medicine': 'Where medicine meets justice, evidence speaks.',
+  'community-medicine': 'Prevention is better than cure.',
+};
+
+const heroQuote =
+  subjectQuotes[subject.slug] ??
+  'Medicine is a science of uncertainty and an art of probability.';
+
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
   label: s.data.title,
@@ -108,11 +124,10 @@ const tabs = [
     stats={[
       { value: subjectNotes.length, label: 'Study notes', icon: 'book' },
       ...(questions.length > 0
-        ? [{ value: questions.length, label: 'Practice questions', icon: 'question' as const }]
+        ? [{ value: questions.length, label: 'MCQs', icon: 'question' as const }]
         : []),
-      ...(data.chapters.length > 0
-        ? [{ value: data.chapters.length, label: 'Chapters', icon: 'layers' as const }]
-        : []),
+      { value: 'Comprehensive', label: 'Coverage', icon: 'layers' as const },
+      { value: 'Exam-focused', label: 'Content', icon: 'target' as const },
     ]}
   >
     {subjectLevels.length > 0 && (
@@ -129,8 +144,14 @@ const tabs = [
 
     <Fragment slot="aside">
       <div class="hub-art" aria-hidden="true">
-        <Illustration name={illustrationForSubject(subject.slug)} size={150} />
+        <Illustration name={illustrationForSubject(subject.slug)} size={140} />
       </div>
+      <blockquote class="hub-quote">
+        <p>“{heroQuote}”</p>
+      </blockquote>
+      <p class="hub-quote-attr">
+        {data.title}<br />Builds a Healthier Tomorrow
+      </p>
     </Fragment>
   </PageHeader>
 
@@ -178,6 +199,9 @@ const tabs = [
                       <li><a href={`/notes/${note.slug}/`}>{note.data.title}</a></li>
                     ))}
                   </ul>
+                  <a class="link-arrow chapter-more" href={`/notes/#subject-${subject.slug}`}>
+                    View all notes
+                  </a>
                 </section>
               ))}
             </div>
@@ -284,13 +308,16 @@ const tabs = [
         <div class="hub-sticky">
           <SidebarPanel heading="Quick links" icon="link">
             <ul class="chevron-list">
-              <li><a href="/notes/">All {data.title} notes</a></li>
+              <li><a href={`/notes/#subject-${subject.slug}`}>All {data.title} notes</a></li>
               {questions.length > 0 && (
                 <li><a href={`/practice/subject/${subject.slug}/`}>{data.title} MCQs</a></li>
               )}
+              {data.importantConcepts.length > 0 && (
+                <li><a href="#important-topics">Important questions</a></li>
+              )}
+              <li><a href="/past-papers/">Past papers</a></li>
+              <li><a href="/resources/">Recommended books</a></li>
               <li><a href="/topics/">Topic hubs</a></li>
-              <li><a href="/resources/">Recommended reading</a></li>
-              <li><a href="/sources/">References and sources</a></li>
             </ul>
           </SidebarPanel>
 
@@ -339,7 +366,7 @@ const tabs = [
   }
 
   /* The subject's drawing in the header aside — same treatment as the hero
-     panel on the homepage. */
+     panel on the homepage — with the serif quote beneath it. */
   .hub-art {
     display: flex;
     align-items: center;
@@ -349,6 +376,30 @@ const tabs = [
     border-radius: var(--radius-md);
     background: var(--primary-surface);
     color: var(--primary);
+  }
+
+  .hub-quote {
+    margin: var(--space-5) 0 0;
+  }
+
+  .hub-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  .hub-quote-attr {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    line-height: 1.7;
+    text-transform: uppercase;
   }
 
   /* --- tab strip ------------------------------------------------------- */
@@ -469,6 +520,10 @@ const tabs = [
     margin-top: var(--space-4);
     padding-top: var(--space-1);
     border-top: 1px solid var(--border);
+  }
+
+  .chapter-more {
+    margin-top: var(--space-4);
   }
 
   .upcoming {

@@ -1,12 +1,12 @@
 ---
 import Layout from '../layouts/Layout.astro';
 import Search from '../components/Search.astro';
-import SubjectCard from '../components/SubjectCard.astro';
 import ArticleCard from '../components/ArticleCard.astro';
 import Faq from '../components/Faq.astro';
 import JsonLd from '../components/JsonLd.astro';
 import Icon from '../components/Icon.astro';
-import Illustration from '../components/Illustration.astro';
+import Illustration, { illustrationForSubject } from '../components/Illustration.astro';
+import QuoteBand from '../components/QuoteBand.astro';
 import { getNotes, getBlogPosts, getQuestions, getCollection } from '../utils/collections';
 
 const [notes, posts, questions, subjects, levels, topics] = await Promise.all([
@@ -43,6 +43,29 @@ const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
   label: s.data.title,
 }));
+
+/** Subjects with a PNG icon in /assets/landing/; the rest fall back to a drawing. */
+const pngSubjects = new Set([
+  'anatomy',
+  'biochemistry',
+  'community-medicine',
+  'forensic-medicine',
+  'microbiology',
+  'pathology',
+  'pharmacology',
+  'physiology',
+]);
+
+const subjectIcon = (slug: string) =>
+  pngSubjects.has(slug) ? `/assets/landing/subject-${slug}.png` : undefined;
+
+/** The four feature tiles under the subject grid. */
+const features = [
+  { icon: 'notes' as const, title: 'Structured Notes', sub: 'Clear and easy to understand' },
+  { icon: 'question' as const, title: 'Practice MCQs', sub: 'Test your knowledge' },
+  { icon: 'image' as const, title: 'Visual Diagrams', sub: 'Visual learning support' },
+  { icon: 'users' as const, title: 'Trusted by Students', sub: 'A global learning community' },
+];
 
 const homeFaqs = [
   {
@@ -94,39 +117,37 @@ const jsonLd = {
 >
   <JsonLd data={jsonLd} />
 
-  {/* --- 1. Hero: compact and editorial, not a SaaS pitch ---------------- */}
+  {/* --- 1. Hero ---------------------------------------------------------- */}
   <section class="hero">
     <div class="container hero-inner">
       <div class="hero-copy">
-        <p class="eyebrow">Medical education resource</p>
+        <p class="eyebrow">Your trusted partner in</p>
         <h1 class="hero-title">
-          Study medicine<br /><span class="hero-em">with clarity.</span>
+          Medical<br /><span class="hero-em">Learning</span>
         </h1>
         <p class="lead hero-lead">
-          Structured study notes, explanations, MCQs, and medical resources
-          organised by subject.
+          Access high-quality study notes, MCQs, diagrams, and resources to
+          help you learn, practice, and master every medical subject.
         </p>
 
         <div class="hero-search">
           <Search
             variant="hero"
             id="hero-search"
-            placeholder="Search anatomy, microbiology, pharmacology..."
+            placeholder="Search for a topic (e.g. anatomy, pharmacology, MCQs...)"
           />
         </div>
-
-        <a class="link-arrow hero-more" href="/subjects/">Browse all subjects</a>
       </div>
 
       <aside class="hero-aside">
         <div class="hero-art" aria-hidden="true">
-          <Illustration name="cardiovascular" size={190} />
+          <img src="/assets/landing/hero-heart.png" alt="" width="170" height="170" decoding="async" />
         </div>
         <blockquote class="hero-quote">
-          <p>Good medical knowledge improves lives.</p>
+          <p>Better Students<br />Brighter Tomorrow</p>
         </blockquote>
         <hr class="hero-quote-rule" />
-        <p class="hero-quote-attr">Study today<br />for a better tomorrow</p>
+        <p class="hero-quote-attr">Study · Practice · Succeed</p>
       </aside>
     </div>
   </section>
@@ -136,24 +157,41 @@ const jsonLd = {
     <section class="section section-plain" aria-labelledby="subjects-heading">
       <div class="section-head-row">
         <div>
-          <p class="eyebrow">Explore</p>
-          <h2 id="subjects-heading">Explore medical subjects</h2>
-          <p>Find study notes organised by subject.</p>
+          <h2 id="subjects-heading">Explore by Subject</h2>
+          <p>Find study notes, MCQs, and resources for your favorite subjects.</p>
         </div>
-        <a class="link-arrow" href="/subjects/">View all subjects</a>
+        <a class="link-arrow" href="/subjects/">View All Subjects</a>
       </div>
 
-      <div class="grid grid-4 subject-grid">
+      <div class="grid grid-3 home-subject-grid">
         {subjectIndex.map((subject) => (
-          <SubjectCard
-            href={`/subjects/${subject.slug}/`}
-            title={subject.data.title}
-            subject={subject.slug}
-            sub={
-              subject.mcqCount > 0 ? 'Study Notes · MCQs' : 'Study Notes'
-            }
-            count={subject.noteCount}
-          />
+          <a class="home-subject" href={`/subjects/${subject.slug}/`}>
+            <span class="home-subject-art" aria-hidden="true">
+              {subjectIcon(subject.slug) ? (
+                <img src={subjectIcon(subject.slug)} alt="" loading="lazy" decoding="async" />
+              ) : (
+                <Illustration name={illustrationForSubject(subject.slug)} size={40} />
+              )}
+            </span>
+            <span class="home-subject-title">{subject.data.title}</span>
+            <span class="home-subject-meta">
+              {subject.noteCount > 0 ? `${subject.noteCount} notes` : 'Study notes'}
+              {subject.mcqCount > 0 ? ' · MCQs' : ''}
+            </span>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    {/* --- 3. What the site offers ---------------------------------------- */}
+    <section class="section" aria-label="What Medical Study Notes offers">
+      <div class="grid grid-4 features">
+        {features.map((f) => (
+          <div class="feature">
+            <span class="feature-icon" aria-hidden="true"><Icon name={f.icon} size={20} /></span>
+            <h3 class="feature-title">{f.title}</h3>
+            <p class="feature-sub">{f.sub}</p>
+          </div>
         ))}
       </div>
     </section>
@@ -273,10 +311,20 @@ const jsonLd = {
       </div>
     </section>
 
-    {/* --- 6. Questions ------------------------------------------------- */}
+  </div>
+
+  {/* --- 6. Quote band ---------------------------------------------------- */}
+  <QuoteBand
+    quote="The beautiful thing about learning is that no one can take it away from you."
+    attribution="B.B. King"
+    icon="bulb"
+  />
+
+  <div class="container">
+    {/* --- 7. Questions ------------------------------------------------- */}
     <Faq faqs={homeFaqs} heading="Common questions" />
 
-    {/* --- 7. Secondary browse routes ----------------------------------- */}
+    {/* --- 8. Secondary browse routes ----------------------------------- */}
     <section class="section" aria-labelledby="browse-heading">
       <div class="section-head">
         <h2 id="browse-heading">More ways to browse</h2>
@@ -310,6 +358,19 @@ const jsonLd = {
       </div>
     </section>
   </div>
+
+  {/* --- 9. Closing CTA --------------------------------------------------- */}
+  <section class="cta">
+    <div class="container cta-inner">
+      <h2 class="cta-title">
+        Learn Today<br />Build a Healthier<br />Tomorrow
+      </h2>
+      <div class="btn-row">
+        <a class="btn btn-primary btn-lg" href="/subjects/">Explore Subjects</a>
+        <a class="btn btn-secondary btn-lg" href="/practice/">Practice MCQs</a>
+      </div>
+    </div>
+  </section>
 </Layout>
 
 <style>
@@ -335,9 +396,8 @@ const jsonLd = {
   }
 
   .hero-title {
-    /* Deliberately capped: a heading, not a billboard. */
-    font-size: clamp(2.375rem, 1.7rem + 3.2vw, 3.75rem);
-    line-height: 1.08;
+    font-size: clamp(2.75rem, 2rem + 3.8vw, 4.25rem);
+    line-height: 1.05;
   }
 
   .hero-em {
@@ -346,7 +406,7 @@ const jsonLd = {
   }
 
   .hero-lead {
-    max-width: 40ch;
+    max-width: 46ch;
     margin-top: var(--space-4);
   }
 
@@ -354,13 +414,8 @@ const jsonLd = {
     margin-top: var(--space-8);
   }
 
-  .hero-more {
-    margin-top: var(--space-4);
-  }
-
-  /* The hero aside is the one decorative element on the page: a hand-drawn
-     anatomical heart in a hairline panel, with a serif italic line beneath.
-     Flat tint, no gradient, no glow. */
+  /* The hero aside: the anatomical heart from the design in a hairline
+     panel, with a serif italic line beneath. */
   .hero-aside {
     display: none;
   }
@@ -379,11 +434,16 @@ const jsonLd = {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: var(--space-4);
+    padding: var(--space-6);
     border: 1px solid var(--primary-border);
     border-radius: var(--radius-sm);
     background: var(--primary-surface);
-    color: var(--primary);
+  }
+
+  .hero-art img {
+    width: 10.5rem;
+    height: 10.5rem;
+    object-fit: contain;
   }
 
   .hero-quote {
@@ -416,14 +476,112 @@ const jsonLd = {
     text-transform: uppercase;
   }
 
-  /* --- 2. subjects ---------------------------------------------------- */
-  @media (min-width: 640px) {
-    .subject-grid {
-      gap: var(--space-3);
-    }
+  /* --- 2. subjects: vertical tiles, art over title --------------------- */
+  .home-subject-grid {
+    gap: var(--space-4);
   }
 
-  /* --- 3. split ------------------------------------------------------- */
+  .home-subject {
+    display: grid;
+    justify-items: center;
+    gap: var(--space-3);
+    padding: var(--space-8) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: inherit;
+    text-align: center;
+    text-decoration: none;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .home-subject:hover {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  .home-subject-art {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 5.5rem;
+    height: 5.5rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    color: var(--primary);
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .home-subject:hover .home-subject-art {
+    border-color: var(--primary-border);
+    background: var(--surface);
+  }
+
+  .home-subject-art img {
+    width: 3.25rem;
+    height: 3.25rem;
+    object-fit: contain;
+  }
+
+  .home-subject-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    transition: color 0.15s var(--ease);
+  }
+
+  .home-subject:hover .home-subject-title {
+    color: var(--primary);
+  }
+
+  .home-subject-meta {
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* --- 3. features ----------------------------------------------------- */
+  .features {
+    gap: var(--space-4);
+  }
+
+  .feature {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .feature-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin-bottom: var(--space-1);
+    border: 1px solid var(--primary-border);
+    border-radius: var(--radius-sm);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .feature-title {
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+  }
+
+  .feature-sub {
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  /* --- 5. split ------------------------------------------------------- */
   .split {
     display: grid;
     gap: var(--space-12);
@@ -448,7 +606,7 @@ const jsonLd = {
     margin-top: var(--space-6);
   }
 
-  /* --- 4. practice band ----------------------------------------------- */
+  /* --- practice band --------------------------------------------------- */
   .practice {
     border-block: 1px solid var(--primary-border);
     background: var(--primary-surface);
@@ -477,7 +635,7 @@ const jsonLd = {
     color: var(--body);
   }
 
-  /* --- 5. samples ----------------------------------------------------- */
+  /* --- samples --------------------------------------------------------- */
   .samples {
     display: grid;
     gap: var(--space-4);
@@ -494,7 +652,7 @@ const jsonLd = {
     margin: 0;
   }
 
-  /* --- 7. browse ------------------------------------------------------ */
+  /* --- browse ---------------------------------------------------------- */
   .browse-col {
     padding-top: var(--space-4);
     border-top: 1px solid var(--border-strong);
@@ -504,5 +662,23 @@ const jsonLd = {
     margin-bottom: var(--space-3);
     font-size: var(--text-body);
     font-weight: var(--weight-semibold);
+  }
+
+  /* --- 9. closing CTA -------------------------------------------------- */
+  .cta {
+    padding-block: var(--space-16) var(--space-20);
+  }
+
+  .cta-inner {
+    display: grid;
+    gap: var(--space-8);
+    justify-items: center;
+    text-align: center;
+  }
+
+  .cta-title {
+    font-size: clamp(2.25rem, 1.6rem + 3vw, 3.5rem);
+    line-height: 1.1;
+    text-wrap: balance;
   }
 </style>

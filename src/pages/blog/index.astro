@@ -1,60 +1,318 @@
 ---
+/**
+ * Blog index.
+ *
+ * Structure follows the design: a hero with article search and a pull-quote,
+ * category tabs, a featured article (the most recent post), then the rest as
+ * a card grid with a rail of category counts. The search input filters the
+ * cards client-side over an embedded index, so it works instantly and still
+ * degrades to the full listing without JavaScript.
+ */
 import Layout from '../../layouts/Layout.astro';
 import PageHeader from '../../components/PageHeader.astro';
-import BlogListing from '../../components/BlogListing.astro';
+import Search from '../../components/Search.astro';
+import SidebarPanel from '../../components/SidebarPanel.astro';
+import Icon from '../../components/Icon.astro';
 import { getBlogPosts, getBlogCategories, getCollection } from '../../utils/collections';
-
-const POSTS_PER_PAGE = 6;
 
 const [posts, categories, subjects] = await Promise.all([
   getBlogPosts(),
   getBlogCategories(),
   getCollection('subjects'),
 ]);
-const pagePosts = posts.slice(0, POSTS_PER_PAGE);
+
+const fmt = (d: Date) =>
+  d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+
+/** Reading time at 200 words per minute, from the raw markdown. */
+const readingMinutes = (body: string) =>
+  Math.max(1, Math.round(body.split(/\s+/).filter(Boolean).length / 200));
+
+const featured = posts[0];
+const latest = posts.slice(1);
+
+/** Tab subtitles for the real categories. */
+const categoryBlurbs: Record<string, string> = {
+  'api-design': 'Design better APIs',
+  databases: 'Work with data',
+  'study-techniques': 'Learn effectively',
+};
+
+const categoryLabel = (slug: string) => slug.replace(/-/g, ' ');
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
   label: s.data.title,
 }));
 ---
-
 <Layout
-  title="Blog — Study Techniques and Medical Education | Medical Study Notes"
-  description="Articles on study technique, exam preparation, and medical education, written for students. Practical guides with worked examples."
+  title="Blog — Study Techniques and Subject Guides | Medical Study Notes"
+  description="Articles on study technique, exam preparation, and the subjects we publish notes for. Practical guides with worked examples."
   path="/blog/"
   footerSubjects={footerSubjects}
   wide
 >
   <PageHeader
-    kicker="Blog"
-    title="Articles and study guides"
-    lead="Writing on study technique, exam preparation, and the subjects we publish notes for. Every article is written by a named author and reviewed before publication."
-    crumbs={[{ label: 'Blog' }]}
-  />
+    kicker="Study &amp; Learning Blog"
+    title="Study Smarter. Go Further."
+    lead="Practical guidance, study strategies, and insights to help you succeed in your studies and beyond."
+    crumbs={[{ label: 'Home', href: '/' }, { label: 'Blog' }]}
+  >
+    <div class="blog-search">
+      <Search
+        variant="hero"
+        id="blog-search"
+        placeholder="Search articles (e.g. study tips, exam preparation, note taking…)"
+        label="Search articles"
+      />
+    </div>
+
+    <Fragment slot="aside">
+      <figure class="blog-quote">
+        <blockquote>
+          <p>Education is not the filling of a pail, but the lighting of a fire.</p>
+        </blockquote>
+        <figcaption>W.B. Yeats</figcaption>
+      </figure>
+    </Fragment>
+  </PageHeader>
 
   {categories.length > 0 && (
     <nav class="cats" aria-label="Article categories">
       <div class="container">
         <ul>
-          <li><a href="/blog/" aria-current="page">All</a></li>
+          <li>
+            <a href="/blog/" aria-current="page">
+              <span class="cat-title">All Articles</span>
+              <span class="cat-blurb">Latest and popular</span>
+            </a>
+          </li>
           {categories.map((category) => (
             <li>
-              <a href={`/blog/category/${category}/`}>{category.replace(/-/g, ' ')}</a>
+              <a href={`/blog/category/${category}/`}>
+                <span class="cat-title">{categoryLabel(category)}</span>
+                <span class="cat-blurb">{categoryBlurbs[category] ?? 'Articles'}</span>
+              </a>
             </li>
           ))}
-          <li><a href="/blog/archive/">Archive</a></li>
+          <li>
+            <a href="/blog/archive/">
+              <span class="cat-title">Archive</span>
+              <span class="cat-blurb">Everything, by date</span>
+            </a>
+          </li>
         </ul>
       </div>
     </nav>
   )}
 
-  <div class="container listing">
-    <BlogListing posts={pagePosts} totalPosts={posts.length} currentPage={1} />
+  <div class="container page-body">
+    <div class="blog-layout">
+      <div class="blog-main">
+        <p class="search-status" data-status aria-live="polite"></p>
+
+        {/* --- featured article ------------------------------------------- */}
+        {featured && (
+          <section class="section" aria-labelledby="featured-article" data-featured>
+            <div class="section-head-row">
+              <div>
+                <h2 id="featured-article">Featured article</h2>
+                <p>Our most recent piece.</p>
+              </div>
+              <a class="link-arrow" href="/blog/archive/">View all articles</a>
+            </div>
+
+            <a class="featured-card" href={`/blog/${featured.slug}/`} data-article>
+              <div class="featured-copy">
+                <span class="kicker">{categoryLabel(featured.data.category)}</span>
+                <span class="featured-title">{featured.data.title}</span>
+                <span class="featured-excerpt">{featured.data.description}</span>
+                <span class="featured-meta">
+                  <time datetime={featured.data.publishedDate.toISOString()}>
+                    {fmt(featured.data.publishedDate)}
+                  </time>
+                  <span aria-hidden="true">·</span>
+                  <span>{readingMinutes(featured.body ?? '')} min read</span>
+                </span>
+                <span class="btn btn-secondary featured-btn">Read article</span>
+              </div>
+            </a>
+          </section>
+        )}
+
+        {/* --- latest articles ---------------------------------------------- */}
+        <section class="section" aria-labelledby="latest-articles">
+          <div class="section-head-row">
+            <div>
+              <h2 id="latest-articles">Latest articles</h2>
+              <p>Fresh perspectives, practical advice and helpful resources.</p>
+            </div>
+            <a class="link-arrow" href="/blog/archive/">View all articles</a>
+          </div>
+
+          {latest.length > 0 ? (
+            <div class="grid grid-3 article-grid">
+              {latest.map((post) => (
+                <a
+                  class="article-card"
+                  href={`/blog/${post.slug}/`}
+                  data-article
+                  data-keywords={`${post.data.title} ${post.data.description} ${categoryLabel(post.data.category)}`.toLowerCase()}
+                >
+                  <span class="kicker">{categoryLabel(post.data.category)}</span>
+                  <span class="article-title">{post.data.title}</span>
+                  <span class="article-excerpt">{post.data.description}</span>
+                  <span class="article-meta">
+                    <time datetime={post.data.publishedDate.toISOString()}>
+                      {fmt(post.data.publishedDate)}
+                    </time>
+                    <span aria-hidden="true">·</span>
+                    <span>{readingMinutes(post.body ?? '')} min read</span>
+                  </span>
+                </a>
+              ))}
+            </div>
+          ) : (
+            <div class="empty-state" data-none hidden>
+              <h3>No matches</h3>
+              <p>
+                No articles match that search. Browse the
+                <a href="/blog/archive/">full archive</a> or read the
+                <a href="/notes/">study notes</a>.
+              </p>
+            </div>
+          )}
+
+          <noscript>
+            <p class="nojs-note">
+              Live search needs JavaScript. All articles are listed above.
+            </p>
+          </noscript>
+        </section>
+      </div>
+
+      {/* --- rail ---------------------------------------------------------- */}
+      <aside class="blog-side" aria-label="Blog links">
+        {categories.length > 0 && (
+          <SidebarPanel heading="Popular topics" icon="layers">
+            <ul class="rail-topics">
+              {categories.map((category) => (
+                <li>
+                  <a href={`/blog/category/${category}/`}>
+                    <span>{categoryLabel(category)}</span>
+                    <span class="rail-count">
+                      {posts.filter((p) => p.data.category === category).length}
+                      article{posts.filter((p) => p.data.category === category).length === 1 ? '' : 's'}
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+            <a class="link-arrow" href="/blog/archive/">View the archive</a>
+          </SidebarPanel>
+        )}
+
+        <SidebarPanel variant="tint" heading="Study tip" icon="bulb">
+          <blockquote class="rail-quote">
+            <p>“Spaced repetition and active recall are among the most effective learning techniques.”</p>
+          </blockquote>
+          <p class="rail-quote-attr">Study Smarter<br />Remember Longer</p>
+        </SidebarPanel>
+
+        <SidebarPanel heading="Get new articles" icon="link">
+          <p class="rail-help">
+            We publish steadily. Browse everything by date, or suggest a topic
+            you would like covered.
+          </p>
+          <ul class="chevron-list">
+            <li><a href="/blog/archive/">Browse the archive</a></li>
+            <li><a href="/contact/">Suggest a topic</a></li>
+          </ul>
+        </SidebarPanel>
+      </aside>
+    </div>
   </div>
+
+  <script>
+    const input = document.getElementById('blog-search') as HTMLInputElement | null;
+    const cards = [...document.querySelectorAll<HTMLElement>('[data-article]')];
+    const featuredWrap = document.querySelector<HTMLElement>('[data-featured]');
+    const status = document.querySelector<HTMLElement>('[data-status]');
+    const empty = document.querySelector<HTMLElement>('[data-none]');
+
+    if (input && cards.length > 0) {
+      input.addEventListener('input', () => {
+        const query = input.value.trim().toLowerCase();
+        let shown = 0;
+
+        cards.forEach((card) => {
+          const keywords = card.dataset.keywords ?? card.textContent?.toLowerCase() ?? '';
+          const match = !query || keywords.includes(query);
+          card.closest('li')?.toggleAttribute('hidden', !match);
+          card.toggleAttribute('hidden', !match);
+          if (match) shown += 1;
+        });
+
+        // While searching, the featured card folds into the regular results.
+        if (featuredWrap) featuredWrap.hidden = Boolean(query);
+
+        if (empty) {
+          const latestCards = cards.slice(featuredWrap ? 1 : 0);
+          const noneVisible = latestCards.every(
+            (card) => card.hasAttribute('hidden') || (card.closest('li')?.hasAttribute('hidden') ?? false),
+          );
+          empty.hidden = !noneVisible;
+        }
+
+        if (status) {
+          status.textContent = query
+            ? `${shown} article${shown === 1 ? '' : 's'} matching “${input.value.trim()}”`
+            : '';
+        }
+      });
+    }
+  </script>
 </Layout>
 
 <style>
+  .blog-search {
+    margin-top: var(--space-6);
+    max-width: 36rem;
+  }
+
+  /* The Yeats pull-quote in the header aside. */
+  .blog-quote {
+    margin: 0;
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+  }
+
+  .blog-quote blockquote {
+    margin: 0;
+  }
+
+  .blog-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  .blog-quote figcaption {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  /* --- category tabs ---------------------------------------------------- */
   .cats {
     border-bottom: 1px solid var(--border);
     background: var(--surface);
@@ -75,12 +333,11 @@ const footerSubjects = subjects.map((s) => ({
   }
 
   .cats a {
-    display: inline-block;
+    display: grid;
+    gap: 2px;
     padding: var(--space-4) var(--space-3);
     border-bottom: 2px solid transparent;
     color: var(--body);
-    font-size: var(--text-body-sm);
-    font-weight: var(--weight-medium);
     text-decoration: none;
     white-space: nowrap;
     text-transform: capitalize;
@@ -97,7 +354,230 @@ const footerSubjects = subjects.map((s) => ({
     color: var(--primary);
   }
 
-  .listing {
-    padding-block: var(--space-8) var(--space-16);
+  .cat-title {
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  .cat-blurb {
+    color: var(--mute);
+    font-size: var(--text-caption);
+    text-transform: none;
+  }
+
+  /* --- layout ------------------------------------------------------------- */
+  .page-body {
+    padding-block: var(--space-12) var(--space-16);
+  }
+
+  .blog-layout {
+    display: grid;
+    gap: var(--space-8);
+  }
+
+  .blog-main,
+  .blog-side {
+    min-width: 0;
+  }
+
+  @media (min-width: 1024px) {
+    .blog-layout {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+      gap: var(--space-12);
+    }
+  }
+
+  .search-status {
+    margin: 0 0 var(--space-2);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .search-status:empty {
+    display: none;
+  }
+
+  /* --- featured card --------------------------------------------------------- */
+  .featured-card {
+    display: block;
+    padding: var(--space-8) var(--space-10);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--primary-surface);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 0.15s var(--ease);
+  }
+
+  .featured-card:hover {
+    border-color: var(--primary-border);
+  }
+
+  .featured-copy {
+    display: grid;
+    gap: var(--space-2);
+    max-width: 46rem;
+  }
+
+  .featured-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 1.3rem + 1vw, 2rem);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    text-wrap: balance;
+    transition: color 0.15s var(--ease);
+  }
+
+  .featured-card:hover .featured-title {
+    color: var(--primary);
+  }
+
+  .featured-excerpt {
+    color: var(--body);
+    font-size: var(--text-body);
+    line-height: var(--leading-normal);
+  }
+
+  .featured-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .featured-btn {
+    margin-top: var(--space-4);
+    justify-self: start;
+  }
+
+  /* --- article cards ------------------------------------------------------------ */
+  .article-grid {
+    gap: var(--space-4);
+  }
+
+  .article-card {
+    display: grid;
+    gap: var(--space-2);
+    align-content: start;
+    padding: var(--space-5) var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .article-card:hover {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  .article-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    transition: color 0.15s var(--ease);
+  }
+
+  .article-card:hover .article-title {
+    color: var(--primary);
+  }
+
+  .article-excerpt {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .article-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .nojs-note {
+    margin-top: var(--space-4);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  /* --- rail ------------------------------------------------------------------------ */
+  .rail-topics {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rail-topics li + li {
+    border-top: 1px solid var(--border);
+  }
+
+  .rail-topics a {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+    text-transform: capitalize;
+  }
+
+  .rail-topics a:hover {
+    color: var(--primary);
+  }
+
+  .rail-count {
+    flex-shrink: 0;
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--weight-body);
+    text-transform: none;
+  }
+
+  .rail-quote {
+    margin: 0;
+  }
+
+  .rail-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.4;
+    text-wrap: balance;
+  }
+
+  .rail-quote-attr {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    line-height: 1.7;
+    text-transform: uppercase;
+  }
+
+  .rail-help {
+    color: var(--body);
+    font-size: var(--text-body-sm);
   }
 </style>

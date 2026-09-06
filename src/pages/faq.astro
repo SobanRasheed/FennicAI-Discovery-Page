@@ -1,61 +1,575 @@
 ---
+/**
+ * Help Center (the FAQ page's Figma screen). The design's ten categories
+ * include things the site doesn't have (accounts, downloads, technical
+ * support tiers), so the categories here are the ones the real questions
+ * fall into. "Popular Articles" in the rail are real posts with real
+ * reading times, not the design's static list.
+ */
 import Layout from '../layouts/Layout.astro';
-import Breadcrumbs from '../components/Breadcrumbs.astro';
+import PageHeader from '../components/PageHeader.astro';
 import Faq from '../components/Faq.astro';
+import SidebarPanel from '../components/SidebarPanel.astro';
+import Icon from '../components/Icon.astro';
+import JsonLd from '../components/JsonLd.astro';
+import { getBlogPosts, getCollection } from '../utils/collections';
 
+const [posts, subjects] = await Promise.all([getBlogPosts(), getCollection('subjects')]);
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
+
+/** Reading minutes at 200 wpm — same rule as the blog listing. */
+const minutes = (body: string | undefined) =>
+  Math.max(1, Math.round((body ?? '').split(/\s+/).filter(Boolean).length / 200));
+
+const popularArticles = posts.slice(0, 4).map((post) => ({
+  href: `/blog/${post.slug}/`,
+  title: post.data.title,
+  minutes: minutes(post.body),
+}));
+
+/**
+ * One entry per question. `category` drives the sidebar filter; keep the
+ * labels in sync with CATEGORIES below.
+ */
 const faqs = [
   {
-    question: 'Is devsyllabus free to use?',
+    category: 'general',
+    question: 'Is Medical Study Notes free to use?',
     answer:
       'Yes. Every study note, article, topic hub, and practice question is free to read with no account required.',
   },
   {
-    question: 'Do the study notes follow a specific syllabus?',
+    category: 'general',
+    question: 'Do I need an account to use the site?',
     answer:
-      'Notes are written against the mainstream syllabus for each subject at each education level, and each subject page lists the exams and boards its material maps to. Where courses differ, the note flags the variation instead of silently picking one convention.',
+      'No — everything is readable without signing up. The saved-articles list and quiz history are stored in your own browser, so there is no account system at all.',
   },
   {
-    question: 'Can I rely on the practice question answers?',
-    answer:
-      'Every question is reviewed before publication, and errors reported through the contact page are corrected under our corrections policy. Answers include the reasoning, so you can verify the method yourself.',
-  },
-  {
-    question: 'How do I find notes for my exact course?',
-    answer:
-      'Start from the education levels page and pick your class, course, or exam. From there, follow the hierarchy: level, subject, chapter, note. Alternatively, use the site search.',
-  },
-  {
-    question: 'Do you offer downloadable PDFs?',
-    answer:
-      'Not currently. Pages are designed to be readable and printable directly from the browser.',
-  },
-  {
+    category: 'general',
     question: 'How often is content updated?',
     answer:
       'Pages are revised when standards change or corrections land. Every page shows its publication and last-updated dates, and the update log lists every revision.',
   },
   {
-    question: 'Can I use your notes in my classroom or study group?',
+    category: 'general',
+    question: 'How can I contact support?',
     answer:
-      'Yes, for personal and classroom use, with attribution. See the terms of use for details.',
+      'By email, through the contact page. Pick the subject that matches your message and it goes to the right inbox.',
+  },
+  {
+    category: 'study-notes',
+    question: 'Do the study notes follow a specific syllabus?',
+    answer:
+      'Notes are written against the mainstream syllabus for each subject at each education level, and each subject page lists the exams and boards its material maps to. Where courses differ, the note flags the variation instead of silently picking one convention.',
+  },
+  {
+    category: 'study-notes',
+    question: 'How do I find notes for my exact course?',
+    answer:
+      'Start from the education levels page and pick your class, course, or exam. From there, follow the hierarchy: level, subject, chapter, note. Alternatively, use the site search.',
+  },
+  {
+    category: 'study-notes',
+    question: 'Do you offer downloadable PDFs?',
+    answer:
+      'Not currently. Pages are designed to be readable and printable directly from the browser — every article has a print button.',
+  },
+  {
+    category: 'practice',
+    question: 'Can I rely on the practice question answers?',
+    answer:
+      'Every question is reviewed before publication, and errors reported through the contact page are corrected under our corrections policy. Answers include the reasoning, so you can verify the method yourself.',
+  },
+  {
+    category: 'practice',
+    question: 'What subjects do the practice questions cover?',
+    answer:
+      'Whatever subjects have published questions — the practice page lists each one with its question count. Multiple-choice quizzes are available for the subjects that have MCQ-format questions.',
+  },
+  {
+    category: 'contributions',
+    question: 'How can I suggest a new topic?',
+    answer:
+      'Email the suggestions inbox with the subject, the topic, and what you are trying to learn from it. The contact form routes suggestion messages there automatically.',
+  },
+  {
+    category: 'contributions',
+    question: 'How do I report an error?',
+    answer:
+      'Use the contact form with the "Report a correction" subject, or email the corrections inbox directly. Tell us the page and what is wrong — correction reports are prioritised.',
+  },
+  {
+    category: 'legal',
+    question: 'Can I use the content for commercial purposes?',
+    answer:
+      'No. Content is licensed for personal and classroom use with attribution; commercial reuse requires permission. See the terms of use for the details.',
+  },
+  {
+    category: 'legal',
+    question: 'Can I use your notes in my classroom or study group?',
+    answer: 'Yes, for personal and classroom use, with attribution. See the terms of use for details.',
   },
 ];
+
+const CATEGORIES = [
+  { slug: 'all', label: 'All questions' },
+  { slug: 'general', label: 'General' },
+  { slug: 'study-notes', label: 'Study Notes' },
+  { slug: 'practice', label: 'MCQs & Practice' },
+  { slug: 'contributions', label: 'Content & Contributions' },
+  { slug: 'legal', label: 'Legal & Policies' },
+] as const;
+
+// Grouped for the accordion sections, keeping category order.
+const grouped = CATEGORIES.filter((c) => c.slug !== 'all').map((cat) => ({
+  ...cat,
+  items: faqs.filter((f) => f.category === cat.slug),
+}));
+
+const site = Astro.site!;
+
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  url: new URL('/faq/', site).href,
+  mainEntity: faqs.map((f) => ({
+    '@type': 'Question',
+    name: f.question,
+    acceptedAnswer: { '@type': 'Answer', text: f.answer },
+  })),
+};
 ---
-
 <Layout
-  title="Frequently Asked Questions | devsyllabus"
-  description="Answers to common questions about devsyllabus: content coverage, syllabus alignment, practice questions, updates, and usage terms."
+  title="FAQ — Help Center | Medical Study Notes"
+  description="Frequently asked questions about Medical Study Notes: free access, finding notes for your course, practice questions, updates, contributing, and usage terms."
   path="/faq/"
+  footerSubjects={footerSubjects}
+  wide
 >
-  <Breadcrumbs crumbs={[{ label: 'FAQ' }]} />
+  <JsonLd data={faqSchema} />
 
-  <div class="doc">
-  <h1>Frequently asked questions</h1>
-  <p>
-    Questions about the site in general. Each study note, subject hub, and
-    topic hub carries its own FAQ section covering that specific material.
-  </p>
+  <PageHeader
+    kicker="Help Center"
+    title="Frequently Asked Questions"
+    lead="Find quick answers to common questions. If you can't find what you're looking for, feel free to contact us."
+    crumbs={[{ label: 'Home', href: '/' }, { label: 'FAQ' }]}
+  >
+    <Fragment slot="aside">
+      <figure class="faq-quote">
+        <blockquote>
+          <p>A curious mind finds answers everywhere.</p>
+        </blockquote>
+        <figcaption>Help Center</figcaption>
+      </figure>
+    </Fragment>
+  </PageHeader>
 
-  <Faq faqs={faqs} />
+  <div class="container page-body">
+    <div class="faq-layout">
+      {/* --- categories + rail ------------------------------------------------ */}
+      <div class="faq-side">
+        <nav class="cat-nav" aria-label="FAQ categories">
+          <h2 class="cat-title">FAQ Categories</h2>
+          <ul class="cat-list">
+            {CATEGORIES.map((cat) => {
+              const count = cat.slug === 'all' ? faqs.length : faqs.filter((f) => f.category === cat.slug).length;
+              return (
+                <li>
+                  <button
+                    class="cat-link"
+                    type="button"
+                    data-cat={cat.slug}
+                    aria-pressed={cat.slug === 'all' ? 'true' : 'false'}
+                  >
+                    <span>{cat.label}</span>
+                    <span class="cat-count">{count}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
+
+        <SidebarPanel heading="Need more help?" icon="chat">
+          <p class="help-copy">Can't find your answer? Send us a message.</p>
+          <a class="btn btn-primary help-btn" href="/contact/">Contact Support</a>
+        </SidebarPanel>
+
+        <SidebarPanel heading="Popular Articles" icon="notes">
+          <ul class="article-list">
+            {popularArticles.map((article) => (
+              <li>
+                <a class="article-link" href={article.href}>{article.title}</a>
+                <span class="article-meta"><Icon name="clock" size={12} /> {article.minutes} min read</span>
+              </li>
+            ))}
+          </ul>
+          <a class="link-arrow rail-all" href="/blog/">All articles <Icon name="arrow-right" size={13} /></a>
+        </SidebarPanel>
+      </div>
+
+      {/* --- questions --------------------------------------------------------- */}
+      <div class="faq-main">
+        <div class="faq-search">
+          <label class="search-label" for="faq-filter">
+            <Icon name="search" size={16} />
+            <span class="visually-hidden">Search FAQs</span>
+          </label>
+          <input
+            class="search-input"
+            type="search"
+            id="faq-filter"
+            placeholder="Search FAQs (e.g. notes, MCQs, PDFs…)"
+            autocomplete="off"
+          />
+          <p class="search-status" role="status" aria-live="polite" data-status></p>
+        </div>
+
+        <noscript>
+          <div class="notice notice-info">
+            <p>Filtering needs JavaScript — all questions are shown below.</p>
+          </div>
+        </noscript>
+
+        {grouped.map((group) => (
+          <section class="cat-section" data-category={group.slug} aria-labelledby={`faq-${group.slug}`}>
+            <Faq faqs={group.items} heading={group.label} level={2} id={`faq-${group.slug}`} schema={false} />
+          </section>
+        ))}
+
+        <div class="empty-state panel panel-pad" data-empty hidden>
+          <h2>No matching questions</h2>
+          <p>
+            Try a different term, or <a href="/contact/">ask us directly</a> —
+            we answer every message.
+          </p>
+        </div>
+      </div>
+    </div>
   </div>
 </Layout>
+
+<script>
+  const ALL = 'all';
+  const status = document.querySelector<HTMLElement>('[data-status]');
+  const empty = document.querySelector<HTMLElement>('[data-empty]');
+  const input = document.querySelector<HTMLInputElement>('#faq-filter');
+  const catLinks = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-cat]'));
+  const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-category]'));
+
+  const apply = () => {
+    const query = (input?.value ?? '').trim().toLowerCase();
+    const activeCat = catLinks.find((b) => b.getAttribute('aria-pressed') === 'true')?.dataset.cat ?? ALL;
+
+    let shown = 0;
+
+    for (const section of sections) {
+      const catMatches = activeCat === ALL || section.dataset.category === activeCat;
+      const items = Array.from(section.querySelectorAll<HTMLElement>('details'));
+      let sectionShown = 0;
+
+      for (const item of items) {
+        if (item.tagName !== 'DETAILS') continue;
+        const haystack = item.textContent?.toLowerCase() ?? '';
+        const matches = catMatches && (query === '' || haystack.includes(query));
+        item.toggleAttribute('hidden', !matches);
+        if (matches) {
+          sectionShown++;
+          shown++;
+        }
+      }
+
+      section.toggleAttribute('hidden', catMatches ? sectionShown === 0 : true);
+    }
+
+    empty?.toggleAttribute('hidden', shown > 0);
+    if (status) {
+      status.textContent =
+        query === '' && activeCat === ALL
+          ? `${shown} questions`
+          : `${shown} match${shown === 1 ? '' : 'es'}`;
+    }
+  };
+
+  for (const link of catLinks) {
+    link.addEventListener('click', () => {
+      for (const other of catLinks) {
+        other.setAttribute('aria-pressed', String(other === link));
+      }
+      apply();
+    });
+  }
+
+  input?.addEventListener('input', apply);
+  apply();
+</script>
+
+<style>
+  .faq-quote {
+    margin: 0;
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+  }
+
+  .faq-quote blockquote {
+    margin: 0;
+  }
+
+  .faq-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  .faq-quote figcaption {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .page-body {
+    padding-block: var(--space-12) var(--space-16);
+  }
+
+  /* --- layout ------------------------------------------------------------------ */
+  .faq-layout {
+    display: grid;
+    gap: var(--space-10);
+    align-items: start;
+  }
+
+  @media (min-width: 1024px) {
+    .faq-layout {
+      grid-template-columns: 16rem minmax(0, 1fr);
+    }
+  }
+
+  .faq-side {
+    display: grid;
+    gap: var(--space-5);
+  }
+
+  @media (min-width: 1024px) {
+    .faq-side {
+      position: sticky;
+      top: var(--space-6);
+    }
+  }
+
+  /* --- categories ------------------------------------------------------------ */
+  .cat-title {
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    font-weight: var(--weight-medium);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .cat-list {
+    display: grid;
+    gap: var(--space-1);
+    margin: var(--space-3) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .cat-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--body);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s var(--ease), color 0.15s var(--ease);
+  }
+
+  .cat-link:hover {
+    background: var(--surface-sunken);
+    color: var(--ink);
+  }
+
+  .cat-link[aria-pressed='true'] {
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .cat-count {
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+  }
+
+  .cat-link[aria-pressed='true'] .cat-count {
+    color: var(--primary);
+  }
+
+  .cat-link:focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
+  /* --- rail panels ------------------------------------------------------------- */
+  .help-copy {
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .help-btn {
+    margin-top: var(--space-4);
+  }
+
+  .article-list {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .article-link {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    text-decoration: none;
+  }
+
+  .article-link:hover {
+    color: var(--primary);
+    text-decoration: underline;
+  }
+
+  .article-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-top: var(--space-1);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+  }
+
+  .rail-all {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    margin-top: var(--space-4);
+    color: var(--primary);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+  }
+
+  .rail-all:hover {
+    text-decoration: underline;
+  }
+
+  /* --- search ---------------------------------------------------------------------- */
+  .faq-search {
+    position: relative;
+    margin-bottom: var(--space-6);
+  }
+
+  .search-label {
+    position: absolute;
+    top: var(--space-3);
+    left: var(--space-4);
+    color: var(--mute);
+    pointer-events: none;
+  }
+
+  .search-input {
+    width: 100%;
+    padding: var(--space-3) var(--space-4) var(--space-3) var(--space-11);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-sm);
+    transition: border-color 0.15s var(--ease);
+  }
+
+  .search-input::placeholder {
+    color: var(--mute);
+  }
+
+  .search-input:focus-visible {
+    border-color: var(--primary);
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 1px;
+  }
+
+  .search-status {
+    margin: var(--space-2) 0 0;
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  /* --- sections ------------------------------------------------------------------------ */
+  .cat-section {
+    margin-bottom: var(--space-8);
+  }
+
+  .cat-section:last-of-type {
+    margin-bottom: 0;
+  }
+
+  /* --- empty state ------------------------------------------------------------------------ */
+  .empty-state[hidden] {
+    display: none;
+  }
+
+  .empty-state h2 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  .empty-state p {
+    margin-top: var(--space-2);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+</style>

@@ -1,0 +1,1469 @@
+---
+/**
+ * Interactive quiz for one subject.
+ *
+ * The questions ship with the page as JSON; the whole quiz — checking
+ * answers, the timer, the navigation grid, the score ring, performance by
+ * topic, and answer review — runs client-side on top of that data. This page
+ * is a utility, so it is noindex: the per-question pages under /practice/
+ * are the crawlable surface for this content.
+ *
+ * Without JavaScript the quiz cannot run, so the noscript block links to the
+ * subject's practice listing where every question and answer is laid out.
+ */
+import Layout from '../../../layouts/Layout.astro';
+import Breadcrumbs from '../../../components/Breadcrumbs.astro';
+import SidebarPanel from '../../../components/SidebarPanel.astro';
+import Icon from '../../../components/Icon.astro';
+import { getQuestions, getNotes, getCollection } from '../../../utils/collections';
+
+export async function getStaticPaths() {
+  const [questions, subjects] = await Promise.all([
+    getQuestions(),
+    getCollection('subjects'),
+  ]);
+  return subjects
+    .filter((subject) =>
+      questions.some(
+        (q) => q.data.subject === subject.slug && q.data.options.length > 0,
+      ),
+    )
+    .map((subject) => ({ params: { subject: subject.slug }, props: { subject } }));
+}
+
+const { subject } = Astro.props;
+const { data: subjectData } = subject;
+
+const [allQuestions, notes, subjects] = await Promise.all([
+  getQuestions(),
+  getNotes(),
+  getCollection('subjects'),
+]);
+
+/** Quiz questions: only option-based (MCQ-style) questions are playable. */
+const questions = allQuestions.filter(
+  (q) => q.data.subject === subject.slug && q.data.options.length > 0,
+);
+
+const chapterTitle = (slug?: string) =>
+  (slug ? subjectData.chapters.find((c) => c.slug === slug)?.title : undefined) ??
+  'General';
+
+/** Which option is the answer: matched by text, or by a bare A–D letter. */
+const answerIndexFor = (q: (typeof questions)[number]) => {
+  const byText = q.data.options.findIndex(
+    (option) => option.trim() === q.data.answer.trim(),
+  );
+  if (byText >= 0) return byText;
+  const letter = q.data.answer.trim().match(/^([A-D])$/i);
+  if (letter) return letter[1].toUpperCase().charCodeAt(0) - 65;
+  return -1;
+};
+
+const quizData = {
+  subject: subjectData.title,
+  subjectSlug: subject.slug,
+  total: questions.length,
+  questions: questions.map((q) => ({
+    question: q.data.question,
+    chapter: chapterTitle(q.data.chapter),
+    options: q.data.options,
+    answerIndex: answerIndexFor(q),
+    answer: q.data.answer,
+    explanation: q.data.explanation,
+    difficulty: q.data.difficulty,
+    url: `/practice/${q.slug}/`,
+  })),
+};
+
+/** Sidebar sections: chapters in quiz order, with per-chapter counts. */
+const sections = quizData.questions.reduce<{ chapter: string; count: number }[]>(
+  (acc, q) => {
+    const found = acc.find((s) => s.chapter === q.chapter);
+    if (found) found.count += 1;
+    else acc.push({ chapter: q.chapter, count: 1 });
+    return acc;
+  },
+  [],
+);
+
+/** Recommended notes: this subject's most recently updated. */
+const recommendedNotes = notes
+  .filter((n) => n.data.subject === subject.slug)
+  .sort((a, b) => b.data.updatedDate.valueOf() - a.data.updatedDate.valueOf())
+  .slice(0, 3);
+
+/** Other subjects with a playable quiz, for "Keep going". */
+const keepGoing = subjects.filter(
+  (s) =>
+    s.slug !== subject.slug &&
+    allQuestions.some(
+      (q) => q.data.subject === s.slug && q.data.options.length > 0,
+    ),
+);
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
+
+const quizDataJson = JSON.stringify(quizData).replace(/</g, '\\u003c');
+---
+
+<Layout
+  title={`${subjectData.title} MCQ Quiz — Interactive Practice | Medical Study Notes`}
+  description={`Take a timed interactive ${subjectData.title} MCQ quiz: answer one question at a time, check each answer, and see your score and performance by topic.`}
+  path={`/practice/quiz/${subject.slug}/`}
+  footerSubjects={footerSubjects}
+  noindex
+  wide
+>
+  <Breadcrumbs
+    crumbs={[
+      { label: 'Home', href: '/' },
+      { label: 'MCQs', href: '/practice/' },
+      { label: subjectData.title, href: `/practice/subject/${subject.slug}/` },
+      { label: 'Quiz' },
+    ]}
+  />
+
+  <div class="container quiz-body">
+    <div class="quiz-layout" id="quiz-root">
+      {/* --- sidebar: sections, navigation, finish -------------------------- */}
+      <aside class="quiz-side" aria-label="Quiz navigation" data-quiz-side>
+        <p class="quiz-side-title">{subjectData.title} MCQs</p>
+        <p class="quiz-side-count">
+          {questions.length} question{questions.length === 1 ? '' : 's'}
+        </p>
+
+        <ol class="quiz-sections" data-quiz-sections>
+          {sections.map((section, i) => (
+            <li data-chapter={section.chapter}>
+              <span class="quiz-section-name">{i + 1}. {section.chapter}</span>
+              <span class="quiz-section-progress" data-quiz-ch-progress>
+                0/{section.count}
+              </span>
+            </li>
+          ))}
+        </ol>
+
+        <div class="quiz-navgrid-wrap">
+          <h2 class="quiz-navgrid-title">Question navigation</h2>
+          <p class="quiz-legend">
+            <span class="dot dot-answered"></span>Answered
+            <span class="dot dot-current"></span>Current
+            <span class="dot dot-open"></span>Not answered
+          </p>
+          <div class="quiz-navgrid" data-quiz-navgrid></div>
+          <button class="btn btn-primary quiz-finish" type="button" data-quiz-finish>
+            Finish quiz
+          </button>
+        </div>
+      </aside>
+
+      {/* --- main ------------------------------------------------------------- */}
+      <div class="quiz-main">
+        {/* --- quiz view ------------------------------------------------------ */}
+        <section class="quiz-view" data-quiz-view>
+          <header class="quiz-topbar">
+            <p class="quiz-position" data-quiz-position aria-live="polite"></p>
+            <p class="quiz-topbar-right">
+              <span class="quiz-pct" data-quiz-pct>0%</span>
+              <span class="quiz-timer">
+                Time elapsed
+                <span class="quiz-timer-value" data-quiz-timer>00:00</span>
+              </span>
+            </p>
+          </header>
+
+          <div class="panel panel-pad quiz-card" data-quiz-card></div>
+
+          <div class="quiz-pager">
+            <button class="btn btn-secondary" type="button" data-quiz-prev>
+              <Icon name="arrow-right" size={15} data-icon-flip />
+              Previous question
+            </button>
+            <button class="btn btn-secondary" type="button" data-quiz-next>
+              Next question
+              <Icon name="arrow-right" size={15} />
+            </button>
+          </div>
+        </section>
+
+        {/* --- results view ----------------------------------------------------- */}
+        <section class="results-view" data-results-view hidden>
+          <div class="panel panel-pad results-hero">
+            <p class="kicker">Quiz complete</p>
+            <h1 class="results-title" data-results-heading>Great effort!</h1>
+            <p class="results-sub" data-results-sub>
+              You’ve completed the {subjectData.title} MCQs.
+            </p>
+            <blockquote class="results-quote">
+              <p>“Consistent practice leads to real progress.”</p>
+            </blockquote>
+          </div>
+
+          <div class="panel panel-pad results-score">
+            <div class="score-ring" data-score-ring>
+              <svg viewBox="0 0 120 120" aria-hidden="true">
+                <circle class="ring-track" cx="60" cy="60" r="54"></circle>
+                <circle class="ring-fill" cx="60" cy="60" r="54" data-ring-fill></circle>
+              </svg>
+              <div class="ring-center">
+                <span class="ring-score" data-ring-score>0/0</span>
+                <span class="ring-pct" data-ring-pct>0%</span>
+              </div>
+            </div>
+            <p class="score-label">Correct</p>
+            <span class="score-caption" data-score-caption></span>
+          </div>
+
+          <div class="results-stats">
+            <div class="panel panel-pad stat-card">
+              <span class="stat-value" data-stat-correct>0</span>
+              <span class="stat-name">Correct</span>
+            </div>
+            <div class="panel panel-pad stat-card">
+              <span class="stat-value" data-stat-incorrect>0</span>
+              <span class="stat-name">Incorrect</span>
+            </div>
+            <div class="panel panel-pad stat-card">
+              <span class="stat-value" data-stat-skipped>0</span>
+              <span class="stat-name">Skipped</span>
+            </div>
+            <div class="panel panel-pad stat-card">
+              <span class="stat-value stat-wide" data-stat-time>—</span>
+              <span class="stat-name">Time taken</span>
+            </div>
+            <div class="panel panel-pad stat-card">
+              <span class="stat-value stat-wide" data-stat-total>—</span>
+              <span class="stat-name">Total questions</span>
+            </div>
+            <div class="panel panel-pad stat-card">
+              <span class="stat-value stat-wide">Mixed</span>
+              <span class="stat-name">Difficulty level</span>
+            </div>
+          </div>
+
+          <div class="results-actions">
+            <button class="btn btn-primary" type="button" data-results-retry>Try Again</button>
+            <button class="btn btn-secondary" type="button" data-results-review>
+              Review Answers
+            </button>
+            <a class="btn btn-secondary" href={`/subjects/${subject.slug}/`}>
+              Study Related Notes
+            </a>
+            <button class="btn btn-secondary" type="button" data-results-share>
+              Share Result
+            </button>
+          </div>
+
+          {/* --- performance by topic ------------------------------------------ */}
+          <section class="section section-plain results-section" aria-labelledby="perf-title">
+            <div class="section-head">
+              <h2 id="perf-title">Performance by topic</h2>
+              <p>See how you performed in each topic.</p>
+            </div>
+            <div class="table-wrap">
+              <table class="results-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Topic</th>
+                    <th scope="col">Correct</th>
+                    <th scope="col">Total</th>
+                    <th scope="col">Accuracy</th>
+                  </tr>
+                </thead>
+                <tbody data-perf-tbody></tbody>
+              </table>
+            </div>
+          </section>
+
+          {/* --- next steps ------------------------------------------------------ */}
+          <section class="section section-plain results-section" aria-labelledby="next-steps">
+            <div class="section-head">
+              <h2 id="next-steps">Next steps</h2>
+              <p>Continue your learning journey.</p>
+            </div>
+            <div class="grid grid-3 next-steps">
+              <div class="panel panel-pad step-card">
+                <Icon name="refresh" size={18} />
+                <h3>Try Again</h3>
+                <p>Improve your score by taking this quiz again.</p>
+                <button class="btn btn-sm btn-secondary" type="button" data-results-retry>
+                  Restart quiz
+                </button>
+              </div>
+              <div class="panel panel-pad step-card">
+                <Icon name="book" size={18} />
+                <h3>Study Notes</h3>
+                <p>Review related study notes to strengthen your concepts.</p>
+                <a class="btn btn-sm btn-secondary" href={`/subjects/${subject.slug}/`}>
+                  {subjectData.title} notes
+                </a>
+              </div>
+              <div class="panel panel-pad step-card">
+                <Icon name="question" size={18} />
+                <h3>Practice More</h3>
+                <p>Explore more MCQ sets from every subject.</p>
+                <a class="btn btn-sm btn-secondary" href="/practice/">All MCQs</a>
+              </div>
+            </div>
+          </section>
+
+          {/* --- results rail panels --------------------------------------------- */}
+          <div class="results-rail">
+            {keepGoing.length > 0 && (
+              <SidebarPanel heading="Keep going!" icon="target">
+                <p class="rail-help">Practice more MCQs to strengthen your knowledge.</p>
+                <ul class="chevron-list">
+                  {keepGoing.map((s) => (
+                    <li><a href={`/practice/quiz/${s.slug}/`}>{s.data.title} MCQs</a></li>
+                  ))}
+                </ul>
+                <a class="link-arrow" href="/subjects/">View all subjects</a>
+              </SidebarPanel>
+            )}
+
+            {recommendedNotes.length > 0 && (
+              <SidebarPanel heading="Recommended study notes" icon="book">
+                <p class="rail-help">Review these notes based on your performance.</p>
+                <ul class="chevron-list">
+                  {recommendedNotes.map((note) => (
+                    <li><a href={`/notes/${note.slug}/`}>{note.data.title}</a></li>
+                  ))}
+                </ul>
+                <a class="link-arrow" href={`/subjects/${subject.slug}/`}>
+                  View more study notes
+                </a>
+              </SidebarPanel>
+            )}
+
+            <SidebarPanel heading="Study tip" icon="bulb" variant="tint">
+              <blockquote class="rail-quote">
+                <p>
+                  “Don’t be discouraged by mistakes. They are part of the learning process.
+                  Review, understand, and try again.”
+                </p>
+              </blockquote>
+              <p class="rail-quote-attr">Practice Today<br />Progress Tomorrow</p>
+            </SidebarPanel>
+          </div>
+        </section>
+
+        {/* --- review view ------------------------------------------------------ */}
+        <section class="review-view" data-review-view hidden>
+          <div class="section-head-row review-head">
+            <div>
+              <h2>Answer review</h2>
+              <p>
+                Every question with the correct answer and your pick.
+                <span data-review-summary></span>
+              </p>
+            </div>
+            <button class="btn btn-secondary" type="button" data-review-back>
+              Back to results
+            </button>
+          </div>
+          <div class="review-list" data-review-list></div>
+        </section>
+
+        <noscript>
+          <div class="notice notice-info quiz-nojs">
+            The interactive quiz needs JavaScript. Every question and answer is
+            also available on the
+            <a href={`/practice/subject/${subject.slug}/`}>{subjectData.title} practice page</a>.
+          </div>
+        </noscript>
+      </div>
+    </div>
+  </div>
+
+  <script type="application/json" id="quiz-data" set:html={quizDataJson} is:inline />
+
+  <script>
+    interface QuizQuestion {
+      question: string;
+      chapter: string;
+      options: string[];
+      answerIndex: number;
+      answer: string;
+      explanation: string;
+      difficulty: string;
+      url: string;
+    }
+
+    interface QuizData {
+      subject: string;
+      subjectSlug: string;
+      total: number;
+      questions: QuizQuestion[];
+    }
+
+    const dataEl = document.getElementById('quiz-data');
+    const root = document.getElementById('quiz-root');
+
+    if (dataEl && root) {
+      const data: QuizData = JSON.parse(dataEl.textContent ?? '{}');
+      const questions = data.questions;
+      const total = questions.length;
+
+      const $ = <T extends HTMLElement = HTMLElement>(sel: string) =>
+        root.querySelector<T>(sel);
+      const view = $('[data-quiz-view]')!;
+      const card = $('[data-quiz-card]')!;
+      const positionEl = $('[data-quiz-position]')!;
+      const pctEl = $('[data-quiz-pct]')!;
+      const timerEl = $('[data-quiz-timer]')!;
+      const navGrid = $('[data-quiz-navgrid]')!;
+      const side = $('[data-quiz-side]')!;
+      const resultsView = $('[data-results-view]')!;
+      const reviewView = $('[data-review-view]')!;
+
+      // State: picked option per question (null = unanswered), and whether
+      // the answer has been revealed.
+      const picked: (number | null)[] = new Array(total).fill(null);
+      const revealed: boolean[] = new Array(total).fill(false);
+      let current = 0;
+      let finished = false;
+      let startedAt = Date.now();
+      let elapsedMs = 0;
+
+      const escape = (value: string) =>
+        value.replace(/[&<>"']/g, (ch) =>
+          ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!,
+        );
+
+      const letters = ['A', 'B', 'C', 'D', 'E', 'F'];
+
+      // --- timer ---------------------------------------------------------------
+      let timer = startTimer();
+
+      function startTimer() {
+        return window.setInterval(() => {
+          if (finished) return;
+          elapsedMs = Date.now() - startedAt;
+          const s = Math.floor(elapsedMs / 1000);
+          timerEl.textContent = `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+        }, 1000);
+      }
+
+      // --- navigation grid -------------------------------------------------------
+      questions.forEach((_, i) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'nav-dot';
+        btn.textContent = String(i + 1);
+        btn.setAttribute('aria-label', `Go to question ${i + 1}`);
+        btn.addEventListener('click', () => {
+          render(i);
+          card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+        navGrid.appendChild(btn);
+      });
+      const dots = [...navGrid.children] as HTMLButtonElement[];
+
+      // --- chapter progress -------------------------------------------------------
+      const chProgress = [
+        ...root.querySelectorAll<HTMLElement>('[data-quiz-ch-progress]'),
+      ];
+      const sectionEls = [
+        ...root.querySelectorAll<HTMLElement>('[data-chapter]'),
+      ];
+      function updateSections() {
+        // Count answered per chapter.
+        const counts = new Map<string, { done: number; total: number }>();
+        questions.forEach((q) => {
+          const entry = counts.get(q.chapter) ?? { done: 0, total: 0 };
+          entry.total += 1;
+          counts.set(q.chapter, entry);
+        });
+        questions.forEach((q, i) => {
+          if (revealed[i]) counts.get(q.chapter)!.done += 1;
+        });
+        chProgress.forEach((el, i) => {
+          const chapter = sectionEls[i]?.dataset.chapter;
+          const c = chapter ? counts.get(chapter) : undefined;
+          if (c) el.textContent = `${c.done}/${c.total}`;
+        });
+      }
+
+      // --- one question ------------------------------------------------------------
+      function render(i: number) {
+        current = i;
+        const q = questions[i];
+
+        positionEl.textContent = `Question ${i + 1} of ${total}`;
+        const answeredCount = revealed.filter(Boolean).length;
+        pctEl.textContent = `${Math.round((answeredCount / total) * 100)}%`;
+        dots.forEach((dot, j) => {
+          dot.classList.toggle('current', j === i);
+          dot.classList.toggle('answered', revealed[j]);
+        });
+
+        const answered = revealed[i];
+        card.innerHTML = `
+          <p class="q-kicker"><span>${escape(data.subject)}</span>${
+            q.chapter ? `<span aria-hidden="true">·</span><span>${escape(q.chapter)}</span>` : ''
+          }</p>
+          <h2 class="q-text">${escape(q.question)}</h2>
+          <div class="q-options" role="group" aria-label="Answer options">
+            ${q.options
+              .map(
+                (opt, j) => `
+              <button type="button" class="q-option" data-option="${j}"
+                ${answered ? 'disabled' : ''}>
+                <span class="q-letter">${letters[j]}</span>
+                <span class="q-option-text">${escape(opt)}</span>
+              </button>`,
+              )
+              .join('')}
+          </div>
+          <div class="q-actions">
+            <button type="button" class="btn btn-primary" data-check ${
+              answered || picked[i] === null ? 'disabled' : ''
+            }>Check Answer</button>
+            <a class="q-link" href="${q.url}">Full explanation</a>
+          </div>
+          <div class="q-feedback" data-feedback ${
+            answered ? '' : 'hidden'
+          } aria-live="polite"></div>
+        `;
+
+        if (answered) showFeedback(i, false);
+
+        card.querySelectorAll<HTMLButtonElement>('[data-option]').forEach((btn) => {
+          btn.addEventListener('click', () => {
+            if (revealed[i]) return;
+            picked[i] = Number(btn.dataset.option);
+            card.querySelectorAll('.q-option').forEach((el) =>
+              el.classList.remove('selected'),
+            );
+            btn.classList.add('selected');
+            const check = card.querySelector<HTMLButtonElement>('[data-check]');
+            if (check) check.disabled = false;
+          });
+        });
+
+        const check = card.querySelector<HTMLButtonElement>('[data-check]');
+        check?.addEventListener('click', () => {
+          if (picked[i] === null || revealed[i]) return;
+          revealed[i] = true;
+          showFeedback(i, true);
+          updateSections();
+          render(i);
+        });
+
+        const prev = $('[data-quiz-prev]') as HTMLButtonElement;
+        const next = $('[data-quiz-next]') as HTMLButtonElement;
+        prev.disabled = i === 0;
+        next.textContent = '';
+        next.append(
+          i === total - 1 ? 'Finish quiz' : 'Next question',
+          Object.assign(document.createElement('span'), {
+            textContent: '→',
+            className: 'pager-arrow',
+          }),
+        );
+        next.dataset.finish = i === total - 1 ? 'true' : 'false';
+      }
+
+      function showFeedback(i: number, markOptions: boolean) {
+        const q = questions[i];
+        const feedback = card.querySelector<HTMLElement>('[data-feedback]');
+        if (!feedback) return;
+        const isCorrect = q.answerIndex >= 0 && picked[i] === q.answerIndex;
+        const revealOnly = q.answerIndex < 0;
+
+        if (markOptions) {
+          card.querySelectorAll<HTMLButtonElement>('[data-option]').forEach((btn) => {
+            const j = Number(btn.dataset.option);
+            btn.disabled = true;
+            if (j === q.answerIndex) btn.classList.add('correct');
+            else if (j === picked[i]) btn.classList.add('incorrect');
+          });
+        }
+
+        feedback.hidden = false;
+        feedback.className = `q-feedback ${isCorrect ? 'ok' : 'bad'}`;
+        feedback.innerHTML = `
+          <p class="q-verdict">${isCorrect ? 'Correct!' : 'Not quite'}</p>
+          ${revealOnly ? `<p class="q-answer">Answer: <strong>${escape(q.answer)}</strong></p>` : ''}
+          <p class="q-explanation">${escape(q.explanation)}</p>
+          <a class="q-link" href="${q.url}">Read the full explanation</a>
+        `;
+      }
+
+      $('[data-quiz-prev]')?.addEventListener('click', () => {
+        if (current > 0) render(current - 1);
+      });
+      $('[data-quiz-next]')?.addEventListener('click', (event) => {
+        const btn = event.currentTarget as HTMLButtonElement;
+        if (btn.dataset.finish === 'true') {
+          finish();
+        } else if (current < total - 1) {
+          render(current + 1);
+        }
+      });
+
+      // --- finish + results ----------------------------------------------------------
+      function finish() {
+        const answeredCount = revealed.filter(Boolean).length;
+        if (answeredCount < total) {
+          const proceed = window.confirm(
+            `You have answered ${answeredCount} of ${total} questions. Finish anyway?`,
+          );
+          if (!proceed) return;
+        }
+        finished = true;
+        window.clearInterval(timer);
+        elapsedMs = Date.now() - startedAt;
+
+        const correct = questions.reduce(
+          (sum, q, i) => sum + (revealed[i] && q.answerIndex >= 0 && picked[i] === q.answerIndex ? 1 : 0),
+          0,
+        );
+        const skipped = total - revealed.filter(Boolean).length;
+        const incorrect = total - correct - skipped;
+        const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+
+        // Record the attempt in local quiz history — kept in this browser
+        // only, never sent anywhere. Feeds the dashboard and quiz-history
+        // pages. Capped so a long-running browser doesn't grow it forever.
+        try {
+          const HISTORY_KEY = 'msn:quiz-history';
+          const history = JSON.parse(localStorage.getItem(HISTORY_KEY) ?? '[]');
+          history.unshift({
+            subject: data.subject,
+            subjectSlug: data.subjectSlug,
+            correct,
+            total,
+            pct,
+            seconds: Math.round(elapsedMs / 1000),
+            date: new Date().toISOString(),
+          });
+          localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 50)));
+        } catch {
+          /* storage unavailable (private mode, disabled) — the quiz still works */
+        }
+
+        // Heading varies with the score, like the design's encouraging tone.
+        const heading = $('[data-results-heading]')!;
+        heading.textContent =
+          pct >= 80 ? 'Excellent work!' : pct >= 50 ? 'Great effort!' : 'Keep practising!';
+
+        // Score ring.
+        const RING_LENGTH = 2 * Math.PI * 54;
+        const ringFill = $<SVGCircleElement>('[data-ring-fill]')!;
+        ringFill.style.strokeDasharray = `${RING_LENGTH}`;
+        ringFill.style.strokeDashoffset = `${RING_LENGTH * (1 - correct / total)}`;
+        $('[data-ring-score]')!.textContent = `${correct}/${total}`;
+        $('[data-ring-pct]')!.textContent = `${pct}%`;
+        $('[data-score-caption]')!.textContent =
+          skipped > 0
+            ? `${skipped} question${skipped === 1 ? '' : 's'} left unanswered`
+            : 'Every question answered';
+
+        $('[data-stat-correct]')!.textContent = String(correct);
+        $('[data-stat-incorrect]')!.textContent = String(incorrect);
+        $('[data-stat-skipped]')!.textContent = String(skipped);
+        $('[data-stat-total]')!.textContent = String(total);
+
+        const s = Math.floor(elapsedMs / 1000);
+        $('[data-stat-time]')!.textContent =
+          `${Math.floor(s / 60)} minute${Math.floor(s / 60) === 1 ? '' : 's'} ${String(s % 60).padStart(2, '0')} seconds`;
+
+        // Performance by topic (chapter).
+        const topics = new Map<string, { correct: number; total: number }>();
+        questions.forEach((q, i) => {
+          const entry = topics.get(q.chapter) ?? { correct: 0, total: 0 };
+          entry.total += 1;
+          if (q.answerIndex >= 0 && picked[i] === q.answerIndex) entry.correct += 1;
+          topics.set(q.chapter, entry);
+        });
+        const tbody = $('[data-perf-tbody]')!;
+        tbody.innerHTML = [...topics.entries()]
+          .map(
+            ([topic, c]) => `
+            <tr>
+              <th scope="row">${escape(topic)}</th>
+              <td>${c.correct} / ${c.total}</td>
+              <td>${Math.round((c.correct / c.total) * 100)}%</td>
+            </tr>`,
+          )
+          .join('');
+
+        view.hidden = true;
+        side.hidden = true;
+        resultsView.hidden = false;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      $('[data-quiz-finish]')?.addEventListener('click', finish);
+
+      $('[data-results-retry]')?.addEventListener('click', () => {
+        picked.fill(null);
+        revealed.fill(false);
+        finished = false;
+        reviewView.hidden = true;
+        resultsView.hidden = true;
+        view.hidden = false;
+        side.hidden = false;
+        startedAt = Date.now();
+        elapsedMs = 0;
+        window.clearInterval(timer);
+        timer = startTimer();
+        render(0);
+      });
+
+      // --- review -----------------------------------------------------------------
+      $('[data-results-review]')?.addEventListener('click', () => {
+        const correct = questions.reduce(
+          (sum, q, i) => sum + (q.answerIndex >= 0 && picked[i] === q.answerIndex ? 1 : 0),
+          0,
+        );
+        $('[data-review-summary]')!.textContent = ` You scored ${correct}/${total}.`;
+
+        const list = $('[data-review-list]')!;
+        list.innerHTML = questions
+          .map((q, i) => {
+            const isCorrect = q.answerIndex >= 0 && picked[i] === q.answerIndex;
+            return `
+            <article class="panel panel-pad review-item ${revealed[i] ? (isCorrect ? 'ok' : 'bad') : 'skipped'}">
+              <p class="q-kicker">
+                <span>Question ${i + 1}</span>
+                ${q.chapter ? `<span aria-hidden="true">·</span><span>${escape(q.chapter)}</span>` : ''}
+              </p>
+              <h3 class="q-text">${escape(q.question)}</h3>
+              <ul class="review-options">
+                ${q.options
+                  .map((opt, j) => {
+                    const cls = [
+                      j === q.answerIndex ? 'correct' : '',
+                      j === picked[i] && picked[i] !== q.answerIndex ? 'incorrect' : '',
+                    ]
+                      .filter(Boolean)
+                      .join(' ');
+                    return `<li class="${cls}"><span class="q-letter">${letters[j]}</span>${escape(opt)}</li>`;
+                  })
+                  .join('')}
+              </ul>
+              <p class="review-verdict">${
+                revealed[i] ? (isCorrect ? 'You answered correctly' : 'Correct answer shown above') : 'Not answered'
+              }</p>
+              <p class="q-explanation">${escape(q.explanation)}</p>
+              <a class="q-link" href="${q.url}">Read the full explanation</a>
+            </article>`;
+          })
+          .join('');
+
+        resultsView.hidden = true;
+        reviewView.hidden = false;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      $('[data-review-back]')?.addEventListener('click', () => {
+        reviewView.hidden = true;
+        resultsView.hidden = false;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+
+      // --- share --------------------------------------------------------------------
+      $('[data-results-share]')?.addEventListener('click', () => {
+        const correct = questions.reduce(
+          (sum, q, i) => sum + (q.answerIndex >= 0 && picked[i] === q.answerIndex ? 1 : 0),
+          0,
+        );
+        const pct = total > 0 ? Math.round((correct / total) * 100) : 0;
+        const text = `I scored ${correct}/${total} (${pct}%) on the ${data.subject} MCQ quiz at Medical Study Notes.`;
+        if (navigator.share) {
+          navigator.share({ text, url: window.location.href }).catch(() => {});
+        } else if (navigator.clipboard) {
+          navigator.clipboard.writeText(`${text} ${window.location.href}`);
+          const btn = $('[data-results-share]') as HTMLButtonElement;
+          btn.textContent = 'Result copied!';
+          window.setTimeout(() => {
+            btn.textContent = 'Share Result';
+          }, 2000);
+        }
+      });
+
+      updateSections();
+      render(0);
+    }
+  </script>
+</Layout>
+
+<style>
+  .quiz-body {
+    padding-block: var(--space-8) var(--space-16);
+  }
+
+  /* --- layout ------------------------------------------------------------------ */
+  .quiz-layout {
+    display: grid;
+    gap: var(--space-8);
+  }
+
+  .quiz-main {
+    min-width: 0;
+  }
+
+  @media (min-width: 1024px) {
+    .quiz-layout {
+      grid-template-columns: 17rem minmax(0, 1fr);
+      gap: var(--space-10);
+    }
+
+    .quiz-side {
+      position: sticky;
+      top: calc(var(--header-height) + var(--space-6));
+      align-self: start;
+      max-height: calc(100vh - var(--header-height) - var(--space-12));
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      scrollbar-width: thin;
+    }
+  }
+
+  /* --- sidebar ------------------------------------------------------------------- */
+  .quiz-side-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .quiz-side-count {
+    margin-top: var(--space-1);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .quiz-sections {
+    margin: var(--space-4) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .quiz-sections li {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .quiz-section-name {
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-snug);
+  }
+
+  .quiz-section-progress {
+    flex-shrink: 0;
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .quiz-navgrid-wrap {
+    margin-top: var(--space-6);
+    padding-top: var(--space-5);
+    border-top: 1px solid var(--border);
+  }
+
+  .quiz-navgrid-title {
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+  }
+
+  .quiz-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1) var(--space-2);
+    margin-top: var(--space-2);
+    color: var(--mute);
+    font-size: var(--text-caption);
+  }
+
+  .dot {
+    display: inline-block;
+    width: 0.75rem;
+    height: 0.75rem;
+    margin-right: 0.25rem;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    vertical-align: -1px;
+  }
+
+  .dot-answered {
+    background: var(--primary);
+    border-color: var(--primary);
+  }
+
+  .dot-current {
+    border-color: var(--primary);
+    box-shadow: inset 0 0 0 1px var(--primary);
+  }
+
+  .dot-open {
+    background: var(--surface);
+  }
+
+  .quiz-navgrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(2rem, 1fr));
+    gap: var(--space-1);
+    margin-top: var(--space-3);
+  }
+
+  .nav-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    height: 2rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--body);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease),
+      color 0.15s var(--ease);
+  }
+
+  .nav-dot:hover {
+    border-color: var(--border-strong);
+    color: var(--ink);
+  }
+
+  .nav-dot.answered {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .nav-dot.current {
+    border-color: var(--primary);
+    color: var(--primary);
+    box-shadow: 0 0 0 1px var(--primary);
+  }
+
+  .quiz-finish {
+    width: 100%;
+    margin-top: var(--space-4);
+  }
+
+  /* --- topbar -------------------------------------------------------------------- */
+  .quiz-topbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+  }
+
+  .quiz-position {
+    color: var(--ink);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .quiz-topbar-right {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--space-5);
+  }
+
+  .quiz-pct {
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-body-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .quiz-timer {
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .quiz-timer-value {
+    display: block;
+    color: var(--ink);
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* --- question card --------------------------------------------------------------- */
+  .q-kicker {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .q-text {
+    margin-top: var(--space-3);
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: clamp(1.25rem, 1.1rem + 0.7vw, 1.625rem);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    text-wrap: balance;
+  }
+
+  .q-options {
+    display: grid;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+  }
+
+  .q-option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    font-size: var(--text-body);
+    text-align: left;
+    line-height: var(--leading-normal);
+    cursor: pointer;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .q-option:not(:disabled):hover {
+    border-color: var(--border-strong);
+  }
+
+  .q-option.selected {
+    border-color: var(--primary);
+    background: var(--primary-surface);
+  }
+
+  .q-option.correct {
+    border-color: var(--primary);
+    background: var(--primary-surface);
+  }
+
+  .q-option.incorrect {
+    border-color: #b4232a;
+    background: #fdf1f1;
+  }
+
+  .q-letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 1.75rem;
+    height: 1.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+  }
+
+  .q-option.selected .q-letter,
+  .q-option.correct .q-letter {
+    border-color: var(--primary-border);
+    background: var(--surface);
+    color: var(--primary);
+  }
+
+  .q-option.incorrect .q-letter {
+    border-color: #b4232a;
+    color: #b4232a;
+  }
+
+  .q-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-4);
+    margin-top: var(--space-6);
+  }
+
+  .q-link {
+    color: var(--primary);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .q-link:hover {
+    color: var(--ink);
+  }
+
+  .q-feedback {
+    margin-top: var(--space-5);
+    padding: var(--space-5) var(--space-6);
+    border-radius: var(--radius-md);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .q-feedback.ok {
+    border: 1px solid var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  .q-feedback.bad {
+    border: 1px solid #e7c9cb;
+    background: #fdf6f6;
+  }
+
+  .q-verdict {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .q-feedback.bad .q-verdict {
+    color: #8f1d24;
+  }
+
+  .q-answer {
+    margin-top: var(--space-2);
+    color: var(--ink);
+  }
+
+  .q-explanation {
+    margin-top: var(--space-2);
+    color: var(--body);
+  }
+
+  /* --- pager -------------------------------------------------------------------------- */
+  .quiz-pager {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+  }
+
+  .quiz-pager [data-icon-flip] {
+    transform: scaleX(-1);
+  }
+
+  .pager-arrow {
+    margin-left: 0.4em;
+  }
+
+  /* --- results -------------------------------------------------------------------------- */
+  .results-title {
+    margin-top: var(--space-2);
+    font-size: clamp(1.75rem, 1.5rem + 1.2vw, 2.5rem);
+  }
+
+  .results-sub {
+    margin-top: var(--space-2);
+    color: var(--body);
+  }
+
+  .results-quote {
+    margin: var(--space-4) 0 0;
+  }
+
+  .results-quote p {
+    color: var(--mute);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-style: italic;
+  }
+
+  .results-score {
+    display: grid;
+    place-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-6);
+    padding-block: var(--space-8);
+    text-align: center;
+  }
+
+  .score-ring {
+    position: relative;
+    width: 10rem;
+    height: 10rem;
+  }
+
+  .score-ring svg {
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+  }
+
+  .ring-track,
+  .ring-fill {
+    fill: none;
+    stroke-width: 8;
+  }
+
+  .ring-track {
+    stroke: var(--border);
+  }
+
+  .ring-fill {
+    stroke: var(--primary);
+    stroke-linecap: round;
+    stroke-dasharray: 339.29;
+    stroke-dashoffset: 339.29;
+    transition: stroke-dashoffset 0.8s var(--ease);
+  }
+
+  .ring-center {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-content: center;
+    gap: var(--space-1);
+  }
+
+  .ring-score {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .ring-pct {
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-body-sm);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .score-label {
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+  }
+
+  .score-caption {
+    color: var(--mute);
+    font-size: var(--text-caption);
+  }
+
+  .results-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--space-4);
+    margin-top: var(--space-6);
+  }
+
+  .stat-card {
+    display: grid;
+    gap: var(--space-1);
+    text-align: center;
+  }
+
+  .stat-value {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-weight: var(--weight-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-wide {
+    font-size: var(--text-body-lg);
+  }
+
+  .stat-name {
+    color: var(--mute);
+    font-size: var(--text-caption);
+  }
+
+  .results-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    margin-top: var(--space-6);
+  }
+
+  .results-section {
+    padding-block: var(--space-4) 0;
+  }
+
+  .table-wrap {
+    margin-top: var(--space-4);
+    overflow-x: auto;
+  }
+
+  .results-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-body-sm);
+  }
+
+  .results-table th,
+  .results-table td {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .results-table thead th {
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .results-table tbody th {
+    color: var(--ink);
+    font-weight: var(--weight-medium);
+  }
+
+  .step-card {
+    display: grid;
+    gap: var(--space-2);
+    align-content: start;
+  }
+
+  .step-card svg {
+    color: var(--primary);
+  }
+
+  .step-card h3 {
+    font-size: var(--text-body-lg);
+  }
+
+  .step-card p {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+
+  .step-card .btn {
+    margin-top: var(--space-2);
+    justify-self: start;
+  }
+
+  .results-rail {
+    display: grid;
+    gap: var(--space-4);
+    margin-top: var(--space-10);
+  }
+
+  @media (min-width: 900px) {
+    .results-rail {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  /* --- review ------------------------------------------------------------------------------ */
+  .review-head {
+    padding-block: var(--space-4);
+  }
+
+  .review-list {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .review-options {
+    margin: var(--space-4) 0 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    gap: var(--space-2);
+  }
+
+  .review-options li {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  .review-options li.correct {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+    color: var(--ink);
+  }
+
+  .review-options li.incorrect {
+    border-color: #e7c9cb;
+    background: #fdf6f6;
+    color: #8f1d24;
+  }
+
+  .review-item.skipped .q-text {
+    color: var(--body);
+  }
+
+  .review-verdict {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-size: var(--text-caption);
+    font-family: var(--font-mono);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  /* --- rail quote ------------------------------------------------------------------------------ */
+  .rail-quote {
+    margin: 0;
+  }
+
+  .rail-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.4;
+    text-wrap: balance;
+  }
+
+  .rail-quote-attr {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    line-height: 1.7;
+    text-transform: uppercase;
+  }
+
+  .rail-help {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+
+  .quiz-nojs {
+    margin-top: var(--space-4);
+  }
+
+  @media (max-width: 1023px) {
+    .quiz-side {
+      order: 2;
+    }
+  }
+</style>

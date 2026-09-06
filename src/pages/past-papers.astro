@@ -1,0 +1,689 @@
+---
+/**
+ * Past papers.
+ *
+ * We hold no actual board/university paper files, so this page presents the
+ * honest equivalent: the question collection grouped by its real exam-pattern
+ * tags (board pattern, university midterm, university final). Every count,
+ * subject, and chip below is derived from real content; rows link to the
+ * full worked question instead of a download.
+ */
+import Layout from '../layouts/Layout.astro';
+import PageHeader from '../components/PageHeader.astro';
+import SidebarPanel from '../components/SidebarPanel.astro';
+import JsonLd from '../components/JsonLd.astro';
+import Icon from '../components/Icon.astro';
+import { getQuestions, getCollection } from '../utils/collections';
+
+const [questions, subjects] = await Promise.all([
+  getQuestions(),
+  getCollection('subjects'),
+]);
+
+const subjectTitle = (slug: string) =>
+  subjects.find((s) => s.slug === slug)?.data.title ?? slug;
+
+const chapterTitle = (subject: string, chapter?: string) => {
+  if (!chapter) return 'General';
+  return (
+    subjects.find((s) => s.slug === subject)?.data.chapters.find((c) => c.slug === chapter)
+      ?.title ?? chapter
+  );
+};
+
+const typeLabel: Record<string, string> = {
+  mcq: 'Multiple choice',
+  short: 'Short answer',
+  long: 'Long answer',
+  numerical: 'Numerical',
+};
+
+/** Exam-pattern groups from the real examTag values, largest first. */
+const patterns = [
+  ...new Set(questions.map((q) => q.data.examTag).filter((t): t is string => Boolean(t))),
+]
+  .map((tag) => {
+    const tagged = questions.filter((q) => q.data.examTag === tag);
+    return {
+      tag,
+      count: tagged.length,
+      bySubject: subjects
+        .map((subject) => ({
+          subject,
+          count: tagged.filter((q) => q.data.subject === subject.slug).length,
+        }))
+        .filter((row) => row.count > 0),
+    };
+  })
+  .sort((a, b) => b.count - a.count);
+
+/** Subjects that carry exam-tagged questions, for the filter and rail. */
+const filterSubjects = subjects
+  .map((subject) => ({
+    subject,
+    count: questions.filter((q) => q.data.subject === subject.slug).length,
+  }))
+  .filter((row) => row.count > 0)
+  .sort((a, b) => b.count - a.count);
+
+/** Question rows: everything the client-side filter needs. */
+const rows = questions.map((q) => ({
+  slug: q.slug,
+  question: q.data.question,
+  subject: q.data.subject,
+  subjectTitle: subjectTitle(q.data.subject),
+  chapter: chapterTitle(q.data.subject, q.data.chapter),
+  examTag: q.data.examTag ?? '',
+  type: q.data.type,
+  typeLabel: typeLabel[q.data.type],
+  difficulty: q.data.difficulty,
+  keywords: `${q.data.question} ${q.data.answer} ${q.data.examTag ?? ''} ${subjectTitle(q.data.subject)} ${chapterTitle(q.data.subject, q.data.chapter)}`.toLowerCase(),
+}));
+
+const totalTagged = questions.filter((q) => q.data.examTag).length;
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'Past papers — exam-pattern practice questions',
+  description:
+    'Practice questions grouped by exam pattern: board exam pattern, university midterms, and university finals, each with the full answer and explanation.',
+  url: new URL('/past-papers/', Astro.site).href,
+  isPartOf: { '@type': 'WebSite', name: 'Medical Study Notes', url: Astro.site!.href },
+  mainEntity: {
+    '@type': 'ItemList',
+    itemListElement: patterns.map((pattern, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: `${pattern.tag} questions`,
+      numberOfItems: pattern.count,
+    })),
+  },
+};
+---
+<Layout
+  title="Past Papers — Exam-Pattern Practice Questions | Medical Study Notes"
+  description="Practice with questions tagged to real exam patterns — board exams, university midterms, and finals — each with the full answer and a worked explanation."
+  path="/past-papers/"
+  footerSubjects={footerSubjects}
+  wide
+>
+  <JsonLd data={jsonLd} />
+
+  <PageHeader
+    kicker="Past Papers"
+    title="Practice Past Papers"
+    lead="Practice with exam-pattern questions — board exams, university midterms, and finals. Every question carries the full answer and a worked explanation, so you learn from every attempt."
+    crumbs={[{ label: 'Home', href: '/' }, { label: 'Past Papers' }]}
+    stats={[
+      { value: totalTagged, label: 'Exam-pattern questions', icon: 'question' },
+      { value: patterns.length, label: 'Exam patterns covered', icon: 'layers' },
+      { value: filterSubjects.length, label: 'Subjects', icon: 'book' },
+    ]}
+  >
+    <Fragment slot="aside">
+      <figure class="pp-quote">
+        <blockquote>
+          <p>The more you practice, the more prepared you become.</p>
+        </blockquote>
+        <figcaption>Success favors the prepared</figcaption>
+      </figure>
+    </Fragment>
+  </PageHeader>
+
+  <div class="container page-body">
+    <div class="pp-layout">
+      <div class="pp-main">
+        {/* --- browse by exam pattern ------------------------------------- */}
+        {patterns.length > 0 && (
+          <section class="section" aria-labelledby="by-pattern">
+            <div class="section-head-row">
+              <div>
+                <h2 id="by-pattern">Browse by exam pattern</h2>
+                <p>Question sets tagged by the exams they are styled on.</p>
+              </div>
+              <a class="link-arrow" href="/practice/">All practice questions</a>
+            </div>
+
+            <div class="grid grid-3 pattern-grid">
+              {patterns.map((pattern) => (
+                <div class="pattern-card">
+                  <span class="pattern-kicker">{pattern.count} question{pattern.count === 1 ? '' : 's'}</span>
+                  <span class="pattern-title">{pattern.tag}</span>
+                  <ul class="pattern-subjects">
+                    {pattern.bySubject.map(({ subject, count }) => (
+                      <li>
+                        <a href={`/practice/subject/${subject.slug}/`}>
+                          {subject.data.title}
+                          <span class="pattern-count">{count}</span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* --- filter panel + question list --------------------------------- */}
+        <section class="section" aria-labelledby="paper-list">
+          <div class="section-head-row">
+            <div>
+              <h2 id="paper-list">Exam-pattern questions</h2>
+              <p>Filter by subject, exam pattern, or type — or search the questions.</p>
+            </div>
+          </div>
+
+          <div class="panel panel-pad filter-panel">
+            <div class="filter-grid">
+              <div class="field">
+                <label for="pp-search">Search</label>
+                <input
+                  id="pp-search"
+                  type="search"
+                  placeholder="Search questions (e.g. SELECT, HTTP, recursion…)"
+                  autocomplete="off"
+                />
+              </div>
+
+              <div class="field">
+                <label for="pp-subject">Subject</label>
+                <select id="pp-subject">
+                  <option value="">All subjects</option>
+                  {filterSubjects.map(({ subject }) => (
+                    <option value={subject.slug}>{subject.data.title}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="pp-pattern">Exam pattern</label>
+                <select id="pp-pattern">
+                  <option value="">All patterns</option>
+                  {patterns.map((pattern) => (
+                    <option value={pattern.tag}>{pattern.tag}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div class="field">
+                <label for="pp-type">Type</label>
+                <select id="pp-type">
+                  <option value="">All types</option>
+                  {Object.entries(typeLabel).map(([value, label]) => (
+                    <option value={value}>{label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div class="filter-foot">
+              <p class="filter-status" data-status aria-live="polite">
+                Showing all {rows.length} question{rows.length === 1 ? '' : 's'}
+              </p>
+              <button class="btn btn-sm btn-secondary" type="button" data-clear>
+                <Icon name="refresh" size={14} />
+                Clear filters
+              </button>
+            </div>
+          </div>
+
+          <ul class="entry-list paper-list" data-list>
+            {rows.map((row) => (
+              <li data-row data-subject={row.subject} data-pattern={row.examTag} data-type={row.type} data-keywords={row.keywords}>
+                <a class="entry paper-entry" href={`/practice/${row.slug}/`}>
+                  <span class="paper-head">
+                    <span class="paper-title">{row.question}</span>
+                    <span class="paper-view">
+                      View
+                      <Icon name="arrow-right" size={14} />
+                    </span>
+                  </span>
+                  <span class="paper-chips">
+                    <span class="chip chip-subject">{row.subjectTitle}</span>
+                    <span class="chip">{row.chapter}</span>
+                    {row.examTag && <span class="chip chip-pattern">{row.examTag}</span>}
+                    <span class="chip">{row.typeLabel}</span>
+                    <span class="chip chip-{row.difficulty}">{row.difficulty}</span>
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+
+          <div class="empty-state" data-empty hidden>
+            <h3>No questions match</h3>
+            <p>
+              Try a different filter or search term, or browse
+              <a href="/practice/">all practice questions</a>.
+            </p>
+          </div>
+
+          <noscript>
+            <div class="notice notice-info nojs-notice">
+              Filtering needs JavaScript. All {rows.length} questions are listed above.
+            </div>
+          </noscript>
+        </section>
+      </div>
+
+      {/* --- rail ------------------------------------------------------------ */}
+      <aside class="pp-side" aria-label="Past paper links">
+        <SidebarPanel heading="Popular subjects" icon="book">
+          <ul class="rail-subjects">
+            {filterSubjects.map(({ subject, count }) => (
+              <li>
+                <a href={`/practice/subject/${subject.slug}/`}>
+                  <span>{subject.data.title}</span>
+                  <span class="rail-count">
+                    {count} question{count === 1 ? '' : 's'}
+                  </span>
+                </a>
+              </li>
+            ))}
+          </ul>
+          <a class="link-arrow" href="/subjects/">View all subjects</a>
+        </SidebarPanel>
+
+        <SidebarPanel variant="tint" heading="Study tip" icon="bulb">
+          <blockquote class="rail-quote">
+            <p>“Solving past papers helps you understand the exam pattern and manage your time better.”</p>
+          </blockquote>
+          <p class="rail-quote-attr">Practice Smarter<br />Score Higher</p>
+        </SidebarPanel>
+
+        <SidebarPanel heading="Need help?" icon="question">
+          <p class="rail-help">
+            Read our study guides on technique, revision, and exam preparation.
+          </p>
+          <a class="btn btn-secondary rail-help-btn" href="/blog/category/study-techniques/">
+            View study guides
+          </a>
+        </SidebarPanel>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    const searchEl = document.getElementById('pp-search') as HTMLInputElement | null;
+    const subjectEl = document.getElementById('pp-subject') as HTMLSelectElement | null;
+    const patternEl = document.getElementById('pp-pattern') as HTMLSelectElement | null;
+    const typeEl = document.getElementById('pp-type') as HTMLSelectElement | null;
+    const rows = [...document.querySelectorAll<HTMLElement>('[data-row]')];
+    const status = document.querySelector<HTMLElement>('[data-status]');
+    const empty = document.querySelector<HTMLElement>('[data-empty]');
+
+    function apply() {
+      const query = (searchEl?.value ?? '').trim().toLowerCase();
+      const subject = subjectEl?.value ?? '';
+      const pattern = patternEl?.value ?? '';
+      const type = typeEl?.value ?? '';
+
+      let visible = 0;
+      rows.forEach((row) => {
+        const match =
+          (!subject || row.dataset.subject === subject) &&
+          (!pattern || row.dataset.pattern === pattern) &&
+          (!type || row.dataset.type === type) &&
+          (!query || (row.dataset.keywords ?? '').includes(query));
+        row.toggleAttribute('hidden', !match);
+        if (match) visible += 1;
+      });
+
+      if (empty) empty.hidden = visible > 0;
+      if (status) {
+        status.textContent =
+          visible === rows.length
+            ? `Showing all ${rows.length} question${rows.length === 1 ? '' : 's'}`
+            : `${visible} of ${rows.length} question${rows.length === 1 ? '' : 's'}${
+                query ? ` matching “${searchEl!.value.trim()}”` : ''
+              }`;
+      }
+    }
+
+    searchEl?.addEventListener('input', apply);
+    subjectEl?.addEventListener('change', apply);
+    patternEl?.addEventListener('change', apply);
+    typeEl?.addEventListener('change', apply);
+
+    document.querySelector('[data-clear]')?.addEventListener('click', () => {
+      if (searchEl) searchEl.value = '';
+      if (subjectEl) subjectEl.value = '';
+      if (patternEl) patternEl.value = '';
+      if (typeEl) typeEl.value = '';
+      apply();
+    });
+  </script>
+</Layout>
+
+<style>
+  /* The pull-quote in the header aside. */
+  .pp-quote {
+    margin: 0;
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+  }
+
+  .pp-quote blockquote {
+    margin: 0;
+  }
+
+  .pp-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  .pp-quote figcaption {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .page-body {
+    padding-block: var(--space-12) var(--space-16);
+  }
+
+  /* --- main + rail layout ------------------------------------------------- */
+  .pp-layout {
+    display: grid;
+    gap: var(--space-8);
+  }
+
+  .pp-main,
+  .pp-side {
+    min-width: 0;
+  }
+
+  @media (min-width: 1024px) {
+    .pp-layout {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+      gap: var(--space-12);
+    }
+  }
+
+  /* --- exam-pattern cards ---------------------------------------------------- */
+  .pattern-grid {
+    gap: var(--space-4);
+  }
+
+  .pattern-card {
+    display: grid;
+    gap: var(--space-2);
+    align-content: start;
+    padding: var(--space-5) var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+  }
+
+  .pattern-kicker {
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .pattern-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+  }
+
+  .pattern-subjects {
+    display: grid;
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .pattern-subjects li + li {
+    border-top: 1px solid var(--border);
+  }
+
+  .pattern-subjects a {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+  }
+
+  .pattern-subjects a:hover {
+    color: var(--primary);
+  }
+
+  .pattern-count {
+    flex-shrink: 0;
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--weight-body);
+  }
+
+  /* --- filter panel ------------------------------------------------------------ */
+  .filter-grid {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  @media (min-width: 700px) {
+    .filter-grid {
+      grid-template-columns: minmax(0, 1fr) repeat(3, minmax(0, 11rem));
+    }
+
+    .filter-grid .field:first-child {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .filter-foot {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-top: var(--space-5);
+  }
+
+  .filter-status {
+    margin: 0;
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  /* --- question rows ---------------------------------------------------------------- */
+  .paper-list {
+    margin-top: var(--space-6);
+  }
+
+  .paper-entry {
+    display: grid;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: inherit;
+    text-decoration: none;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .paper-entry:hover {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  .paper-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  .paper-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    transition: color 0.15s var(--ease);
+  }
+
+  .paper-entry:hover .paper-title {
+    color: var(--primary);
+  }
+
+  .paper-view {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--primary);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
+  .paper-view svg {
+    transition: transform 0.15s var(--ease);
+  }
+
+  .paper-entry:hover .paper-view svg {
+    transform: translateX(2px);
+  }
+
+  .paper-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .chip {
+    padding: 2px var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    color: var(--body);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: 0.02em;
+    text-transform: capitalize;
+    white-space: nowrap;
+  }
+
+  .chip-subject {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+    color: var(--primary);
+  }
+
+  .chip-pattern {
+    border-color: var(--border-strong);
+    color: var(--ink);
+  }
+
+  .chip-easy {
+    color: var(--primary);
+  }
+
+  .chip-hard {
+    color: #b4232a;
+  }
+
+  .nojs-notice {
+    margin-top: var(--space-4);
+  }
+
+  /* --- rail --------------------------------------------------------------------------- */
+  .rail-subjects {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rail-subjects li + li {
+    border-top: 1px solid var(--border);
+  }
+
+  .rail-subjects a {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) 0;
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    font-weight: var(--weight-medium);
+    text-decoration: none;
+  }
+
+  .rail-subjects a:hover {
+    color: var(--primary);
+  }
+
+  .rail-count {
+    flex-shrink: 0;
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--weight-body);
+  }
+
+  .rail-quote {
+    margin: 0;
+  }
+
+  .rail-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.4;
+    text-wrap: balance;
+  }
+
+  .rail-quote-attr {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+    letter-spacing: var(--track-caps);
+    line-height: 1.7;
+    text-transform: uppercase;
+  }
+
+  .rail-help {
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+
+  .rail-help-btn {
+    margin-top: var(--space-4);
+  }
+</style>

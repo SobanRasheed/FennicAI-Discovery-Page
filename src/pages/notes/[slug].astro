@@ -54,6 +54,23 @@ const relatedQuestions = allQuestions.filter(
   (q) => q.data.subject === data.subject && q.data.chapter === data.chapter,
 );
 
+const subjectQuestions = allQuestions.filter((q) => q.data.subject === data.subject);
+
+// The next note in this subject (most recent first), wrapping around, for the
+// "Continue studying" rail.
+const subjectNotesByDate = [...allNotes]
+  .filter((n) => n.data.subject === data.subject)
+  .sort((a, b) => b.data.updatedDate.valueOf() - a.data.updatedDate.valueOf());
+const currentIndex = subjectNotesByDate.findIndex((n) => n.slug === note.slug);
+const nextNote =
+  subjectNotesByDate.length > 1
+    ? subjectNotesByDate[(currentIndex + 1) % subjectNotesByDate.length]
+    : undefined;
+
+/** Reading time from the raw markdown, at 200 words per minute. */
+const wordCount = (note.body ?? '').split(/\s+/).filter(Boolean).length;
+const readingMinutes = Math.max(1, Math.round(wordCount / 200));
+
 const subjectTopics = (await getCollection('topics')).filter((t) =>
   data.topics.includes(t.slug),
 );
@@ -140,6 +157,28 @@ const articleSchema = {
     <TableOfContents headings={tocHeadings} />
 
     <div class="rail-actions">
+      <button class="rail-action" type="button" data-note-action="print">
+        <Icon name="download" size={15} />
+        <span class="rail-action-label">Save as PDF</span>
+      </button>
+      <button class="rail-action" type="button" data-note-action="print">
+        <Icon name="print" size={15} />
+        <span class="rail-action-label">Print this page</span>
+      </button>
+      <button class="rail-action" type="button" data-note-action="share">
+        <Icon name="share" size={15} />
+        <span class="rail-action-label">Share this page</span>
+      </button>
+      <button
+        class="rail-action"
+        type="button"
+        data-note-action="save"
+        data-save-slug={note.slug}
+        aria-pressed="false"
+      >
+        <Icon name="bookmark" size={15} />
+        <span class="rail-action-label" data-save-label>Save note</span>
+      </button>
       <a class="rail-action" href="#references">
         <Icon name="file" size={15} />
         Jump to references
@@ -158,6 +197,7 @@ const articleSchema = {
     kickerHref={`/subjects/${data.subject}/`}
     standfirst={data.overview}
     updated={data.updatedDate}
+    readingMinutes={readingMinutes}
     author={author?.data.title}
     authorHref={author ? `/authors/${author.slug}/` : undefined}
   />
@@ -287,6 +327,47 @@ const articleSchema = {
       </SidebarPanel>
     )}
 
+    <SidebarPanel heading="Continue studying" icon="target">
+      <RelatedContent
+        items={[
+          {
+            href: `/subjects/${data.subject}/`,
+            title: `${subject?.data.title ?? data.subject} study notes`,
+            context: 'Complete subject notes',
+          },
+          ...(subjectQuestions.length > 0
+            ? [
+                {
+                  href: `/practice/subject/${data.subject}/`,
+                  title: `${subject?.data.title ?? data.subject} MCQs`,
+                  context: 'Practice questions',
+                },
+              ]
+            : []),
+          ...(nextNote
+            ? [
+                {
+                  href: `/notes/${nextNote.slug}/`,
+                  title: nextNote.data.title,
+                  context: 'Next in this subject',
+                },
+              ]
+            : []),
+          {
+            href: '/past-papers/',
+            title: 'Past papers',
+            context: 'Exam practice by board',
+          },
+        ]}
+        variant="list"
+        heading=""
+        level={3}
+        id="side-continue"
+        moreHref="/subjects/"
+        moreLabel="Explore more related topics"
+      />
+    </SidebarPanel>
+
     {subjectTopics.length > 0 && (
       <SidebarPanel heading="Topic hubs" icon="layers">
         <ul class="chevron-list">
@@ -320,13 +401,22 @@ const articleSchema = {
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-2) var(--space-3);
+    border: 0;
+    background: none;
     color: var(--mute);
+    font: inherit;
     font-size: var(--text-body-sm);
+    text-align: left;
     text-decoration: none;
     line-height: var(--leading-snug);
+    cursor: pointer;
   }
 
   .rail-action:hover {
+    color: var(--primary);
+  }
+
+  .rail-action[aria-pressed='true'] {
     color: var(--primary);
   }
 
@@ -477,3 +567,88 @@ const articleSchema = {
     line-height: var(--leading-prose);
   }
 </style>
+
+<script>
+  // Page actions. The two print actions open the print dialog (where every
+  // browser offers "Save as PDF"); share uses the Web Share API with a
+  // clipboard fallback that confirms on the button itself; save bookmarks the
+  // note into the same local list the blog articles use, so the Saved page
+  // shows everything in one place.
+
+  const SAVE_KEY = 'msn:saved-articles';
+  type SavedItem = { slug: string; title: string; href: string };
+
+  const savedList = (): SavedItem[] => {
+    try {
+      return JSON.parse(localStorage.getItem(SAVE_KEY) ?? '[]');
+    } catch {
+      return [];
+    }
+  };
+
+  const writeSaved = (list: SavedItem[]) => {
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(list));
+    } catch {
+      /* storage unavailable (private mode, disabled) — saving just won't persist */
+    }
+  };
+
+  document.querySelectorAll<HTMLButtonElement>('[data-note-action]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const action = btn.getAttribute('data-note-action');
+      if (action === 'print') {
+        window.print();
+        return;
+      }
+
+      if (action === 'save') {
+        const slug = btn.dataset.saveSlug!;
+        const list = savedList();
+        const label = btn.querySelector('[data-save-label]');
+        if (list.some((item) => item.slug === slug)) {
+          writeSaved(list.filter((item) => item.slug !== slug));
+          btn.setAttribute('aria-pressed', 'false');
+          if (label) label.textContent = 'Save note';
+        } else {
+          writeSaved([
+            ...list,
+            {
+              slug,
+              title: document.querySelector('h1')?.textContent?.trim() ?? slug,
+              href: window.location.pathname,
+            },
+          ]);
+          btn.setAttribute('aria-pressed', 'true');
+          if (label) label.textContent = 'Saved';
+        }
+        return;
+      }
+
+      const url = window.location.href;
+      const title = document.title;
+      if (navigator.share) {
+        navigator.share({ title, url }).catch(() => {});
+      } else if (navigator.clipboard) {
+        navigator.clipboard.writeText(url).then(() => {
+          const label = btn.querySelector('.rail-action-label');
+          if (!label) return;
+          const original = label.textContent;
+          label.textContent = 'Link copied!';
+          window.setTimeout(() => {
+            label.textContent = original;
+          }, 2000);
+        });
+      }
+    });
+  });
+
+  // Reflect an existing bookmark when the page loads.
+  const saveBtn = document.querySelector<HTMLButtonElement>('[data-note-action="save"]');
+  if (saveBtn) {
+    const isSaved = savedList().some((item) => item.slug === saveBtn.dataset.saveSlug);
+    saveBtn.setAttribute('aria-pressed', String(isSaved));
+    const label = saveBtn.querySelector('[data-save-label]');
+    if (label) label.textContent = isSaved ? 'Saved' : 'Save note';
+  }
+</script>

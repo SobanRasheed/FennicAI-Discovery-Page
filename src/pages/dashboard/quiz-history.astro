@@ -1,0 +1,450 @@
+---
+/**
+ * The quiz-history page (Figma's "Quiz History" screen). Every number here is
+ * computed from the browser-local history the quiz runner records when a quiz
+ * is finished — quizzes taken, average, best, questions answered, per-subject
+ * averages, and the achievements (which are earned by actual activity, not
+ * displayed as pre-unlocked badges).
+ */
+import Layout from '../../layouts/Layout.astro';
+import PageHeader from '../../components/PageHeader.astro';
+import StatCards from '../../components/StatCards.astro';
+import SidebarPanel from '../../components/SidebarPanel.astro';
+import { getCollection } from '../../utils/collections';
+
+const subjects = await getCollection('subjects');
+
+const footerSubjects = subjects.map((s) => ({
+  href: `/subjects/${s.slug}/`,
+  label: s.data.title,
+}));
+---
+<Layout
+  title="Quiz History | Medical Study Notes"
+  description="Your practice record: quiz results, scores by subject, and progress over time — kept in this browser."
+  path="/dashboard/quiz-history/"
+  noindex
+  footerSubjects={footerSubjects}
+  wide
+>
+  <PageHeader
+    kicker="Quiz History"
+    title="Your Quiz History"
+    lead="Track your practice and see how you improve over time. Results are recorded in this browser each time you finish a quiz — no account, nothing sent to our servers."
+    crumbs={[
+      { label: 'Home', href: '/' },
+      { label: 'Dashboard', href: '/dashboard/' },
+      { label: 'Quiz History' },
+    ]}
+  />
+
+  <div class="container page-body">
+    <section class="section" aria-label="Quiz summary">
+      <div data-quiz-stats>
+        <StatCards
+          stats={[
+            { value: '—', label: 'Quizzes taken', icon: 'question' },
+            { value: '—', label: 'Average score', icon: 'chart' },
+            { value: '—', label: 'Best score', icon: 'star' },
+            { value: '—', label: 'Questions answered', icon: 'layers' },
+          ]}
+        />
+      </div>
+    </section>
+
+    <div class="history-layout">
+      <div class="history-main">
+        {/* --- recent quizzes ------------------------------------------------- */}
+        <section class="section" aria-labelledby="recent-title">
+          <div class="section-head">
+            <h2 id="recent-title">Recent quizzes</h2>
+            <p>Your latest attempts, newest first.</p>
+          </div>
+
+          <ul class="quiz-list" data-quiz-list></ul>
+
+          <div class="empty-state panel panel-pad" data-quiz-empty hidden>
+            <h3>No quizzes yet</h3>
+            <p>Take a subject quiz and your results will be recorded here.</p>
+            <a class="btn btn-primary" href="/practice/">Start practicing</a>
+          </div>
+        </section>
+
+        {/* --- per-subject performance ---------------------------------------- */}
+        <section class="section" aria-labelledby="by-subject-title" data-by-subject hidden>
+          <div class="section-head">
+            <h2 id="by-subject-title">Performance by subject</h2>
+            <p>Your average score for each subject you've practiced.</p>
+          </div>
+
+          <div class="subject-bars" data-subject-bars></div>
+        </section>
+
+        {/* --- achievements ------------------------------------------------------ */}
+        <section class="section" aria-labelledby="achievements-title" data-achievements hidden>
+          <div class="section-head">
+            <h2 id="achievements-title">Achievements</h2>
+            <p>Earned from your actual activity — no participation trophies.</p>
+          </div>
+
+          <ul class="achievement-list" data-achievement-list></ul>
+        </section>
+      </div>
+
+      {/* --- rail --------------------------------------------------------------- */}
+      <div class="history-rail">
+        <SidebarPanel variant="tint" heading="Study tip" icon="bulb">
+          <p class="rail-copy">
+            Retake quizzes after a week to measure long-term recall.
+          </p>
+        </SidebarPanel>
+
+        <SidebarPanel heading="Where things live" icon="shield">
+          <p class="rail-copy">
+            Quiz history is stored only in this browser, capped at the most
+            recent 50 attempts. Clearing site data clears it.
+          </p>
+        </SidebarPanel>
+
+        <SidebarPanel heading="Keep going" icon="target">
+          <ul class="chevron-list">
+            <li><a href="/dashboard/">Your dashboard</a></li>
+            <li><a href="/dashboard/saved/">Saved items</a></li>
+            <li><a href="/practice/">Practice questions</a></li>
+          </ul>
+        </SidebarPanel>
+      </div>
+    </div>
+  </div>
+</Layout>
+
+<script>
+  import { readQuizHistory, fmtDate } from '../../scripts/local-data';
+
+  const escape = (value: string) =>
+    value.replace(/[&<>"']/g, (ch) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!,
+    );
+
+  const history = readQuizHistory();
+  const scoreClass = (pct: number) => (pct >= 80 ? 'score-high' : pct >= 50 ? 'score-mid' : 'score-low');
+
+  // --- stats -----------------------------------------------------------------
+  const tiles = document.querySelectorAll<HTMLElement>('[data-quiz-stats] .stat-value');
+  const answered = history.reduce((sum, r) => sum + r.total, 0);
+  const avg = history.length
+    ? Math.round(history.reduce((sum, r) => sum + r.pct, 0) / history.length)
+    : null;
+
+  const values = [
+    String(history.length),
+    history.length ? `${avg}%` : '—',
+    history.length ? `${Math.max(...history.map((r) => r.pct))}%` : '—',
+    String(answered),
+  ];
+  tiles.forEach((tile, i) => {
+    tile.textContent = values[i] ?? '—';
+  });
+
+  // --- recent quizzes ----------------------------------------------------------
+  const list = document.querySelector<HTMLUListElement>('[data-quiz-list]');
+  const empty = document.querySelector<HTMLElement>('[data-quiz-empty]');
+
+  if (list) {
+    if (history.length === 0) {
+      list.hidden = true;
+      empty?.removeAttribute('hidden');
+    } else {
+      list.innerHTML = history
+        .slice(0, 10)
+        .map(
+          (r) => `
+          <li class="quiz-row panel">
+            <div>
+              <h3>${escape(r.subject)} MCQs</h3>
+              <p class="quiz-meta">${fmtDate(r.date)} · ${r.total} question${r.total === 1 ? '' : 's'} · ${r.correct}/${r.total} correct</p>
+            </div>
+            <div class="quiz-row-side">
+              <span class="quiz-score ${scoreClass(r.pct)}">${r.pct}%</span>
+              <a class="btn btn-sm btn-secondary" href="/practice/quiz/${encodeURIComponent(r.subjectSlug)}/">Retake</a>
+            </div>
+          </li>`,
+        )
+        .join('');
+    }
+  }
+
+  // --- performance by subject -----------------------------------------------------
+  const bySubjectEl = document.querySelector<HTMLElement>('[data-by-subject]');
+  const barsEl = document.querySelector<HTMLElement>('[data-subject-bars]');
+
+  if (bySubjectEl && barsEl && history.length > 0) {
+    // Average per subject, most-practiced first.
+    const groups = new Map<string, { subject: string; subjectSlug: string; total: number; sum: number }>();
+    for (const r of history) {
+      const entry = groups.get(r.subjectSlug) ?? {
+        subject: r.subject,
+        subjectSlug: r.subjectSlug,
+        total: 0,
+        sum: 0,
+      };
+      entry.total += 1;
+      entry.sum += r.pct;
+      groups.set(r.subjectSlug, entry);
+    }
+    const rows = [...groups.values()].sort((a, b) => b.total - a.total);
+
+    barsEl.innerHTML = rows
+      .map((row) => {
+        const pct = Math.round(row.sum / row.total);
+        return `
+        <div class="subject-bar">
+          <div class="subject-bar-head">
+            <span class="subject-name">${escape(row.subject)}</span>
+            <span class="subject-meta">${pct}% avg · ${row.total} attempt${row.total === 1 ? '' : 's'}</span>
+          </div>
+          <div class="bar-track" role="img" aria-label="${escape(row.subject)}: ${pct}% average over ${row.total} attempt${row.total === 1 ? '' : 's'}">
+            <div class="bar-fill ${scoreClass(pct)}" style="width: ${pct}%"></div>
+          </div>
+        </div>`;
+      })
+      .join('');
+
+    bySubjectEl.removeAttribute('hidden');
+  }
+
+  // --- achievements ---------------------------------------------------------------
+  const achievementsEl = document.querySelector<HTMLElement>('[data-achievements]');
+  const achievementList = document.querySelector<HTMLUListElement>('[data-achievement-list]');
+
+  if (achievementsEl && achievementList) {
+    // Each achievement below is only listed when the history actually earns it.
+    const above80 = history.filter((r) => r.pct >= 80).length;
+    const distinctDays = new Set(history.map((r) => r.date.slice(0, 10))).size;
+
+    const earned: { icon: string; title: string; detail: string }[] = [];
+    if (history.length > 0) {
+      earned.push({ icon: 'star', title: 'First quiz completed', detail: 'Getting started' });
+    }
+    if (above80 > 0) {
+      earned.push({
+        icon: 'target',
+        title: 'Scored above 80%',
+        detail: `${above80} quiz${above80 === 1 ? '' : 'zes'}`,
+      });
+    }
+    if (distinctDays >= 3) {
+      earned.push({
+        icon: 'refresh',
+        title: 'Practiced on multiple days',
+        detail: `${distinctDays} separate days`,
+      });
+    }
+
+    if (earned.length > 0) {
+      achievementList.innerHTML = earned
+        .map(
+          (a) => `
+          <li class="achievement panel">
+            <span class="achievement-icon" aria-hidden="true">★</span>
+            <div>
+              <h3>${escape(a.title)}</h3>
+              <p>${escape(a.detail)}</p>
+            </div>
+          </li>`,
+        )
+        .join('');
+      achievementsEl.removeAttribute('hidden');
+    }
+  }
+</script>
+
+<style>
+  .page-body {
+    padding-block: var(--space-12) var(--space-16);
+  }
+
+  .history-layout {
+    display: grid;
+    gap: var(--space-10);
+    align-items: start;
+  }
+
+  @media (min-width: 1024px) {
+    .history-layout {
+      grid-template-columns: minmax(0, 1fr) 20rem;
+    }
+  }
+
+  .history-rail {
+    display: grid;
+    gap: var(--space-5);
+  }
+
+  .rail-copy {
+    color: var(--ink);
+    font-size: var(--text-body-sm);
+    line-height: var(--leading-normal);
+  }
+
+  /* --- quiz rows ------------------------------------------------------------- */
+  .quiz-list {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .quiz-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+  }
+
+  .quiz-row h3 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+  }
+
+  .quiz-meta {
+    margin-top: var(--space-1);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  .quiz-row-side {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    flex-shrink: 0;
+  }
+
+  .quiz-score {
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-display);
+  }
+
+  .score-high {
+    color: var(--primary);
+  }
+
+  .score-mid {
+    color: var(--ink);
+  }
+
+  .score-low {
+    color: var(--mute);
+  }
+
+  /* --- subject bars --------------------------------------------------------------- */
+  .subject-bars {
+    display: grid;
+    gap: var(--space-5);
+  }
+
+  .subject-bar-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-4);
+    margin-bottom: var(--space-2);
+  }
+
+  .subject-name {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+  }
+
+  .subject-meta {
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-micro);
+  }
+
+  .bar-track {
+    width: 100%;
+    height: 0.5rem;
+    border-radius: 999px;
+    background: var(--surface-sunken);
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: var(--ink);
+  }
+
+  .bar-fill.score-high {
+    background: var(--primary);
+  }
+
+  .bar-fill.score-low {
+    background: var(--mute);
+  }
+
+  /* --- achievements -------------------------------------------------------------------- */
+  .achievement-list {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .achievement {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .achievement-icon {
+    display: grid;
+    place-items: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    flex-shrink: 0;
+    border-radius: var(--radius-sm);
+    background: var(--primary-surface);
+    color: var(--primary);
+    font-size: 1.125rem;
+  }
+
+  .achievement h3 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body);
+    font-weight: var(--weight-semibold);
+  }
+
+  .achievement p {
+    margin-top: var(--space-1);
+    color: var(--mute);
+    font-size: var(--text-body-sm);
+  }
+
+  /* --- empty state -------------------------------------------------------------------------- */
+  .empty-state[hidden] {
+    display: none;
+  }
+
+  .empty-state h3 {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .empty-state p {
+    margin: var(--space-2) 0 var(--space-4);
+    color: var(--body);
+    font-size: var(--text-body-sm);
+  }
+</style>

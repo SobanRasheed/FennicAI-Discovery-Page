@@ -1,7 +1,9 @@
 ---
 import Layout from '../../layouts/Layout.astro';
 import PageHeader from '../../components/PageHeader.astro';
-import Icon from '../../components/Icon.astro';
+import Search from '../../components/Search.astro';
+import JsonLd from '../../components/JsonLd.astro';
+import Illustration, { illustrationForSubject } from '../../components/Illustration.astro';
 import { getCollection, getNotes, getQuestions } from '../../utils/collections';
 
 const [subjects, notes, questions] = await Promise.all([
@@ -10,151 +12,259 @@ const [subjects, notes, questions] = await Promise.all([
   getQuestions(),
 ]);
 
+/** Subjects with a PNG icon in /assets/landing/; the rest fall back to a drawing. */
+const pngSubjects = new Set([
+  'anatomy',
+  'biochemistry',
+  'community-medicine',
+  'forensic-medicine',
+  'microbiology',
+  'pathology',
+  'pharmacology',
+  'physiology',
+]);
+
+const subjectIcon = (slug: string) =>
+  pngSubjects.has(slug) ? `/assets/landing/subject-${slug}.png` : undefined;
+
 const rows = subjects.map((subject) => ({
   subject,
   noteCount: notes.filter((n) => n.data.subject === subject.slug).length,
   mcqCount: questions.filter((q) => q.data.subject === subject.slug).length,
-  chapters: subject.data.chapters,
 }));
+
+/** The two curriculum halves from the design. Anything unlisted lands in
+    Clinical Sciences, and an empty group renders nothing. */
+const coreSlugs = new Set([
+  'anatomy',
+  'physiology',
+  'biochemistry',
+  'pharmacology',
+  'pathology',
+  'microbiology',
+  'forensic-medicine',
+  'community-medicine',
+]);
+
+const groups = [
+  {
+    title: 'Core Medical Sciences',
+    blurb: 'Build your foundation with the basic medical sciences.',
+    rows: rows.filter((r) => coreSlugs.has(r.subject.slug)),
+  },
+  {
+    title: 'Clinical Sciences',
+    blurb: 'Explore subjects focused on the diagnosis and management of diseases.',
+    rows: rows.filter((r) => !coreSlugs.has(r.subject.slug)),
+  },
+].filter((g) => g.rows.length > 0);
 
 const footerSubjects = subjects.map((s) => ({
   href: `/subjects/${s.slug}/`,
   label: s.data.title,
 }));
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'All medical subjects',
+  description:
+    'Find study notes, MCQs and educational resources organized by subject.',
+  url: new URL('/subjects/', Astro.site).href,
+  isPartOf: { '@type': 'WebSite', name: 'Medical Study Notes', url: Astro.site!.href },
+  mainEntity: {
+    '@type': 'ItemList',
+    itemListElement: rows.map((r, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: r.subject.data.title,
+      url: new URL(`/subjects/${r.subject.slug}/`, Astro.site).href,
+    })),
+  },
+};
 ---
 
 <Layout
-  title="Subjects | Medical Study Notes"
-  description="Every subject on Medical Study Notes, each with chapter-organised study notes, practice questions, and the exams the material maps to."
+  title="All Subjects | Medical Study Notes"
+  description="Explore all medical subjects on Medical Study Notes — study notes, MCQs and educational resources organized by subject, from the core sciences to clinical specialties."
   path="/subjects/"
   footerSubjects={footerSubjects}
   wide
 >
+  <JsonLd data={jsonLd} />
+
   <PageHeader
-    kicker="Subjects"
-    title="Medical subjects"
-    lead="Each subject hub organises its notes by chapter, lists the exams the material maps to, and links every related topic hub."
-    crumbs={[{ label: 'Subjects' }]}
-    stats={[
-      { value: subjects.length, label: 'Subjects', icon: 'book' },
-      { value: notes.length, label: 'Study notes', icon: 'notes' },
-      { value: questions.length, label: 'Practice questions', icon: 'question' },
-    ]}
-  />
+    kicker="All Subjects"
+    title="Explore all medical subjects"
+    lead="Find study notes, MCQs and educational resources organized by subject."
+    crumbs={[{ href: '/', label: 'Home' }, { label: 'Subjects' }]}
+  >
+    <div class="subjects-search">
+      <Search
+        variant="hero"
+        id="subjects-search"
+        placeholder="Search subjects, topics or resources…"
+        label="Search subjects, topics or resources"
+      />
+    </div>
+
+    <Fragment slot="aside">
+      <figure class="subjects-quote">
+        <blockquote>
+          <p>Medicine is a science of uncertainty and an art of probability.</p>
+        </blockquote>
+        <figcaption>Sir William Osler</figcaption>
+      </figure>
+    </Fragment>
+  </PageHeader>
 
   <div class="container page-body">
-    {/* One bordered panel per subject: title, description, real counts, and a
-        preview of the chapter taxonomy so the depth is visible up front. */}
-    <div class="subjects">
-      {rows.map(({ subject, noteCount, mcqCount, chapters }) => (
-        <section class="sub-panel" aria-labelledby={`sub-${subject.slug}`}>
-          <div class="sub-head">
-            <h2 id={`sub-${subject.slug}`} class="sub-title">
-              <a href={`/subjects/${subject.slug}/`}>{subject.data.title}</a>
-            </h2>
-            <p class="sub-desc">{subject.data.description}</p>
-            <p class="sub-counts">
-              <span class="meta-item"><Icon name="notes" size={15} />{noteCount} note{noteCount === 1 ? '' : 's'}</span>
-              {mcqCount > 0 && (
-                <span class="meta-item"><Icon name="question" size={15} />{mcqCount} question{mcqCount === 1 ? '' : 's'}</span>
-              )}
-              {chapters.length > 0 && (
-                <span class="meta-item"><Icon name="layers" size={15} />{chapters.length} chapter{chapters.length === 1 ? '' : 's'}</span>
-              )}
-            </p>
+    {groups.map((group) => (
+      <section class="section section-plain" aria-labelledby={`group-${group.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
+        <div class="section-head-row">
+          <div>
+            <h2 id={`group-${group.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>{group.title}</h2>
+            <p>{group.blurb}</p>
           </div>
+          <a class="link-arrow" href="/notes/">View all</a>
+        </div>
 
-          {chapters.length > 0 && (
-            <ul class="chevron-list sub-chapters">
-              {chapters.slice(0, 5).map((chapter) => (
-                <li>
-                  <a href={`/subjects/${subject.slug}/#ch-${chapter.slug}`}>{chapter.title}</a>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <a class="link-arrow sub-more" href={`/subjects/${subject.slug}/`}>
-            Open {subject.data.title}
-          </a>
-        </section>
-      ))}
-    </div>
+        <div class="grid grid-3 subject-grid">
+          {group.rows.map(({ subject, noteCount, mcqCount }) => (
+            <a class="subj-card" href={`/subjects/${subject.slug}/`}>
+              <span class="subj-art" aria-hidden="true">
+                {subjectIcon(subject.slug) ? (
+                  <img src={subjectIcon(subject.slug)} alt="" loading="lazy" decoding="async" />
+                ) : (
+                  <Illustration name={illustrationForSubject(subject.slug)} size={40} />
+                )}
+              </span>
+              <span class="subj-title">{subject.data.title}</span>
+              <span class="subj-counts">
+                {noteCount > 0 ? `${noteCount} notes` : 'Study notes'}
+                {mcqCount > 0 ? ` · ${mcqCount} MCQs` : ''}
+              </span>
+              <span class="subj-desc">{subject.data.description}</span>
+            </a>
+          ))}
+        </div>
+      </section>
+    ))}
   </div>
 </Layout>
 
 <style>
+  .subjects-search {
+    margin-top: var(--space-6);
+    max-width: 36rem;
+  }
+
+  /* The Osler pull-quote in the header aside. */
+  .subjects-quote {
+    margin: 0;
+    padding: var(--space-6);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+  }
+
+  .subjects-quote blockquote {
+    margin: 0;
+  }
+
+  .subjects-quote p {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-display-sm);
+    font-style: italic;
+    font-weight: var(--weight-medium);
+    line-height: 1.35;
+    text-wrap: balance;
+  }
+
+  .subjects-quote figcaption {
+    margin-top: var(--space-3);
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    letter-spacing: var(--track-caps);
+    text-transform: uppercase;
+  }
+
   .page-body {
     padding-block: var(--space-12) var(--space-16);
   }
 
-  .subjects {
-    display: grid;
+  .subject-grid {
     gap: var(--space-4);
   }
 
-  @media (min-width: 700px) {
-    .subjects {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  @media (min-width: 1100px) {
-    .subjects {
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-    }
-  }
-
-  .sub-panel {
-    display: flex;
-    flex-direction: column;
+  /* One bordered tile per subject: art well, title, counts, description. */
+  .subj-card {
+    display: grid;
+    gap: var(--space-2);
     padding: var(--space-6);
     border: 1px solid var(--border);
     border-radius: var(--radius-md);
     background: var(--surface);
-  }
-
-  .sub-title {
-    font-size: var(--text-display-md);
-  }
-
-  .sub-title a {
-    color: var(--ink);
+    color: inherit;
     text-decoration: none;
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
   }
 
-  .sub-title a:hover {
+  .subj-card:hover {
+    border-color: var(--primary-border);
+    background: var(--primary-surface);
+  }
+
+  .subj-art {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 4.5rem;
+    height: 4.5rem;
+    margin-bottom: var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface-sunken);
+    color: var(--primary);
+    transition: border-color 0.15s var(--ease), background-color 0.15s var(--ease);
+  }
+
+  .subj-card:hover .subj-art {
+    border-color: var(--primary-border);
+    background: var(--surface);
+  }
+
+  .subj-art img {
+    width: 2.75rem;
+    height: 2.75rem;
+    object-fit: contain;
+  }
+
+  .subj-title {
+    color: var(--ink);
+    font-family: var(--font-display);
+    font-size: var(--text-body-lg);
+    font-weight: var(--weight-semibold);
+    line-height: var(--leading-snug);
+    transition: color 0.15s var(--ease);
+  }
+
+  .subj-card:hover .subj-title {
     color: var(--primary);
   }
 
-  .sub-desc {
-    margin-top: var(--space-2);
+  .subj-counts {
+    color: var(--mute);
+    font-family: var(--font-mono);
+    font-size: var(--text-caption);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .subj-desc {
     color: var(--mute);
     font-size: var(--text-body-sm);
     line-height: var(--leading-normal);
-  }
-
-  .sub-counts {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2) var(--space-4);
-    margin-top: var(--space-4);
-    color: var(--mute);
-    font-size: var(--text-caption);
-  }
-
-  .sub-counts svg {
-    color: var(--faint);
-  }
-
-  .sub-chapters {
-    margin-top: var(--space-4);
-    padding-top: var(--space-1);
-    border-top: 1px solid var(--border);
-  }
-
-  .sub-more {
-    margin-top: auto;
-    padding-top: var(--space-4);
   }
 </style>
